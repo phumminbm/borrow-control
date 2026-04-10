@@ -50,8 +50,7 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW(),
-            UNIQUE(borrow_no, product_code)
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
     db.execute(text("""
@@ -214,21 +213,32 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                        "alert": row.borrow_alert, "now": now})
                 stats["inserted"] += 1
 
-            # ── Insert item ถ้ายังไม่มี (ไม่ลบของเดิม) ───────────
+            # ── เช็คก่อน insert item (ไม่ใช้ ON CONFLICT) ─────────
             if row.product_code:
-                db.execute(text("""
-                    INSERT INTO borrow_items
-                        (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-                    VALUES (:bno, :code, :name, :price, :qty, :total, :now)
-                    ON CONFLICT (borrow_no, product_code) DO UPDATE SET
-                        product_name = EXCLUDED.product_name,
-                        price        = EXCLUDED.price,
-                        quantity     = EXCLUDED.quantity,
-                        total_price  = EXCLUDED.total_price,
-                        updated_at   = EXCLUDED.updated_at
-                """), {"bno": row.borrow_no, "code": row.product_code,
-                       "name": row.product_name, "price": row.price,
-                       "qty": row.quantity, "total": row.total_price, "now": now})
+                existing = db.execute(text("""
+                    SELECT id FROM borrow_items
+                    WHERE borrow_no=:bno AND product_code=:code
+                """), {"bno": row.borrow_no, "code": row.product_code}).fetchone()
+
+                if existing:
+                    # update ถ้ามีอยู่แล้ว
+                    db.execute(text("""
+                        UPDATE borrow_items SET
+                            product_name=:name, price=:price,
+                            quantity=:qty, total_price=:total, updated_at=:now
+                        WHERE borrow_no=:bno AND product_code=:code
+                    """), {"name": row.product_name, "price": row.price,
+                           "qty": row.quantity, "total": row.total_price,
+                           "now": now, "bno": row.borrow_no, "code": row.product_code})
+                else:
+                    # insert ถ้ายังไม่มี
+                    db.execute(text("""
+                        INSERT INTO borrow_items
+                            (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
+                        VALUES (:bno, :code, :name, :price, :qty, :total, :now)
+                    """), {"bno": row.borrow_no, "code": row.product_code,
+                           "name": row.product_name, "price": row.price,
+                           "qty": row.quantity, "total": row.total_price, "now": now})
 
         except Exception as e:
             stats["errors"] += 1
