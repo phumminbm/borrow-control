@@ -268,3 +268,13 @@ def debug(db: Session = Depends(get_db)):
         return {"customers": c, "borrows": b, "borrow_items": i}
     except Exception as e:
         return {"error": str(e)}
+@app.get("/debug-br")
+def debug_br(db: Session = Depends(get_db)):
+    # ดู borrows 3 แถวแรก
+    brs = db.execute(text("SELECT borrow_no, cust_code, days_borrowed FROM borrows LIMIT 3")).fetchall()
+    # ดู customers 3 แถวแรก  
+    custs = db.execute(text("SELECT cust_code, customer_name FROM customers LIMIT 3")).fetchall()
+    return {
+        "sample_borrows": [dict(r._mapping) for r in brs],
+        "sample_customers": [dict(r._mapping) for r in custs],
+    }
