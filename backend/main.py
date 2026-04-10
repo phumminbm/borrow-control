@@ -278,3 +278,8 @@ def debug_br(db: Session = Depends(get_db)):
         "sample_borrows": [dict(r._mapping) for r in brs],
         "sample_customers": [dict(r._mapping) for r in custs],
     }
+@app.delete("/reset-db")
+def reset_db(db: Session = Depends(get_db)):
+    db.execute(text("TRUNCATE borrow_items, borrows, customers, sync_logs RESTART IDENTITY CASCADE"))
+    db.commit()
+    return {"success": True, "message": "DB cleared"}
