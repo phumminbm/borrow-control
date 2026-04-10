@@ -259,3 +259,12 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     except: pass
 
     return {"success": True, "duration_ms": duration, **stats}
+@app.get("/debug")
+def debug(db: Session = Depends(get_db)):
+    try:
+        b = db.execute(text("SELECT COUNT(*) FROM borrows")).fetchone()[0]
+        c = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
+        i = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        return {"customers": c, "borrows": b, "borrow_items": i}
+    except Exception as e:
+        return {"error": str(e)}
