@@ -50,7 +50,8 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(borrow_no, product_code)
         )
     """))
     db.execute(text("""
@@ -121,6 +122,7 @@ def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
         items = db.execute(text("""
             SELECT product_code, product_name, price, quantity, total_price
             FROM borrow_items WHERE borrow_no=:bno
+            ORDER BY product_code
         """), {"bno": br.borrow_no}).fetchall()
         result.append({**dict(br._mapping), "items": [dict(i._mapping) for i in items]})
     return result
@@ -159,6 +161,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     sheet_brs = {r.borrow_no for r in payload.rows if r.borrow_no}
 
+    # ── Upsert customers ──────────────────────────────────────────
     cust_map = {}
     for row in payload.rows:
         if not row.borrow_no or not row.cust_code: continue
@@ -186,12 +189,14 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                    "max_days": c["max_days"], "count": c["count"], "now": now})
         except: stats["errors"] += 1
 
+    # ── Upsert borrows + items ────────────────────────────────────
     for row in payload.rows:
         if not row.borrow_no: continue
         try:
             ex = db.execute(text(
                 "SELECT borrow_no FROM borrows WHERE borrow_no=:bno"
             ), {"bno": row.borrow_no}).fetchone()
+
             if ex:
                 db.execute(text("""
                     UPDATE borrows SET days_borrowed=:days,borrow_alert=:alert,
@@ -208,18 +213,29 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                        "status": row.status, "days": row.days_borrowed,
                        "alert": row.borrow_alert, "now": now})
                 stats["inserted"] += 1
-            db.execute(text("DELETE FROM borrow_items WHERE borrow_no=:bno"), {"bno": row.borrow_no})
+
+            # ── Insert item ถ้ายังไม่มี (ไม่ลบของเดิม) ───────────
             if row.product_code:
                 db.execute(text("""
-                    INSERT INTO borrow_items (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
-                    VALUES (:bno,:code,:name,:price,:qty,:total,:now)
-                """), {"bno": row.borrow_no, "code": row.product_code, "name": row.product_name,
-                       "price": row.price, "qty": row.quantity, "total": row.total_price, "now": now})
-        except:
+                    INSERT INTO borrow_items
+                        (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
+                    VALUES (:bno, :code, :name, :price, :qty, :total, :now)
+                    ON CONFLICT (borrow_no, product_code) DO UPDATE SET
+                        product_name = EXCLUDED.product_name,
+                        price        = EXCLUDED.price,
+                        quantity     = EXCLUDED.quantity,
+                        total_price  = EXCLUDED.total_price,
+                        updated_at   = EXCLUDED.updated_at
+                """), {"bno": row.borrow_no, "code": row.product_code,
+                       "name": row.product_name, "price": row.price,
+                       "qty": row.quantity, "total": row.total_price, "now": now})
+
+        except Exception as e:
             stats["errors"] += 1
             try: db.rollback()
             except: pass
 
+    # ── Close BRs ที่หายจาก Sheet ────────────────────────────────
     try:
         active = db.execute(text(
             "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
@@ -259,6 +275,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     except: pass
 
     return {"success": True, "duration_ms": duration, **stats}
+
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
     try:
@@ -268,16 +285,7 @@ def debug(db: Session = Depends(get_db)):
         return {"customers": c, "borrows": b, "borrow_items": i}
     except Exception as e:
         return {"error": str(e)}
-@app.get("/debug-br")
-def debug_br(db: Session = Depends(get_db)):
-    # ดู borrows 3 แถวแรก
-    brs = db.execute(text("SELECT borrow_no, cust_code, days_borrowed FROM borrows LIMIT 3")).fetchall()
-    # ดู customers 3 แถวแรก  
-    custs = db.execute(text("SELECT cust_code, customer_name FROM customers LIMIT 3")).fetchall()
-    return {
-        "sample_borrows": [dict(r._mapping) for r in brs],
-        "sample_customers": [dict(r._mapping) for r in custs],
-    }
+
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
     db.execute(text("TRUNCATE borrow_items, borrows, customers, sync_logs RESTART IDENTITY CASCADE"))
