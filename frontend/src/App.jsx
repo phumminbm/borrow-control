@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import SaleView from "./components/SaleView";
 import AdminView from "./components/AdminView";
 
-const MOCK_MODE = true; // เปลี่ยนเป็น false เมื่อเชื่อม API จริง
+const MOCK_MODE = false; // เปลี่ยนเป็น false เมื่อเชื่อม API จริง
 const API_BASE  = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const TEAMS = {
