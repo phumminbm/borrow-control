@@ -22,14 +22,13 @@ function badge(status) {
   </span>;
 }
 
-// ── Modal 2: BR Items ─────────────────────────────────────────────
 function BRDetailModal({ br, onClose }) {
   if (!br) return null;
   const items = br.items || [];
   const total = items.reduce((s,i) => s + (Number(i.total_price)||0), 0);
 
   return (
-    <div style={S.overlay} onClick={e => e.target===e.currentTarget&&onClose()}>
+    <div style={{...S.overlay, zIndex:1100}} onClick={e => e.target===e.currentTarget&&onClose()}>
       <div style={S.modal} onClick={e=>e.stopPropagation()}>
         <div style={S.mhead}>
           <div>
@@ -42,7 +41,6 @@ function BRDetailModal({ br, onClose }) {
           </div>
           <button style={S.closeBtn} onClick={onClose}>✕</button>
         </div>
-
         <div style={{padding:"12px 14px",flex:1}}>
           {items.length === 0 ? (
             <div style={{padding:"20px",textAlign:"center",fontSize:12,color:"#aaa"}}>ยังไม่มีข้อมูลสินค้า</div>
@@ -73,7 +71,6 @@ function BRDetailModal({ br, onClose }) {
             </table>
           )}
         </div>
-
         <div style={S.mfoot}>
           <button style={S.btnGray} onClick={onClose}>← กลับ</button>
           <button style={S.btnGray} onClick={onClose}>ปิด</button>
@@ -83,7 +80,6 @@ function BRDetailModal({ br, onClose }) {
   );
 }
 
-// ── Modal 1: BR List ──────────────────────────────────────────────
 function CustomerModal({ customer, onClose }) {
   const [brs, setBrs]         = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,12 +101,12 @@ function CustomerModal({ customer, onClose }) {
     <>
       <div style={S.overlay} onClick={e => e.target===e.currentTarget&&onClose()}>
         <div style={S.modal} onClick={e=>e.stopPropagation()}>
-          {/* Header */}
           <div style={S.mhead}>
             <div>
               <div style={{fontSize:14,fontWeight:600}}>{customer.customer_name}</div>
               <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <span>Sale: {customer.sale}</span><span>·</span>
+                <span style={{background:"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:"#555"}}>{customer.cust_code}</span>
+                <span>·</span><span>Sale: {customer.sale}</span><span>·</span>
                 <span>{customer.active_br_count} BR active</span><span>·</span>
                 <span style={{color:customer.max_days>180?"#A32D2D":customer.max_days>90?"#854F0B":"#555",fontWeight:500}}>
                   วันค้างสูงสุด {customer.max_days} วัน
@@ -121,7 +117,6 @@ function CustomerModal({ customer, onClose }) {
             <button style={S.closeBtn} onClick={onClose}>✕</button>
           </div>
 
-          {/* BR List */}
           <div style={{flex:1,overflowY:"auto"}}>
             {loading ? (
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>กำลังโหลด BR...</div>
@@ -157,14 +152,11 @@ function CustomerModal({ customer, onClose }) {
           </div>
         </div>
       </div>
-
-      {/* Modal 2 on top */}
       {selectedBr && <BRDetailModal br={selectedBr} onClose={() => setSelectedBr(null)}/>}
     </>
   );
 }
 
-// ── Main SaleView ─────────────────────────────────────────────────
 export default function SaleView({ customers }) {
   const [search, setSearch]           = useState("");
   const [saleFilter, setSaleFilter]   = useState("");
@@ -174,26 +166,26 @@ export default function SaleView({ customers }) {
   const allSales = [...new Set(customers.map(c => c.sale))].sort();
 
   const filtered = customers.filter(c =>
-    (!search || c.customer_name.toLowerCase().includes(search.toLowerCase())) &&
+    (!search || 
+      c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
+      c.cust_code.toLowerCase().includes(search.toLowerCase())
+    ) &&
     (!saleFilter || c.sale === saleFilter) &&
     (!statusFilter || c.status === statusFilter)
   ).sort((a,b) => b.max_days - a.max_days);
 
   const bl = filtered.filter(c => c.status==="BLOCK").length;
   const wa = filtered.filter(c => c.status==="WARNING").length;
-
   const rowBg = s => s==="BLOCK"?"rgba(252,235,235,0.35)":s==="WARNING"?"rgba(250,238,218,0.35)":"transparent";
 
   return (
     <div>
-      {/* Alert banner */}
       {bl > 0 && (
         <div style={{background:"#FCEBEB",border:"0.5px solid #F09595",borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:"#791F1F",display:"flex",gap:6}}>
           <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน — ติดต่อเพื่อเคลียสินค้าด่วน
         </div>
       )}
 
-      {/* Metrics */}
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         {[["ลูกค้าทั้งหมด",filtered.length,null],["BLOCK",bl,"#A32D2D"],["WARNING",wa,"#854F0B"],["NORMAL",filtered.length-bl-wa,"#3B6D11"]].map(([label,val,color])=>(
           <div key={label} style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px",flex:1,minWidth:80}}>
@@ -203,10 +195,9 @@ export default function SaleView({ customers }) {
         ))}
       </div>
 
-      {/* Filters */}
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาชื่อลูกค้า..."
-          style={{flex:1,minWidth:160,maxWidth:260,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหารหัสหรือชื่อลูกค้า..."
+          style={{flex:1,minWidth:180,maxWidth:280,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
         <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
           style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,minWidth:140,background:"#fff"}}>
           <option value="">ทุก Sale</option>
@@ -219,23 +210,27 @@ export default function SaleView({ customers }) {
         </select>
       </div>
 
-      {/* Table */}
       <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden"}}>
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <thead style={{background:"#f9f9f7",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
             <tr>
-              {["#","ชื่อลูกค้า","Sale","BR","วันค้างสูงสุด","สถานะ",""].map((h,i)=>(
-                <th key={i} style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",
-                  width:i===0?"32px":i===2?"100px":i===3?"55px":i===4?"105px":i===5?"90px":i===6?"110px":"auto"}}>{h}</th>
-              ))}
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"32px"}}>#</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"90px"}}>รหัสลูกค้า</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888"}}>ชื่อลูกค้า</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"90px"}}>Sale</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"50px"}}>BR</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"100px"}}>วันค้างสูงสุด</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}>สถานะ</th>
+              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"110px"}}></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={7} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
+              <tr><td colSpan={8} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
             ) : filtered.map((c,i)=>(
               <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:"0.5px solid rgba(0,0,0,0.06)"}}>
                 <td style={{padding:"9px 12px",fontSize:11,color:"#aaa"}}>{i+1}</td>
+                <td style={{padding:"9px 12px",fontSize:11,fontWeight:500,color:"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
                 <td style={{padding:"9px 12px",fontSize:12,fontWeight:500}}>{c.customer_name}</td>
                 <td style={{padding:"9px 12px",fontSize:11,color:"#777"}}>{c.sale}</td>
                 <td style={{padding:"9px 12px",fontSize:11,color:"#777"}}>{c.active_br_count}</td>
@@ -251,7 +246,6 @@ export default function SaleView({ customers }) {
         </table>
       </div>
 
-      {/* Modals */}
       {selectedCustomer && (
         <CustomerModal customer={selectedCustomer} onClose={()=>setSelectedCustomer(null)}/>
       )}
