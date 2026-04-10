@@ -48,24 +48,31 @@ function BRDetailModal({ br, onClose }) {
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
               <thead>
                 <tr style={{background:"#f5f5f3"}}>
-                  {["รหัสสินค้า","ชื่อสินค้า","จำนวน","ราคา/หน่วย","รวม"].map(h=>(
-                    <th key={h} style={{padding:"6px 10px",textAlign:["จำนวน","ราคา/หน่วย","รวม"].includes(h)?"right":"left",fontWeight:500,color:"#888",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>{h}</th>
+                  {["#","รหัสสินค้า","ชื่อสินค้า","จำนวน","ราคา/หน่วย","รวม"].map(h=>(
+                    <th key={h} style={{
+                      padding:"6px 10px",
+                      textAlign:["จำนวน","ราคา/หน่วย","รวม"].includes(h)?"right":"left",
+                      fontWeight:600, color:"#555",
+                      borderBottom:"0.5px solid rgba(0,0,0,0.08)",
+                      width: h==="#"?"32px":undefined
+                    }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {items.map((item,i)=>(
                   <tr key={i} style={{borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
-                    <td style={{padding:"6px 10px",color:"#aaa"}}>{item.product_code}</td>
-                    <td style={{padding:"6px 10px"}}>{item.product_name}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right"}}>{item.quantity}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right"}}>{Number(item.price).toLocaleString()}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:500}}>{Number(item.total_price).toLocaleString()}</td>
+                    <td style={{padding:"6px 10px",color:"#888",fontWeight:500}}>{i+1}</td>
+                    <td style={{padding:"6px 10px",color:"#333",fontWeight:500}}>{item.product_code}</td>
+                    <td style={{padding:"6px 10px",color:"#111"}}>{item.product_name}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{item.quantity}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{Number(item.price).toLocaleString()}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:"#111"}}>{Number(item.total_price).toLocaleString()}</td>
                   </tr>
                 ))}
-                <tr style={{borderTop:"0.5px solid rgba(0,0,0,0.12)"}}>
-                  <td colSpan={4} style={{padding:"7px 10px",textAlign:"right",fontWeight:500,color:"#888"}}>รวมทั้งหมด</td>
-                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:600}}>{total.toLocaleString()} บาท</td>
+                <tr style={{borderTop:"0.5px solid rgba(0,0,0,0.12)",background:"#f9f9f7"}}>
+                  <td colSpan={5} style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>รวมทั้งหมด</td>
+                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:"#111"}}>{total.toLocaleString()} บาท</td>
                 </tr>
               </tbody>
             </table>
@@ -129,15 +136,16 @@ function CustomerModal({ customer, onClose }) {
                 <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:"0.5px solid rgba(0,0,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
-                      <span style={{fontSize:12,fontWeight:500}}>{br.borrow_no}</span>
-                      <span style={{fontSize:11,color:"#aaa"}}>{br.borrow_date}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:"#111"}}>{br.borrow_no}</span>
+                      <span style={{fontSize:11,color:"#888"}}>{br.borrow_date}</span>
                       {badge(br.borrow_alert)}
                     </div>
-                    <div style={{fontSize:11,color:"#aaa"}}>
-                      <span style={{color:br.days_borrowed>180?"#A32D2D":br.days_borrowed>90?"#854F0B":"#888",fontWeight:br.days_borrowed>90?500:400}}>
+                    <div style={{fontSize:11,color:"#888"}}>
+                      <span style={{color:br.days_borrowed>180?"#A32D2D":br.days_borrowed>90?"#854F0B":"#555",fontWeight:br.days_borrowed>90?600:400}}>
                         {br.days_borrowed} วัน
                       </span>
-                      {" · "}{items.length} รายการสินค้า{" · "}{total.toLocaleString()} บาท
+                      {" · "}{items.length} รายการสินค้า{" · "}
+                      <span style={{color:"#333",fontWeight:500}}>{total.toLocaleString()} บาท</span>
                     </div>
                   </div>
                   <button style={{...S.btnBlue,flexShrink:0}} onClick={()=>setSelectedBr(br)}>ดูรายละเอียด</button>
