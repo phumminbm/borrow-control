@@ -6,12 +6,12 @@ const MOCK_MODE = false; // เปลี่ยนเป็น false เมื่
 const API_BASE  = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const TEAMS = {
-  Bangkok:      ["TANG","OPAL","PAT","GAM","SHIRLEY","NARMPHUNG","CHOMPOO","RUNG"],
-  North:        ["ICE","MAI","PLU"],
+  Bangkok:      ["PAT","OPAL","TANG","GAM","SHIRLEY","NAMPHUENG","CHOMPOO","RUNG"],
   "North-East": ["JONG","NING","HONGFAH","WHAN"],
   East:         ["EVE","MAMAEW","BEN"],
+  North:        ["ICE","MAI","PLU"],
   South:        ["MOD"],
-  Office:       ["POOM","KIM","SHIN","NEO BIOTECH"],
+  Office:       ["NEO BIOTECH"],
 };
 
 export const TEAM_COLORS = {
