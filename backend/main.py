@@ -69,6 +69,30 @@ def calc_status(days: int) -> str:
     if days > 90:  return "WARNING"
     return "NORMAL"
 
+def recalc_all_customers(db):
+    """Recalculate status/max_days/active_br_count จาก borrows ทั้งหมดใน DB"""
+    db.execute(text("""
+        UPDATE customers c SET
+            max_days        = COALESCE(sub.max_days, 0),
+            active_br_count = COALESCE(sub.cnt, 0),
+            status = CASE
+                WHEN COALESCE(sub.max_days, 0) > 180 THEN 'BLOCK'
+                WHEN COALESCE(sub.max_days, 0) > 90  THEN 'WARNING'
+                ELSE 'NORMAL'
+            END,
+            updated_at = NOW()
+        FROM (
+            SELECT cust_code,
+                   MAX(days_borrowed) AS max_days,
+                   COUNT(*)           AS cnt
+            FROM borrows
+            WHERE sheet_status = 'active'
+            GROUP BY cust_code
+        ) sub
+        WHERE c.cust_code = sub.cust_code
+    """))
+    db.commit()
+
 class SyncRow(BaseModel):
     borrow_no: str
     cust_code: str = ""
@@ -160,7 +184,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     sheet_brs = {r.borrow_no for r in payload.rows if r.borrow_no}
 
-    # ── Upsert customers ──────────────────────────────────────────
+    # ── Upsert customers (เฉพาะ name/sale/istock/erp) ────────────
     cust_map = {}
     for row in payload.rows:
         if not row.borrow_no or not row.cust_code: continue
@@ -168,24 +192,20 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         if cc not in cust_map:
             cust_map[cc] = {"cust_code": cc, "customer_name": row.customer_name,
                             "istock_id": row.istock_id, "erp_id": row.erp_id,
-                            "sale": row.sale, "max_days": 0, "count": 0}
-        cust_map[cc]["max_days"] = max(cust_map[cc]["max_days"], row.days_borrowed)
-        cust_map[cc]["count"] += 1
+                            "sale": row.sale}
 
     for cc, c in cust_map.items():
         try:
             db.execute(text("""
                 INSERT INTO customers (cust_code,customer_name,istock_id,erp_id,sale,
                     status,max_days,active_br_count,updated_at)
-                VALUES (:cc,:name,:istock,:erp,:sale,:status,:max_days,:count,:now)
+                VALUES (:cc,:name,:istock,:erp,:sale,'NORMAL',0,0,:now)
                 ON CONFLICT (cust_code) DO UPDATE SET
-                    customer_name=EXCLUDED.customer_name, sale=EXCLUDED.sale,
-                    status=EXCLUDED.status, max_days=EXCLUDED.max_days,
-                    active_br_count=EXCLUDED.active_br_count, updated_at=EXCLUDED.updated_at
+                    customer_name=EXCLUDED.customer_name,
+                    sale=EXCLUDED.sale,
+                    updated_at=EXCLUDED.updated_at
             """), {"cc": cc, "name": c["customer_name"], "istock": c["istock_id"],
-                   "erp": c["erp_id"], "sale": c["sale"],
-                   "status": calc_status(c["max_days"]),
-                   "max_days": c["max_days"], "count": c["count"], "now": now})
+                   "erp": c["erp_id"], "sale": c["sale"], "now": now})
         except: stats["errors"] += 1
 
     # ── Upsert borrows + items ────────────────────────────────────
@@ -198,8 +218,8 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
             if ex:
                 db.execute(text("""
-                    UPDATE borrows SET days_borrowed=:days,borrow_alert=:alert,
-                        status=:status,last_seen_at=:now WHERE borrow_no=:bno
+                    UPDATE borrows SET days_borrowed=:days, borrow_alert=:alert,
+                        status=:status, last_seen_at=:now WHERE borrow_no=:bno
                 """), {"days": row.days_borrowed, "alert": row.borrow_alert,
                        "status": row.status, "now": now, "bno": row.borrow_no})
                 stats["updated"] += 1
@@ -213,7 +233,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                        "alert": row.borrow_alert, "now": now})
                 stats["inserted"] += 1
 
-            # ── เช็คก่อน insert item (ไม่ใช้ ON CONFLICT) ─────────
+            # ── insert/update items ────────────────────────────────
             if row.product_code:
                 existing = db.execute(text("""
                     SELECT id FROM borrow_items
@@ -221,7 +241,6 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                 """), {"bno": row.borrow_no, "code": row.product_code}).fetchone()
 
                 if existing:
-                    # update ถ้ามีอยู่แล้ว
                     db.execute(text("""
                         UPDATE borrow_items SET
                             product_name=:name, price=:price,
@@ -231,11 +250,10 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                            "qty": row.quantity, "total": row.total_price,
                            "now": now, "bno": row.borrow_no, "code": row.product_code})
                 else:
-                    # insert ถ้ายังไม่มี
                     db.execute(text("""
                         INSERT INTO borrow_items
-                            (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-                        VALUES (:bno, :code, :name, :price, :qty, :total, :now)
+                            (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
+                        VALUES (:bno,:code,:name,:price,:qty,:total,:now)
                     """), {"bno": row.borrow_no, "code": row.product_code,
                            "name": row.product_name, "price": row.price,
                            "qty": row.quantity, "total": row.total_price, "now": now})
@@ -253,25 +271,19 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         gone = [r[0] for r in active if r[0] not in sheet_brs]
         if gone:
             db.execute(text("""
-                UPDATE borrows SET sheet_status='closed',closed_at=:now WHERE borrow_no=ANY(:ids)
+                UPDATE borrows SET sheet_status='closed',closed_at=:now
+                WHERE borrow_no=ANY(:ids)
             """), {"now": now, "ids": gone})
             stats["closed"] = len(gone)
-            affected = db.execute(text(
-                "SELECT DISTINCT cust_code FROM borrows WHERE borrow_no=ANY(:ids)"
-            ), {"ids": gone}).fetchall()
-            for (cc,) in affected:
-                r = db.execute(text("""
-                    SELECT COALESCE(MAX(days_borrowed),0), COUNT(*)
-                    FROM borrows WHERE cust_code=:cc AND sheet_status='active'
-                """), {"cc": cc}).fetchone()
-                db.execute(text("""
-                    UPDATE customers SET status=:status,max_days=:max_days,
-                        active_br_count=:count,updated_at=:now WHERE cust_code=:cc
-                """), {"status": calc_status(r[0]), "max_days": r[0],
-                       "count": r[1], "now": now, "cc": cc})
     except: pass
 
     db.commit()
+
+    # ── Recalculate customer status จาก borrows ทั้งหมดใน DB ─────
+    try:
+        recalc_all_customers(db)
+    except: pass
+
     duration = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
     try:
         db.execute(text("""
@@ -285,6 +297,18 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     except: pass
 
     return {"success": True, "duration_ms": duration, **stats}
+
+@app.get("/recalc")
+def recalc(db: Session = Depends(get_db)):
+    """Force recalculate customer status จาก borrows ทั้งหมด"""
+    try:
+        recalc_all_customers(db)
+        c = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='BLOCK'")).fetchone()[0]
+        w = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='WARNING'")).fetchone()[0]
+        n = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='NORMAL'")).fetchone()[0]
+        return {"success": True, "BLOCK": c, "WARNING": w, "NORMAL": n}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
