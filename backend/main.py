@@ -1,101 +1,21 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
-from typing import List, Optional
-from datetime import date, timedelta
+from typing import Optional
+from datetime import datetime, timezone
 import os
 
-# ─── Database Setup ───────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/borrow_control")
-
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
-# ─── Models ───────────────────────────────────────────────────────
-class Sale(Base):
-    __tablename__ = "sales"
-    id       = Column(Integer, primary_key=True, index=True)
-    name     = Column(String, nullable=False)
-    email    = Column(String, unique=True, nullable=False)
-    customers = relationship("Customer", back_populates="sale")
-
-class Customer(Base):
-    __tablename__ = "customers"
-    id      = Column(Integer, primary_key=True, index=True)
-    name    = Column(String, nullable=False)
-    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
-    sale    = relationship("Sale", back_populates="customers")
-    borrows = relationship("Borrow", back_populates="customer")
-
-class Borrow(Base):
-    __tablename__ = "borrows"
-    id          = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    borrow_date = Column(Date, nullable=False)
-    return_date = Column(Date, nullable=True)  # NULL = ยังไม่คืน
-    customer    = relationship("Customer", back_populates="borrows")
-
-# ─── Pydantic Schemas ─────────────────────────────────────────────
-class BorrowOut(BaseModel):
-    id: int
-    borrow_date: date
-    return_date: Optional[date]
-    days_overdue: int
-
-    class Config:
-        from_attributes = True
-
-class CustomerOut(BaseModel):
-    id: int
-    name: str
-    sale_id: int
-    sale_name: str
-    status: str          # BLOCK / WARNING / NORMAL
-    max_days: int        # วันที่ค้างนานสุด
-    borrows: List[BorrowOut]
-
-class AlertOut(BaseModel):
-    customer_id: int
-    customer_name: str
-    sale_name: str
-    status: str
-    max_days: int
-
-# ─── Status Logic ─────────────────────────────────────────────────
-def calc_days_overdue(borrow: Borrow) -> int:
-    """คำนวณวันค้างชำระ (ยังไม่คืน = นับถึงวันนี้)"""
-    end = borrow.return_date if borrow.return_date else date.today()
-    return max(0, (end - borrow.borrow_date).days)
-
-def calc_customer_status(borrows: list) -> tuple[str, int]:
-    """
-    Returns (status, max_days)
-    > 180 วัน → BLOCK
-    > 90 วัน  → WARNING
-    else      → NORMAL
-    """
-    if not borrows:
-        return "NORMAL", 0
-
-    max_days = max(calc_days_overdue(b) for b in borrows)
-
-    if max_days > 180:
-        return "BLOCK", max_days
-    elif max_days > 90:
-        return "WARNING", max_days
-    else:
-        return "NORMAL", max_days
-
-# ─── App ──────────────────────────────────────────────────────────
 app = FastAPI(title="Borrow Control API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -108,101 +28,51 @@ def get_db():
     finally:
         db.close()
 
-# ─── Endpoints ────────────────────────────────────────────────────
-
-@app.get("/customers", response_model=List[CustomerOut])
-def get_customers(
-    sale_id: Optional[int] = Query(None, description="Filter by sale ID"),
-    status: Optional[str]  = Query(None, description="BLOCK / WARNING / NORMAL"),
-    db: Session = Depends(get_db),
-):
-    """ดึงรายการลูกค้า พร้อมสถานะ BLOCK/WARNING/NORMAL"""
-    query = db.query(Customer)
-    if sale_id:
-        query = query.filter(Customer.sale_id == sale_id)
-
-    customers = query.all()
-    result = []
-
-    for c in customers:
-        cust_status, max_days = calc_customer_status(c.borrows)
-
-        # กรองตาม status ถ้ามี
-        if status and cust_status != status.upper():
-            continue
-
-        borrow_list = [
-            BorrowOut(
-                id=b.id,
-                borrow_date=b.borrow_date,
-                return_date=b.return_date,
-                days_overdue=calc_days_overdue(b),
-            )
-            for b in c.borrows
-        ]
-
-        result.append(
-            CustomerOut(
-                id=c.id,
-                name=c.name,
-                sale_id=c.sale_id,
-                sale_name=c.sale.name,
-                status=cust_status,
-                max_days=max_days,
-                borrows=borrow_list,
-            )
+def ensure_tables(db):
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS customers (
+            cust_code TEXT PRIMARY KEY,
+            customer_name TEXT, istock_id TEXT, erp_id TEXT, sale TEXT,
+            status TEXT DEFAULT 'NORMAL', max_days INTEGER DEFAULT 0,
+            active_br_count INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW()
         )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS borrows (
+            borrow_no TEXT PRIMARY KEY, cust_code TEXT, borrow_date TEXT,
+            status TEXT, days_borrowed INTEGER DEFAULT 0, borrow_alert TEXT,
+            sheet_status TEXT DEFAULT 'active',
+            first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+            last_seen_at TIMESTAMPTZ DEFAULT NOW(), closed_at TIMESTAMPTZ
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS borrow_items (
+            id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
+            product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS sync_logs (
+            id SERIAL PRIMARY KEY, synced_at TIMESTAMPTZ DEFAULT NOW(),
+            status TEXT, sheet_rows INTEGER DEFAULT 0,
+            br_inserted INTEGER DEFAULT 0, br_updated INTEGER DEFAULT 0,
+            br_closed INTEGER DEFAULT 0, errors INTEGER DEFAULT 0,
+            duration_ms INTEGER DEFAULT 0, error_msg TEXT
+        )
+    """))
+    db.commit()
 
-    return result
-
-
-@app.get("/alerts", response_model=List[AlertOut])
-def get_alerts(
-    sale_id: Optional[int] = Query(None, description="Filter by sale ID"),
-    db: Session = Depends(get_db),
-):
-    """ดึงลูกค้าที่มีสถานะ BLOCK หรือ WARNING เท่านั้น"""
-    query = db.query(Customer)
-    if sale_id:
-        query = query.filter(Customer.sale_id == sale_id)
-
-    customers = query.all()
-    alerts = []
-
-    for c in customers:
-        cust_status, max_days = calc_customer_status(c.borrows)
-        if cust_status in ("BLOCK", "WARNING"):
-            alerts.append(
-                AlertOut(
-                    customer_id=c.id,
-                    customer_name=c.name,
-                    sale_name=c.sale.name,
-                    status=cust_status,
-                    max_days=max_days,
-                )
-            )
-
-    # เรียงจากอันตรายสุดก่อน
-    alerts.sort(key=lambda x: (0 if x.status == "BLOCK" else 1, -x.max_days))
-    return alerts
-
-
-@app.get("/sales")
-def get_sales(db: Session = Depends(get_db)):
-    """ดึงรายการ Sales ทั้งหมด (สำหรับ dropdown filter)"""
-    return [{"id": s.id, "name": s.name} for s in db.query(Sale).all()]
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-from pydantic import BaseModel
-from typing import Any
+def calc_status(days: int) -> str:
+    if days > 180: return "BLOCK"
+    if days > 90:  return "WARNING"
+    return "NORMAL"
 
 class SyncRow(BaseModel):
     borrow_no: str
-    cust_code: str
-    customer_name: str
+    cust_code: str = ""
+    customer_name: str = ""
     istock_id: str = ""
     erp_id: str = ""
     sale: str = ""
@@ -219,9 +89,173 @@ class SyncRow(BaseModel):
 class SyncPayload(BaseModel):
     rows: list[SyncRow]
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/customers")
+def get_customers(
+    sale: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    try: ensure_tables(db)
+    except: pass
+    q = "SELECT * FROM customers WHERE 1=1"
+    params = {}
+    if sale:   q += " AND sale=:sale";     params["sale"] = sale
+    if status: q += " AND status=:status"; params["status"] = status.upper()
+    q += " ORDER BY max_days DESC"
+    rows = db.execute(text(q), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+@app.get("/customers/{cust_code}/brs")
+def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
+    brs = db.execute(text("""
+        SELECT borrow_no, borrow_date, days_borrowed, borrow_alert, status
+        FROM borrows WHERE cust_code=:cc AND sheet_status='active'
+        ORDER BY days_borrowed DESC
+    """), {"cc": cust_code}).fetchall()
+    result = []
+    for br in brs:
+        items = db.execute(text("""
+            SELECT product_code, product_name, price, quantity, total_price
+            FROM borrow_items WHERE borrow_no=:bno
+        """), {"bno": br.borrow_no}).fetchall()
+        result.append({**dict(br._mapping), "items": [dict(i._mapping) for i in items]})
+    return result
+
+@app.get("/alerts")
+def get_alerts(sale: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    q = "SELECT * FROM customers WHERE status IN ('BLOCK','WARNING')"
+    params = {}
+    if sale: q += " AND sale=:sale"; params["sale"] = sale
+    q += " ORDER BY max_days DESC"
+    return [dict(r._mapping) for r in db.execute(text(q), params).fetchall()]
+
+@app.get("/sales")
+def get_sales(db: Session = Depends(get_db)):
+    rows = db.execute(text(
+        "SELECT DISTINCT sale FROM customers WHERE sale IS NOT NULL ORDER BY sale"
+    )).fetchall()
+    return [r[0] for r in rows]
+
+@app.get("/sync-logs")
+def get_sync_logs(limit: int = 20, db: Session = Depends(get_db)):
+    try:
+        rows = db.execute(text(
+            "SELECT * FROM sync_logs ORDER BY synced_at DESC LIMIT :limit"
+        ), {"limit": limit}).fetchall()
+        return [dict(r._mapping) for r in rows]
+    except: return []
+
 @app.post("/sync")
 def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
-    """รับข้อมูลจาก Google Apps Script แล้ว sync เข้า DB"""
-    from sync_engine import run_sync_from_payload
-    result = run_sync_from_payload(payload.rows, db)
-    return result
+    start = datetime.now(timezone.utc)
+    stats = {"inserted": 0, "updated": 0, "closed": 0, "errors": 0}
+    try: ensure_tables(db)
+    except: pass
+
+    now = datetime.now(timezone.utc)
+    sheet_brs = {r.borrow_no for r in payload.rows if r.borrow_no}
+
+    cust_map = {}
+    for row in payload.rows:
+        if not row.borrow_no or not row.cust_code: continue
+        cc = row.cust_code
+        if cc not in cust_map:
+            cust_map[cc] = {"cust_code": cc, "customer_name": row.customer_name,
+                            "istock_id": row.istock_id, "erp_id": row.erp_id,
+                            "sale": row.sale, "max_days": 0, "count": 0}
+        cust_map[cc]["max_days"] = max(cust_map[cc]["max_days"], row.days_borrowed)
+        cust_map[cc]["count"] += 1
+
+    for cc, c in cust_map.items():
+        try:
+            db.execute(text("""
+                INSERT INTO customers (cust_code,customer_name,istock_id,erp_id,sale,
+                    status,max_days,active_br_count,updated_at)
+                VALUES (:cc,:name,:istock,:erp,:sale,:status,:max_days,:count,:now)
+                ON CONFLICT (cust_code) DO UPDATE SET
+                    customer_name=EXCLUDED.customer_name, sale=EXCLUDED.sale,
+                    status=EXCLUDED.status, max_days=EXCLUDED.max_days,
+                    active_br_count=EXCLUDED.active_br_count, updated_at=EXCLUDED.updated_at
+            """), {"cc": cc, "name": c["customer_name"], "istock": c["istock_id"],
+                   "erp": c["erp_id"], "sale": c["sale"],
+                   "status": calc_status(c["max_days"]),
+                   "max_days": c["max_days"], "count": c["count"], "now": now})
+        except: stats["errors"] += 1
+
+    for row in payload.rows:
+        if not row.borrow_no: continue
+        try:
+            ex = db.execute(text(
+                "SELECT borrow_no FROM borrows WHERE borrow_no=:bno"
+            ), {"bno": row.borrow_no}).fetchone()
+            if ex:
+                db.execute(text("""
+                    UPDATE borrows SET days_borrowed=:days,borrow_alert=:alert,
+                        status=:status,last_seen_at=:now WHERE borrow_no=:bno
+                """), {"days": row.days_borrowed, "alert": row.borrow_alert,
+                       "status": row.status, "now": now, "bno": row.borrow_no})
+                stats["updated"] += 1
+            else:
+                db.execute(text("""
+                    INSERT INTO borrows (borrow_no,cust_code,borrow_date,status,
+                        days_borrowed,borrow_alert,sheet_status,first_seen_at,last_seen_at)
+                    VALUES (:bno,:cc,:date,:status,:days,:alert,'active',:now,:now)
+                """), {"bno": row.borrow_no, "cc": row.cust_code, "date": row.borrow_date,
+                       "status": row.status, "days": row.days_borrowed,
+                       "alert": row.borrow_alert, "now": now})
+                stats["inserted"] += 1
+            db.execute(text("DELETE FROM borrow_items WHERE borrow_no=:bno"), {"bno": row.borrow_no})
+            if row.product_code:
+                db.execute(text("""
+                    INSERT INTO borrow_items (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
+                    VALUES (:bno,:code,:name,:price,:qty,:total,:now)
+                """), {"bno": row.borrow_no, "code": row.product_code, "name": row.product_name,
+                       "price": row.price, "qty": row.quantity, "total": row.total_price, "now": now})
+        except:
+            stats["errors"] += 1
+            try: db.rollback()
+            except: pass
+
+    try:
+        active = db.execute(text(
+            "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
+        )).fetchall()
+        gone = [r[0] for r in active if r[0] not in sheet_brs]
+        if gone:
+            db.execute(text("""
+                UPDATE borrows SET sheet_status='closed',closed_at=:now WHERE borrow_no=ANY(:ids)
+            """), {"now": now, "ids": gone})
+            stats["closed"] = len(gone)
+            affected = db.execute(text(
+                "SELECT DISTINCT cust_code FROM borrows WHERE borrow_no=ANY(:ids)"
+            ), {"ids": gone}).fetchall()
+            for (cc,) in affected:
+                r = db.execute(text("""
+                    SELECT COALESCE(MAX(days_borrowed),0), COUNT(*)
+                    FROM borrows WHERE cust_code=:cc AND sheet_status='active'
+                """), {"cc": cc}).fetchone()
+                db.execute(text("""
+                    UPDATE customers SET status=:status,max_days=:max_days,
+                        active_br_count=:count,updated_at=:now WHERE cust_code=:cc
+                """), {"status": calc_status(r[0]), "max_days": r[0],
+                       "count": r[1], "now": now, "cc": cc})
+    except: pass
+
+    db.commit()
+    duration = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+    try:
+        db.execute(text("""
+            INSERT INTO sync_logs (status,sheet_rows,br_inserted,br_updated,br_closed,errors,duration_ms)
+            VALUES (:st,:rows,:ins,:upd,:cl,:err,:dur)
+        """), {"st": "success" if not stats["errors"] else "partial",
+               "rows": len(payload.rows), "ins": stats["inserted"],
+               "upd": stats["updated"], "cl": stats["closed"],
+               "err": stats["errors"], "dur": duration})
+        db.commit()
+    except: pass
+
+    return {"success": True, "duration_ms": duration, **stats}
