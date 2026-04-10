@@ -196,3 +196,32 @@ def get_sales(db: Session = Depends(get_db)):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+from pydantic import BaseModel
+from typing import Any
+
+class SyncRow(BaseModel):
+    borrow_no: str
+    cust_code: str
+    customer_name: str
+    istock_id: str = ""
+    erp_id: str = ""
+    sale: str = ""
+    borrow_date: str = ""
+    status: str = ""
+    days_borrowed: int = 0
+    borrow_alert: str = ""
+    product_code: str = ""
+    product_name: str = ""
+    price: float = 0
+    quantity: int = 0
+    total_price: float = 0
+
+class SyncPayload(BaseModel):
+    rows: list[SyncRow]
+
+@app.post("/sync")
+def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
+    """รับข้อมูลจาก Google Apps Script แล้ว sync เข้า DB"""
+    from sync_engine import run_sync_from_payload
+    result = run_sync_from_payload(payload.rows, db)
+    return result
