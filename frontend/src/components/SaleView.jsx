@@ -210,8 +210,8 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
       )}
 
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,flex:2,minWidth:240}}>
-          {[["ลูกค้าทั้งหมด",filtered.length,null],["BLOCK",bl,"#A32D2D"],["WARNING",wa,"#854F0B"]].map(([label,val,color])=>(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,flex:3,minWidth:300}}>
+          {[["ลูกค้าทั้งหมด",filtered.length,null],["BLOCK",bl,"#A32D2D"],["WARNING",wa,"#854F0B"],["NORMAL",filtered.length-bl-wa,"#3B6D11"]].map(([label,val,color])=>(
             <div key={label} style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px"}}>
               <div style={{fontSize:11,color:"#888",marginBottom:2}}>{label}</div>
               <div style={{fontSize:20,fontWeight:600,color:color||"#1a1a1a"}}>{val}</div>
