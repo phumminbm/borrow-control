@@ -34,7 +34,7 @@ function badge(status) {
 function BRDetailModal({ br, onClose }) {
   if (!br) return null;
   const items = br.items || [];
-  const total = items.reduce((s,i) => s + (Number(i.total_price)||0), 0);
+  const total = items.reduce((s,i) => s + (Number(i.price)||0) * (Number(i.quantity)||0), 0);
 
   return (
     <div style={{...S.overlay, zIndex:1100}} onClick={e => e.target===e.currentTarget&&onClose()}>
@@ -76,7 +76,7 @@ function BRDetailModal({ br, onClose }) {
                     <td style={{padding:"6px 10px",color:"#111"}}>{item.product_name}</td>
                     <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{item.quantity}</td>
                     <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{Number(item.price).toLocaleString()}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:"#111"}}>{Number(item.total_price).toLocaleString()}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:"#111"}}>{(Number(item.price) * Number(item.quantity)).toLocaleString()}</td>
                   </tr>
                 ))}
                 <tr style={{borderTop:"0.5px solid rgba(0,0,0,0.12)",background:"#f9f9f7"}}>
@@ -140,7 +140,7 @@ function CustomerModal({ customer, onClose }) {
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>ยังไม่มีข้อมูล BR</div>
             ) : brs.map(br => {
               const items = br.items || [];
-              const total = items.reduce((s,i) => s+(Number(i.total_price)||0), 0);
+              const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
               return (
                 <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:"0.5px solid rgba(0,0,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
                   <div style={{flex:1,minWidth:0}}>
