@@ -50,7 +50,8 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(borrow_no, product_code)
         )
     """))
     db.execute(text("""
@@ -64,13 +65,7 @@ def ensure_tables(db):
     """))
     db.commit()
 
-def calc_status(days: int) -> str:
-    if days > 180: return "BLOCK"
-    if days > 90:  return "WARNING"
-    return "NORMAL"
-
 def recalc_all_customers(db):
-    """Recalculate status/max_days/active_br_count จาก borrows ทั้งหมดใน DB"""
     db.execute(text("""
         UPDATE customers c SET
             max_days        = COALESCE(sub.max_days, 0),
@@ -185,18 +180,18 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     sheet_brs = {r.borrow_no for r in payload.rows if r.borrow_no}
 
-    # ── Upsert customers (เฉพาะ name/sale/istock/erp) ────────────
-    cust_map = {}
-    for row in payload.rows:
-        if not row.borrow_no or not row.cust_code: continue
-        cc = row.cust_code
-        if cc not in cust_map:
-            cust_map[cc] = {"cust_code": cc, "customer_name": row.customer_name,
-                            "istock_id": row.istock_id, "erp_id": row.erp_id,
-                            "sale": row.sale}
-
-    for cc, c in cust_map.items():
-        try:
+    try:
+        # ── Bulk upsert customers ─────────────────────────────────
+        cust_map = {}
+        for row in payload.rows:
+            if not row.borrow_no or not row.cust_code: continue
+            if row.cust_code not in cust_map:
+                cust_map[row.cust_code] = {
+                    "cc": row.cust_code, "name": row.customer_name,
+                    "istock": row.istock_id, "erp": row.erp_id,
+                    "sale": row.sale, "now": now
+                }
+        if cust_map:
             db.execute(text("""
                 INSERT INTO customers (cust_code,customer_name,istock_id,erp_id,sale,
                     status,max_days,active_br_count,updated_at)
@@ -205,82 +200,76 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                     customer_name=EXCLUDED.customer_name,
                     sale=EXCLUDED.sale,
                     updated_at=EXCLUDED.updated_at
-            """), {"cc": cc, "name": c["customer_name"], "istock": c["istock_id"],
-                   "erp": c["erp_id"], "sale": c["sale"], "now": now})
-        except: stats["errors"] += 1
+            """), list(cust_map.values()))
 
-    # ── Upsert borrows + items ────────────────────────────────────
-    for row in payload.rows:
-        if not row.borrow_no: continue
-        try:
-            ex = db.execute(text(
-                "SELECT borrow_no FROM borrows WHERE borrow_no=:bno"
-            ), {"bno": row.borrow_no}).fetchone()
-
-            if ex:
-                db.execute(text("""
-                    UPDATE borrows SET days_borrowed=:days, borrow_alert=:alert,
-                        status=:status, last_seen_at=:now WHERE borrow_no=:bno
-                """), {"days": row.days_borrowed, "alert": row.borrow_alert,
-                       "status": row.status, "now": now, "bno": row.borrow_no})
-                stats["updated"] += 1
-            else:
-                db.execute(text("""
-                    INSERT INTO borrows (borrow_no,cust_code,borrow_date,status,
-                        days_borrowed,borrow_alert,sheet_status,first_seen_at,last_seen_at)
-                    VALUES (:bno,:cc,:date,:status,:days,:alert,'active',:now,:now)
-                """), {"bno": row.borrow_no, "cc": row.cust_code, "date": row.borrow_date,
-                       "status": row.status, "days": row.days_borrowed,
-                       "alert": row.borrow_alert, "now": now})
-                stats["inserted"] += 1
-
-            # ── insert/update items ────────────────────────────────
+        # ── Bulk upsert borrows ───────────────────────────────────
+        borrow_params = []
+        item_params = []
+        for row in payload.rows:
+            if not row.borrow_no: continue
+            borrow_params.append({
+                "bno": row.borrow_no, "cc": row.cust_code,
+                "date": row.borrow_date, "status": row.status,
+                "days": row.days_borrowed, "alert": row.borrow_alert, "now": now
+            })
             if row.product_code:
-                existing = db.execute(text("""
-                    SELECT id FROM borrow_items
-                    WHERE borrow_no=:bno AND product_code=:code
-                """), {"bno": row.borrow_no, "code": row.product_code}).fetchone()
+                item_params.append({
+                    "bno": row.borrow_no, "code": row.product_code,
+                    "name": row.product_name, "price": row.price,
+                    "qty": row.quantity, "total": row.total_price, "now": now
+                })
 
-                if existing:
-                    db.execute(text("""
-                        UPDATE borrow_items SET
-                            product_name=:name, price=:price,
-                            quantity=:qty, total_price=:total, updated_at=:now
-                        WHERE borrow_no=:bno AND product_code=:code
-                    """), {"name": row.product_name, "price": row.price,
-                           "qty": row.quantity, "total": row.total_price,
-                           "now": now, "bno": row.borrow_no, "code": row.product_code})
-                else:
-                    db.execute(text("""
-                        INSERT INTO borrow_items
-                            (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
-                        VALUES (:bno,:code,:name,:price,:qty,:total,:now)
-                    """), {"bno": row.borrow_no, "code": row.product_code,
-                           "name": row.product_name, "price": row.price,
-                           "qty": row.quantity, "total": row.total_price, "now": now})
-
-        except Exception as e:
-            stats["errors"] += 1
-            try: db.rollback()
-            except: pass
-
-    # ── Close BRs ที่หายจาก Sheet ────────────────────────────────
-    try:
-        active = db.execute(text(
-            "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
-        )).fetchall()
-        gone = [r[0] for r in active if r[0] not in sheet_brs]
-        if gone:
+        if borrow_params:
             db.execute(text("""
-                UPDATE borrows SET sheet_status='closed',closed_at=:now
-                WHERE borrow_no=ANY(:ids)
-            """), {"now": now, "ids": gone})
-            stats["closed"] = len(gone)
-    except: pass
+                INSERT INTO borrows (borrow_no,cust_code,borrow_date,status,
+                    days_borrowed,borrow_alert,sheet_status,first_seen_at,last_seen_at)
+                VALUES (:bno,:cc,:date,:status,:days,:alert,'active',:now,:now)
+                ON CONFLICT (borrow_no) DO UPDATE SET
+                    days_borrowed=EXCLUDED.days_borrowed,
+                    borrow_alert=EXCLUDED.borrow_alert,
+                    status=EXCLUDED.status,
+                    sheet_status='active',
+                    last_seen_at=EXCLUDED.last_seen_at
+            """), borrow_params)
+            stats["updated"] = len(borrow_params)
 
-    db.commit()
+        if item_params:
+            db.execute(text("""
+                INSERT INTO borrow_items
+                    (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
+                VALUES (:bno,:code,:name,:price,:qty,:total,:now)
+                ON CONFLICT (borrow_no,product_code) DO UPDATE SET
+                    product_name=EXCLUDED.product_name,
+                    price=EXCLUDED.price,
+                    quantity=EXCLUDED.quantity,
+                    total_price=EXCLUDED.total_price,
+                    updated_at=EXCLUDED.updated_at
+            """), item_params)
 
-    # ── Recalculate customer status จาก borrows ทั้งหมดใน DB ─────
+        db.commit()
+
+    except Exception as e:
+        stats["errors"] += 1
+        try: db.rollback()
+        except: pass
+
+    # ── Close BRs เฉพาะ batch สุดท้าย ────────────────────────────
+    if payload.is_final_batch:
+        try:
+            active = db.execute(text(
+                "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
+            )).fetchall()
+            gone = [r[0] for r in active if r[0] not in sheet_brs]
+            if gone:
+                db.execute(text("""
+                    UPDATE borrows SET sheet_status='closed',closed_at=:now
+                    WHERE borrow_no=ANY(:ids)
+                """), {"now": now, "ids": gone})
+                stats["closed"] = len(gone)
+            db.commit()
+        except: pass
+
+    # ── Recalculate customer status ───────────────────────────────
     try:
         recalc_all_customers(db)
     except: pass
@@ -301,7 +290,6 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
 @app.get("/recalc")
 def recalc(db: Session = Depends(get_db)):
-    """Force recalculate customer status จาก borrows ทั้งหมด"""
     try:
         recalc_all_customers(db)
         c = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='BLOCK'")).fetchone()[0]
@@ -320,6 +308,32 @@ def debug(db: Session = Depends(get_db)):
         return {"customers": c, "borrows": b, "borrow_items": i}
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/migrate")
+def migrate(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("""
+            ALTER TABLE borrow_items
+            ADD CONSTRAINT borrow_items_borrow_no_product_code_key
+            UNIQUE (borrow_no, product_code)
+        """))
+        db.commit()
+        return {"success": True, "message": "Constraint added"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/debug-borrow/{cust_code}")
+def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
+    exact = db.execute(text(
+        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code=:cc LIMIT 5"
+    ), {"cc": cust_code}).fetchall()
+    fuzzy = db.execute(text(
+        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code LIKE :cc LIMIT 5"
+    ), {"cc": f"%{cust_code}%"}).fetchall()
+    return {
+        "exact": [dict(r._mapping) for r in exact],
+        "fuzzy": [dict(r._mapping) for r in fuzzy],
+    }
 
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
