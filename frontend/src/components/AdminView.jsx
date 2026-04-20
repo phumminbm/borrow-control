@@ -107,6 +107,8 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
   const totalBR  = customersWithTeam.reduce((s,c)=>s+c.active_br_count,0);
 
   const lastSync = syncLogs[0];
+
+  const pieData = (() => {
     const cs = selTeam ? customersWithTeam.filter(c=>c.team===selTeam) : customersWithTeam;
     return { bl:cs.filter(c=>c.status==="BLOCK").length, wa:cs.filter(c=>c.status==="WARNING").length, no:cs.filter(c=>c.status==="NORMAL").length, total:cs.length };
   })();
