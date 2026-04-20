@@ -108,17 +108,33 @@ export default function App() {
 
           {/* Dark/Light toggle */}
           <button onClick={() => setDark(d => !d)} style={{
-            background: dark ? "#333" : "#2a2a2a",
-            border:"0.5px solid #444",
-            borderRadius:20,
-            padding:"3px 10px",
+            width:52, height:28,
+            borderRadius:28,
+            border:"none",
             cursor:"pointer",
-            fontSize:14,
-            display:"flex", alignItems:"center", gap:6,
-            color:"#fff",
-            transition:"all .2s",
+            padding:0,
+            position:"relative",
+            background: dark ? "#4A3F8F" : "#E8A020",
+            transition:"background .3s",
+            flexShrink:0,
           }}>
-            {dark ? "☀️" : "🌙"}
+            {/* track icons */}
+            <span style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?1:0,transition:"opacity .2s"}}>🌙</span>
+            <span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?0:1,transition:"opacity .2s"}}>☀️</span>
+            {/* knob */}
+            <span style={{
+              position:"absolute",
+              top:3, left: dark ? 27 : 3,
+              width:22, height:22,
+              borderRadius:"50%",
+              background:"#fff",
+              boxShadow:"0 1px 4px rgba(0,0,0,0.3)",
+              transition:"left .25s cubic-bezier(.4,0,.2,1)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:11,
+            }}>
+              {dark ? "🌙" : "☀️"}
+            </span>
           </button>
         </div>
       </div>
