@@ -4,8 +4,8 @@ import { StatusBadge } from "../App";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const S = {
-  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:1000 },
-  modal:   { background:"#fff", borderRadius:"12px 12px 0 0", width:"100%", maxWidth:640, maxHeight:"92vh", overflowY:"auto", border:"0.5px solid rgba(0,0,0,0.1)", display:"flex", flexDirection:"column" },
+  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
+  modal:   { background:"#fff", borderRadius:12, width:"92%", maxWidth:640, maxHeight:"90vh", overflowY:"auto", border:"0.5px solid rgba(0,0,0,0.1)", display:"flex", flexDirection:"column" },
   mhead:   { padding:"13px 16px", borderBottom:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 },
   mfoot:   { padding:"10px 16px", borderTop:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 },
   btnBlue: { padding:"4px 10px", fontSize:11, fontWeight:500, borderRadius:6, cursor:"pointer", border:"0.5px solid #185FA5", background:"#E6F1FB", color:"#0C447C" },
