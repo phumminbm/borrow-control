@@ -82,15 +82,11 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
   const [saleFilter, setSaleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  // เพิ่ม team field ให้ทุก customer จาก TEAMS mapping
-  const customersWithTeam = customers.map(c => ({
-    ...c, team: getTeam(c.sale)
-  }));
+  const customersWithTeam = customers.map(c => ({ ...c, team: getTeam(c.sale) }));
 
-  const allSales = teamFilter
-    ? TEAMS[teamFilter]
-    : Object.values(TEAMS).flat();
+  const allSales = teamFilter ? TEAMS[teamFilter] : Object.values(TEAMS).flat();
 
+  // ── filtered customers (ใช้กับ KPI, Donut, Top5, Sale ranking, ตาราง) ──
   const filtered = customersWithTeam.filter(c =>
     (!search ||
       c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -101,21 +97,45 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
     (!statusFilter || c.status===statusFilter)
   ).sort((a,b) => b.max_days - a.max_days);
 
-  const totalBl  = customersWithTeam.filter(c=>c.status==="BLOCK").length;
-  const totalWa  = customersWithTeam.filter(c=>c.status==="WARNING").length;
-  const totalNo  = customersWithTeam.filter(c=>c.status==="NORMAL").length;
-  const totalBR  = customersWithTeam.reduce((s,c)=>s+c.active_br_count,0);
+  // ── KPI ตาม filter ──
+  const filteredBl = filtered.filter(c=>c.status==="BLOCK").length;
+  const filteredWa = filtered.filter(c=>c.status==="WARNING").length;
+  const filteredNo = filtered.filter(c=>c.status==="NORMAL").length;
+  const filteredBR = filtered.reduce((s,c)=>s+c.active_br_count, 0);
+
+  // ── Donut ตาม filter ──
+  const pieData = { bl:filteredBl, wa:filteredWa, no:filteredNo, total:filtered.length };
+
+  // ── Top 5 ตาม filter ──
+  const filteredTop5 = [...filtered]
+    .filter(c => c.status==="BLOCK" || c.status==="WARNING")
+    .sort((a,b) => b.max_days - a.max_days)
+    .slice(0, 5);
+
+  // ── Sale ranking ตาม filter ──
+  const saleScope = saleFilter
+    ? [saleFilter]
+    : teamFilter ? TEAMS[teamFilter] : Object.values(TEAMS).flat();
+
+  const filteredSaleRanking = saleScope.map(sale => {
+    const cs = filtered.filter(c => c.sale === sale);
+    const value = (analytics?.sale_value?.[sale]) || 0;
+    return {
+      sale,
+      block_count: cs.filter(c=>c.status==="BLOCK").length,
+      warn_count:  cs.filter(c=>c.status==="WARNING").length,
+      normal_count:cs.filter(c=>c.status==="NORMAL").length,
+      total_value: value,
+    };
+  }).filter(s => s.block_count + s.warn_count + s.normal_count > 0)
+    .sort((a,b) => b.block_count - a.block_count);
+
+  // ── มูลค่ารวมตาม filter ──
+  const filteredValue = analytics?.sale_value
+    ? saleScope.reduce((sum, sale) => sum + (analytics.sale_value[sale] || 0), 0)
+    : (analytics?.total_value || 0);
 
   const lastSync = syncLogs[0];
-
-  const pieData = (() => {
-    const cs = selTeam ? customersWithTeam.filter(c=>c.team===selTeam) : customersWithTeam;
-    return { bl:cs.filter(c=>c.status==="BLOCK").length, wa:cs.filter(c=>c.status==="WARNING").length, no:cs.filter(c=>c.status==="NORMAL").length, total:cs.length };
-  })();
-
-  const top5 = analytics?.top5 || [];
-  const saleRanking = analytics?.sale_ranking || [];
-  const totalValue = analytics?.total_value || 0;
   const fmtVal = (v) => v >= 1000000 ? `฿ ${(v/1000000).toFixed(1)}M` : `฿ ${Math.round(v).toLocaleString()}`;
 
   return (
@@ -123,27 +143,27 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
-          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{customersWithTeam.length.toLocaleString()}</div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
         </div>
         <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>BLOCK</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{totalBl}</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{filteredBl}</div>
         </div>
         <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#854F0B",marginBottom:4,fontWeight:500}}>WARNING</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{totalWa}</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{filteredWa}</div>
         </div>
         <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#3B6D11",marginBottom:4,fontWeight:500}}>NORMAL</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{totalNo}</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{filteredNo}</div>
         </div>
         <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#888",marginBottom:4}}>BR active</div>
-          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{totalBR.toLocaleString()}</div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
         </div>
         <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:100}}>
           <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>มูลค่าค้างรวม</div>
-          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{fmtVal(totalValue)}</div>
+          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
         </div>
       </div>
 
@@ -165,7 +185,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
         {/* Pie */}
         <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
           <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:"#555"}}>
-            {selTeam?`สัดส่วน — ${selTeam}`:"สัดส่วนรวมทุกทีม"}
+            {saleFilter ? `สัดส่วน — ${saleFilter}` : teamFilter ? `สัดส่วน — ${teamFilter}` : "สัดส่วนรวมทุกทีม"}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{position:"relative",flexShrink:0}}>
@@ -228,41 +248,49 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       </div>
 
       {/* Top5 + Sale Ranking */}
-      {(top5.length > 0 || saleRanking.length > 0) && (
+      {(filteredTop5.length > 0 || filteredSaleRanking.length > 0) && (
         <div style={{display:"grid",gridTemplateColumns:"1fr 1.5fr",gap:12,marginBottom:14}}>
           {/* Top 5 */}
           <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>Top 5 ค้างนานที่สุด</div>
-            {top5.map((c, i) => (
-              <div key={c.cust_code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<4?"0.5px solid rgba(0,0,0,0.06)":"none"}}>
+            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>
+              Top 5 ค้างนานที่สุด{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
+            </div>
+            {filteredTop5.length === 0 ? (
+              <div style={{fontSize:11,color:"#aaa",padding:"12px 0",textAlign:"center"}}>ไม่มีข้อมูล</div>
+            ) : filteredTop5.map((c, i) => (
+              <div key={c.cust_code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<filteredTop5.length-1?"0.5px solid rgba(0,0,0,0.06)":"none"}}>
                 <span style={{width:18,height:18,borderRadius:"50%",background:i<3?"#E24B4A":"#FAEEDA",color:i<3?"#fff":"#854F0B",fontSize:9,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
                 <span style={{flex:1,fontSize:11,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.customer_name}</span>
-                <span style={{fontSize:11,color:"#A32D2D",fontWeight:500,flexShrink:0}}>{c.max_days.toLocaleString()} วัน</span>
+                <span style={{fontSize:11,color:"#A32D2D",fontWeight:500,flexShrink:0,marginLeft:8}}>{c.max_days.toLocaleString()} วัน</span>
               </div>
             ))}
           </div>
 
-          {/* Sale Ranking */}
+          {/* Sale Ranking — แสดงทั้งหมดตาม filter */}
           <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>สรุปตาม Sale — BLOCK / WARNING / มูลค่า</div>
+            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>
+              สรุปตาม Sale — BLOCK / WARNING / มูลค่า{teamFilter ? ` (${teamFilter})` : ""}
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,fontSize:10,fontWeight:500,color:"#aaa",marginBottom:6,paddingBottom:4,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
               <span>Sale</span><span>สัดส่วน BLOCK</span><span style={{textAlign:"center"}}>BL</span><span style={{textAlign:"center"}}>WA</span><span style={{textAlign:"right"}}>มูลค่า</span>
             </div>
-            {saleRanking.slice(0,7).map(s => {
-              const maxBl = Math.max(...saleRanking.map(r => r.block_count), 1);
-              const pct = Math.round((s.block_count / maxBl) * 100);
-              return (
-                <div key={s.sale} style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid rgba(0,0,0,0.04)",fontSize:11}}>
-                  <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sale}</span>
-                  <div style={{background:"rgba(0,0,0,0.06)",borderRadius:4,height:6}}>
-                    <div style={{background: s.block_count > 0 ? "#E24B4A" : "#EF9F27",borderRadius:4,height:6,width:`${pct}%`}}/>
+            <div style={{maxHeight:240,overflowY:"auto"}}>
+              {filteredSaleRanking.map(s => {
+                const maxBl = Math.max(...filteredSaleRanking.map(r => r.block_count), 1);
+                const pct = Math.round((s.block_count / maxBl) * 100);
+                return (
+                  <div key={s.sale} style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid rgba(0,0,0,0.04)",fontSize:11}}>
+                    <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sale}</span>
+                    <div style={{background:"rgba(0,0,0,0.06)",borderRadius:4,height:6}}>
+                      <div style={{background: s.block_count > 0 ? "#E24B4A" : "#EF9F27",borderRadius:4,height:6,width:`${pct}%`}}/>
+                    </div>
+                    <span style={{textAlign:"center",color:"#A32D2D",fontWeight:500}}>{s.block_count||"—"}</span>
+                    <span style={{textAlign:"center",color:"#854F0B"}}>{s.warn_count||"—"}</span>
+                    <span style={{textAlign:"right",fontSize:10,color:"#888"}}>{fmtVal(s.total_value)}</span>
                   </div>
-                  <span style={{textAlign:"center",color:"#A32D2D",fontWeight:500}}>{s.block_count||"—"}</span>
-                  <span style={{textAlign:"center",color:"#854F0B"}}>{s.warn_count||"—"}</span>
-                  <span style={{textAlign:"right",fontSize:10,color:"#888"}}>{fmtVal(s.total_value)}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
