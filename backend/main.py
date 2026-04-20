@@ -335,6 +335,79 @@ def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
         "fuzzy": [dict(r._mapping) for r in fuzzy],
     }
 
+@app.get("/analytics/summary")
+def analytics_summary(db: Session = Depends(get_db)):
+    """มูลค่าค้างรวม + top5 + sale ranking"""
+    try:
+        # มูลค่าค้างรวมทั้งระบบ
+        total_value = db.execute(text("""
+            SELECT COALESCE(SUM(bi.total_price), 0)
+            FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+
+        # Top 5 ค้างนานที่สุด
+        top5 = db.execute(text("""
+            SELECT c.cust_code, c.customer_name, c.sale, c.max_days, c.status,
+                   COALESCE(SUM(bi.total_price), 0) AS total_value
+            FROM customers c
+            LEFT JOIN borrows b ON b.cust_code = c.cust_code AND b.sheet_status = 'active'
+            LEFT JOIN borrow_items bi ON bi.borrow_no = b.borrow_no
+            WHERE c.status IN ('BLOCK','WARNING')
+            GROUP BY c.cust_code, c.customer_name, c.sale, c.max_days, c.status
+            ORDER BY c.max_days DESC
+            LIMIT 5
+        """)).fetchall()
+
+        # Sale ranking
+        sale_rank = db.execute(text("""
+            SELECT c.sale,
+                   COUNT(*) FILTER (WHERE c.status='BLOCK')   AS block_count,
+                   COUNT(*) FILTER (WHERE c.status='WARNING') AS warn_count,
+                   COUNT(*) FILTER (WHERE c.status='NORMAL')  AS normal_count,
+                   COALESCE(SUM(bi.total_price), 0)           AS total_value
+            FROM customers c
+            LEFT JOIN borrows b ON b.cust_code = c.cust_code AND b.sheet_status = 'active'
+            LEFT JOIN borrow_items bi ON bi.borrow_no = b.borrow_no
+            WHERE c.sale IS NOT NULL
+            GROUP BY c.sale
+            ORDER BY block_count DESC, warn_count DESC
+        """)).fetchall()
+
+        # มูลค่าค้างแยกตาม sale (สำหรับ Sale View)
+        sale_value = db.execute(text("""
+            SELECT c.sale, COALESCE(SUM(bi.total_price), 0) AS total_value
+            FROM customers c
+            LEFT JOIN borrows b ON b.cust_code = c.cust_code AND b.sheet_status = 'active'
+            LEFT JOIN borrow_items bi ON bi.borrow_no = b.borrow_no
+            GROUP BY c.sale
+        """)).fetchall()
+
+        return {
+            "total_value": float(total_value),
+            "top5": [dict(r._mapping) for r in top5],
+            "sale_ranking": [dict(r._mapping) for r in sale_rank],
+            "sale_value": {r.sale: float(r.total_value) for r in sale_value},
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/analytics/customer-value")
+def customer_value(db: Session = Depends(get_db)):
+    """มูลค่าค้างแยกตามลูกค้า"""
+    try:
+        rows = db.execute(text("""
+            SELECT b.cust_code, COALESCE(SUM(bi.total_price), 0) AS total_value
+            FROM borrows b
+            JOIN borrow_items bi ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+            GROUP BY b.cust_code
+        """)).fetchall()
+        return {r.cust_code: float(r.total_value) for r in rows}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
     db.execute(text("TRUNCATE borrow_items, borrows, customers, sync_logs RESTART IDENTITY CASCADE"))

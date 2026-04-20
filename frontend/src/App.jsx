@@ -25,15 +25,8 @@ export const SC = {
   NORMAL:  { bg:"#EAF3DE", txt:"#3B6D11", bd:"#C0DD97", dot:"#639922" },
 };
 
-export const SC_DARK = {
-  BLOCK:   { bg:"#3D1212", txt:"#F09595", bd:"#7A2020", dot:"#E24B4A" },
-  WARNING: { bg:"#3D2A00", txt:"#FAC775", bd:"#7A5500", dot:"#EF9F27" },
-  NORMAL:  { bg:"#1A2E0A", txt:"#C0DD97", bd:"#3A6014", dot:"#639922" },
-};
-
-export function StatusBadge({ status, dark }) {
-  const palette = dark ? SC_DARK : SC;
-  const c = palette[status] || palette.NORMAL;
+export function StatusBadge({ status }) {
+  const c = SC[status] || SC.NORMAL;
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:c.bg, color:c.txt, border:`0.5px solid ${c.bd}`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:500, whiteSpace:"nowrap" }}>
       <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot, flexShrink:0 }}/>
@@ -46,6 +39,8 @@ export default function App() {
   const [view, setView]           = useState("sale");
   const [customers, setCustomers] = useState([]);
   const [syncLogs, setSyncLogs]   = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [custValues, setCustValues] = useState({});
   const [loading, setLoading]     = useState(true);
   const [dark, setDark]           = useState(() => localStorage.getItem("theme") === "dark");
 
@@ -58,9 +53,13 @@ export default function App() {
       Promise.all([
         fetch(`${API_BASE}/customers`).then(r => r.json()),
         fetch(`${API_BASE}/sync-logs`).then(r => r.json()),
-      ]).then(([custs, logs]) => {
+        fetch(`${API_BASE}/analytics/summary`).then(r => r.json()),
+        fetch(`${API_BASE}/analytics/customer-value`).then(r => r.json()),
+      ]).then(([custs, logs, anal, cv]) => {
         setCustomers(Array.isArray(custs) ? custs : []);
         setSyncLogs(Array.isArray(logs) ? logs : []);
+        setAnalytics(anal?.error ? null : anal);
+        setCustValues(cv?.error ? {} : cv);
       }).catch(() => {}).finally(() => setLoading(false));
     };
     load();
@@ -82,8 +81,8 @@ export default function App() {
       {/* ── Navbar ── */}
       <div style={{ background:D.navbar, color:D.text, padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:15, fontWeight:500, letterSpacing:"-0.3px" }}>
-            <span style={{ color:"#E24B4A" }}>Neo</span>Biotech
+          <span style={{ fontSize:22, fontWeight:700, letterSpacing:"-0.8px" }}>
+            <span style={{ color:"#D4357A" }}>Neo</span>Biotech
           </span>
           <span style={{ color:"#444", fontSize:13 }}>|</span>
           <span style={{ fontSize:13, color:"#aaa", fontWeight:400 }}>Borrow Control</span>
@@ -93,7 +92,7 @@ export default function App() {
           {[["sale","Sale View"],["admin","Admin View"]].map(([k,l]) => (
             <button key={k} onClick={() => setView(k)} style={{
               padding:"0 18px", height:50, fontSize:12, fontWeight:500,
-              border:"none", borderBottom: view===k ? "2px solid #fff" : "2px solid transparent",
+              border:"none", borderBottom: view===k ? "2px solid #D4357A" : "2px solid transparent",
               background:"transparent", color: view===k ? "#fff" : D.subtext,
               cursor:"pointer", transition:"all .15s",
             }}>{l}</button>
@@ -105,36 +104,18 @@ export default function App() {
             <span style={{ width:7, height:7, borderRadius:"50%", background:"#639922", display:"inline-block" }}/>
             Sync ทุก 5 นาที
           </span>
-
-          {/* Dark/Light toggle */}
           <button onClick={() => setDark(d => !d)} style={{
-            width:52, height:28,
-            borderRadius:28,
-            border:"none",
-            cursor:"pointer",
-            padding:0,
-            position:"relative",
-            background: dark ? "#4A3F8F" : "#E8A020",
-            transition:"background .3s",
-            flexShrink:0,
+            width:52, height:28, borderRadius:28, border:"none", cursor:"pointer", padding:0,
+            position:"relative", background: dark ? "#4A3F8F" : "#E8A020", transition:"background .3s", flexShrink:0,
           }}>
-            {/* track icons */}
             <span style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?1:0,transition:"opacity .2s"}}>🌙</span>
             <span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?0:1,transition:"opacity .2s"}}>☀️</span>
-            {/* knob */}
             <span style={{
-              position:"absolute",
-              top:3, left: dark ? 27 : 3,
-              width:22, height:22,
-              borderRadius:"50%",
-              background:"#fff",
-              boxShadow:"0 1px 4px rgba(0,0,0,0.3)",
-              transition:"left .25s cubic-bezier(.4,0,.2,1)",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:11,
-            }}>
-              {dark ? "🌙" : "☀️"}
-            </span>
+              position:"absolute", top:3, left: dark ? 27 : 3,
+              width:22, height:22, borderRadius:"50%", background:"#fff",
+              boxShadow:"0 1px 4px rgba(0,0,0,0.3)", transition:"left .25s cubic-bezier(.4,0,.2,1)",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:11,
+            }}>{dark ? "🌙" : "☀️"}</span>
           </button>
         </div>
       </div>
@@ -146,9 +127,9 @@ export default function App() {
             กำลังโหลดข้อมูล...
           </div>
         ) : view === "sale" ? (
-          <SaleView customers={customers} dark={dark}/>
+          <SaleView customers={customers} dark={dark} custValues={custValues} analytics={analytics}/>
         ) : (
-          <AdminView customers={customers} syncLogs={syncLogs} dark={dark}/>
+          <AdminView customers={customers} syncLogs={syncLogs} dark={dark} analytics={analytics}/>
         )}
       </div>
     </div>
