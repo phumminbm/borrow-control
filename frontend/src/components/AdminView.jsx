@@ -140,7 +140,41 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
 
   return (
     <div>
-      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      {/* ── FILTER ROW ด้านบนสุด ── */}
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+        {/* Team buttons */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
+          <button onClick={()=>{setTeamFilter("");setSelTeam(null);setSaleFilter("");}} style={{
+            padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
+            border:"1px solid rgba(0,0,0,0.15)",
+            background:!teamFilter?"#111":"#fff",
+            color:!teamFilter?"#fff":"#555",transition:"all .15s",
+          }}>ทุกทีม</button>
+          {Object.keys(TEAMS).map(t => (
+            <button key={t} onClick={()=>{setTeamFilter(t===teamFilter?"":t);setSelTeam(t===teamFilter?null:t);setSaleFilter("");}} style={{
+              padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
+              border:`1px solid ${TEAM_COLORS[t]}`,
+              background:teamFilter===t?TEAM_COLORS[t]:"#fff",
+              color:teamFilter===t?"#fff":TEAM_COLORS[t],transition:"all .15s",
+            }}>{t}</button>
+          ))}
+        </div>
+        {/* Dropdowns + Search */}
+        <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+          <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
+            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
+            <option value="">ทุก Sale</option>
+            {[...new Set(allSales)].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
+            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
+            <option value="">ทุกสถานะ</option>
+            <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
+          </select>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."
+            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none",width:160}}/>
+        </div>
+      </div>
         <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
           <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
@@ -294,27 +328,6 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           </div>
         </div>
       )}
-
-      {/* Table filters */}
-      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหารหัสหรือชื่อลูกค้า..."
-          style={{flex:1,minWidth:180,maxWidth:240,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
-        <select value={teamFilter} onChange={e=>{setTeamFilter(e.target.value);setSelTeam(e.target.value||null);setSaleFilter("");}}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
-          <option value="">ทุกทีม</option>
-          {Object.keys(TEAMS).map(t=><option key={t}>{t}</option>)}
-        </select>
-        <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff",minWidth:120}}>
-          <option value="">ทุก Sale</option>
-          {[...new Set(allSales)].map(s=><option key={s}>{s}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
-          <option value="">ทุกสถานะ</option>
-          <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
-        </select>
-      </div>
 
       {/* Full table */}
       <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden",marginBottom:14}}>
