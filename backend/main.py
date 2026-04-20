@@ -320,6 +320,19 @@ def debug(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug-borrow/{cust_code}")
+def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
+    exact = db.execute(text(
+        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code=:cc LIMIT 5"
+    ), {"cc": cust_code}).fetchall()
+    fuzzy = db.execute(text(
+        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code LIKE :cc LIMIT 5"
+    ), {"cc": f"%{cust_code}%"}).fetchall()
+    return {
+        "exact": [dict(r._mapping) for r in exact],
+        "fuzzy": [dict(r._mapping) for r in fuzzy],
+    }
+
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
     db.execute(text("TRUNCATE borrow_items, borrows, customers, sync_logs RESTART IDENTITY CASCADE"))
