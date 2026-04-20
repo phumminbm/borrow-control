@@ -25,8 +25,15 @@ export const SC = {
   NORMAL:  { bg:"#EAF3DE", txt:"#3B6D11", bd:"#C0DD97", dot:"#639922" },
 };
 
-export function StatusBadge({ status }) {
-  const c = SC[status] || SC.NORMAL;
+export const SC_DARK = {
+  BLOCK:   { bg:"#3D1212", txt:"#F09595", bd:"#7A2020", dot:"#E24B4A" },
+  WARNING: { bg:"#3D2A00", txt:"#FAC775", bd:"#7A5500", dot:"#EF9F27" },
+  NORMAL:  { bg:"#1A2E0A", txt:"#C0DD97", bd:"#3A6014", dot:"#639922" },
+};
+
+export function StatusBadge({ status, dark }) {
+  const palette = dark ? SC_DARK : SC;
+  const c = palette[status] || palette.NORMAL;
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:c.bg, color:c.txt, border:`0.5px solid ${c.bd}`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:500, whiteSpace:"nowrap" }}>
       <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot, flexShrink:0 }}/>
@@ -40,6 +47,11 @@ export default function App() {
   const [customers, setCustomers] = useState([]);
   const [syncLogs, setSyncLogs]   = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [dark, setDark]           = useState(() => localStorage.getItem("theme") === "dark");
+
+  useEffect(() => {
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
 
   useEffect(() => {
     const load = () => {
@@ -56,11 +68,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const D = {
+    bg:      dark ? "#0f0f0f" : "#f5f5f3",
+    navbar:  dark ? "#1a1a1a" : "#111",
+    navBorder: dark ? "#333" : "#222",
+    text:    dark ? "#eee"   : "#fff",
+    subtext: dark ? "#666"   : "#777",
+  };
+
   return (
-    <div style={{ minHeight:"100vh", background:"#f5f5f3" }}>
+    <div style={{ minHeight:"100vh", background:D.bg, transition:"background .2s" }}>
 
       {/* ── Navbar ── */}
-      <div style={{ background:"#111", color:"#fff", padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
+      <div style={{ background:D.navbar, color:D.text, padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <span style={{ fontSize:15, fontWeight:500, letterSpacing:"-0.3px" }}>
             <span style={{ color:"#E24B4A" }}>Neo</span>Biotech
@@ -74,17 +94,32 @@ export default function App() {
             <button key={k} onClick={() => setView(k)} style={{
               padding:"0 18px", height:50, fontSize:12, fontWeight:500,
               border:"none", borderBottom: view===k ? "2px solid #fff" : "2px solid transparent",
-              background:"transparent", color: view===k ? "#fff" : "#777",
+              background:"transparent", color: view===k ? "#fff" : D.subtext,
               cursor:"pointer", transition:"all .15s",
             }}>{l}</button>
           ))}
         </div>
 
-        <div style={{ display:"flex", alignItems:"center", gap:10, fontSize:11, color:"#888" }}>
-          <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14, fontSize:11 }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:5, color:"#888" }}>
             <span style={{ width:7, height:7, borderRadius:"50%", background:"#639922", display:"inline-block" }}/>
             Sync ทุก 5 นาที
           </span>
+
+          {/* Dark/Light toggle */}
+          <button onClick={() => setDark(d => !d)} style={{
+            background: dark ? "#333" : "#2a2a2a",
+            border:"0.5px solid #444",
+            borderRadius:20,
+            padding:"3px 10px",
+            cursor:"pointer",
+            fontSize:14,
+            display:"flex", alignItems:"center", gap:6,
+            color:"#fff",
+            transition:"all .2s",
+          }}>
+            {dark ? "☀️" : "🌙"}
+          </button>
         </div>
       </div>
 
@@ -95,9 +130,9 @@ export default function App() {
             กำลังโหลดข้อมูล...
           </div>
         ) : view === "sale" ? (
-          <SaleView customers={customers}/>
+          <SaleView customers={customers} dark={dark}/>
         ) : (
-          <AdminView customers={customers} syncLogs={syncLogs}/>
+          <AdminView customers={customers} syncLogs={syncLogs} dark={dark}/>
         )}
       </div>
     </div>
