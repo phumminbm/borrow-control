@@ -112,6 +112,7 @@ class SyncRow(BaseModel):
 
 class SyncPayload(BaseModel):
     rows: list[SyncRow]
+    is_final_batch: bool = False
 
 @app.get("/health")
 def health():
@@ -263,19 +264,20 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
             try: db.rollback()
             except: pass
 
-    # ── Close BRs ที่หายจาก Sheet ────────────────────────────────
-    try:
-        active = db.execute(text(
-            "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
-        )).fetchall()
-        gone = [r[0] for r in active if r[0] not in sheet_brs]
-        if gone:
-            db.execute(text("""
-                UPDATE borrows SET sheet_status='closed',closed_at=:now
-                WHERE borrow_no=ANY(:ids)
-            """), {"now": now, "ids": gone})
-            stats["closed"] = len(gone)
-    except: pass
+    # ── Close BRs ที่หายจาก Sheet (ทำเฉพาะ batch สุดท้าย) ──────────
+    if payload.is_final_batch:
+        try:
+            active = db.execute(text(
+                "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
+            )).fetchall()
+            gone = [r[0] for r in active if r[0] not in sheet_brs]
+            if gone:
+                db.execute(text("""
+                    UPDATE borrows SET sheet_status='closed',closed_at=:now
+                    WHERE borrow_no=ANY(:ids)
+                """), {"now": now, "ids": gone})
+                stats["closed"] = len(gone)
+        except: pass
 
     db.commit()
 
@@ -319,19 +321,6 @@ def debug(db: Session = Depends(get_db)):
         return {"customers": c, "borrows": b, "borrow_items": i}
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/debug-borrow/{cust_code}")
-def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
-    exact = db.execute(text(
-        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code=:cc LIMIT 5"
-    ), {"cc": cust_code}).fetchall()
-    fuzzy = db.execute(text(
-        "SELECT borrow_no, cust_code, days_borrowed, sheet_status FROM borrows WHERE cust_code LIKE :cc LIMIT 5"
-    ), {"cc": f"%{cust_code}%"}).fetchall()
-    return {
-        "exact": [dict(r._mapping) for r in exact],
-        "fuzzy": [dict(r._mapping) for r in fuzzy],
-    }
 
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
