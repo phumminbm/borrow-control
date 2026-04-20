@@ -175,6 +175,9 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
             style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none",width:160}}/>
         </div>
       </div>
+
+      {/* KPI Cards */}
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
           <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
           <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
