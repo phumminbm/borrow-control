@@ -4,8 +4,8 @@ import { StatusBadge } from "../App";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const S = {
-  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
-  modal:   { background:"#fff", borderRadius:12, width:"92%", maxWidth:640, maxHeight:"85vh", overflowY:"auto", border:"0.5px solid rgba(0,0,0,0.1)", display:"flex", flexDirection:"column" },
+  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:1000 },
+  modal:   { background:"#fff", borderRadius:"12px 12px 0 0", width:"100%", maxWidth:640, maxHeight:"92vh", overflowY:"auto", border:"0.5px solid rgba(0,0,0,0.1)", display:"flex", flexDirection:"column" },
   mhead:   { padding:"13px 16px", borderBottom:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 },
   mfoot:   { padding:"10px 16px", borderTop:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 },
   btnBlue: { padding:"4px 10px", fontSize:11, fontWeight:500, borderRadius:6, cursor:"pointer", border:"0.5px solid #185FA5", background:"#E6F1FB", color:"#0C447C" },
@@ -213,99 +213,97 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
   return (
     <div>
       {bl > 0 && (
-        <div style={{background:"#FCEBEB",border:"0.5px solid #F09595",borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:"#791F1F",display:"flex",gap:6}}>
-          <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน — ติดต่อเพื่อเคลียสินค้าด่วน
+        <div style={{background:"#FCEBEB",border:"0.5px solid #F09595",borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
+          <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน
         </div>
       )}
 
-      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,flex:3,minWidth:300}}>
-          <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
-            <div style={{fontSize:24,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length}</div>
-          </div>
-          <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>BLOCK</div>
-            <div style={{fontSize:24,fontWeight:600,color:"#A32D2D"}}>{bl}</div>
-          </div>
-          <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{fontSize:11,color:"#854F0B",marginBottom:4,fontWeight:500}}>WARNING</div>
-            <div style={{fontSize:24,fontWeight:600,color:"#854F0B"}}>{wa}</div>
-          </div>
-          <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"12px 14px"}}>
-            <div style={{fontSize:11,color:"#3B6D11",marginBottom:4,fontWeight:500}}>NORMAL</div>
-            <div style={{fontSize:24,fontWeight:600,color:"#3B6D11"}}>{filtered.length-bl-wa}</div>
-          </div>
+      {/* KPI — 2 cols on mobile */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:14}}>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:140,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{bl}</div>
+        </div>
+        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{wa}</div>
+        </div>
+        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{filtered.length-bl-wa}</div>
+        </div>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px",gridColumn:"1/-1",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
+            <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
             <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
           </div>
-          {myTeam && (
-            <div style={{marginTop:6}}>
-              <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:"#E6F1FB",border:"0.5px solid #B5D4F4",borderRadius:4,padding:"2px 8px"}}>ทีม {myTeam}</span>
-            </div>
-          )}
+          {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:"#E6F1FB",border:"0.5px solid #B5D4F4",borderRadius:4,padding:"2px 8px"}}>ทีม {myTeam}</span>}
         </div>
       </div>
 
+      {/* Filters */}
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหารหัสหรือชื่อลูกค้า..."
-          style={{flex:1,minWidth:180,maxWidth:280,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."
+          style={{flex:1,minWidth:120,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
         <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,minWidth:140,background:"#fff"}}>
+          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff",flex:1,minWidth:100}}>
           <option value="">ทุก Sale</option>
           {allSales.map(s=><option key={s}>{s}</option>)}
         </select>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
+          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff",flex:1,minWidth:100}}>
           <option value="">ทุกสถานะ</option>
           <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
         </select>
       </div>
 
+      {/* Table with horizontal scroll on mobile */}
       <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+        <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
           <thead style={{background:"#f9f9f7",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
             <tr>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"32px"}}>#</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"90px"}}>รหัสลูกค้า</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888"}}>ชื่อลูกค้า</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"90px"}}>Sale</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"50px"}}>BR</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"100px"}}>วันค้างสูงสุด</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"110px"}}>มูลค่าค้าง</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}>สถานะ</th>
-              <th style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"110px"}}></th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"28px"}}>#</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"75px"}}>รหัส</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888"}}>ชื่อลูกค้า</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"65px"}}>Sale</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"38px"}}>BR</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}>วันค้าง</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"95px"}}>มูลค่า</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"80px"}}>สถานะ</th>
+              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
+              <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
             ) : filtered.map((c,i)=>(
               <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:"0.5px solid rgba(0,0,0,0.06)"}}>
-                <td style={{padding:"9px 12px",fontSize:11,color:"#aaa"}}>{i+1}</td>
-                <td style={{padding:"9px 12px",fontSize:11,fontWeight:500,color:"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                <td style={{padding:"9px 12px",fontSize:12,fontWeight:500}}>{c.customer_name}</td>
-                <td style={{padding:"9px 12px",fontSize:11,color:"#777"}}>{c.sale}</td>
-                <td style={{padding:"9px 12px",fontSize:11,color:"#777"}}>{c.active_br_count}</td>
-                <td style={{padding:"9px 12px",fontSize:12,fontWeight:c.max_days>90?500:400,
+                <td style={{padding:"9px 10px",fontSize:11,color:"#aaa"}}>{i+1}</td>
+                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                <td style={{padding:"9px 10px",fontSize:12,fontWeight:500}}>{c.customer_name}</td>
+                <td style={{padding:"9px 10px",fontSize:11,color:"#777"}}>{c.sale}</td>
+                <td style={{padding:"9px 10px",fontSize:11,color:"#777"}}>{c.active_br_count}</td>
+                <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
                   color:c.max_days>180?"#A32D2D":c.max_days>90?"#854F0B":"#1a1a1a"}}>{c.max_days} วัน</td>
-                <td style={{padding:"9px 12px",fontSize:11,fontWeight:500,
+                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
                   color:c.max_days>180?"#A32D2D":c.max_days>90?"#854F0B":"#888"}}>
                   {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
                 </td>
-                <td style={{padding:"9px 12px"}}><StatusBadge status={c.status}/></td>
-                <td style={{padding:"9px 12px"}}>
+                <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
+                <td style={{padding:"9px 10px"}}>
                   <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>ดูรายละเอียด</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
-
       {selectedCustomer && (
         <CustomerModal customer={selectedCustomer} onClose={()=>setSelectedCustomer(null)}/>
       )}

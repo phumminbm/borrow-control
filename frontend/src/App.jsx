@@ -87,19 +87,19 @@ export default function App() {
     <div style={{ minHeight:"100vh", background:D.bg, transition:"background .2s" }}>
 
       {/* ── Navbar ── */}
-      <div style={{ background:D.navbar, color:D.text, padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:22, fontWeight:700, letterSpacing:"-0.8px" }}>
+      <div style={{ background:D.navbar, color:D.text, padding:"0 12px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.8px" }}>
             <span style={{ color:"#D4357A" }}>Neo</span>Biotech
           </span>
-          <span style={{ color:"#444", fontSize:13 }}>|</span>
-          <span style={{ fontSize:13, color:"#aaa", fontWeight:400 }}>Borrow Control</span>
+          <span style={{ color:"#444", fontSize:13, display:"none" }} className="desktop-only">|</span>
+          <span style={{ fontSize:13, color:"#aaa", fontWeight:400, display:"none" }} className="desktop-only">Borrow Control</span>
         </div>
 
         <div style={{ display:"flex" }}>
-          {[["sale","Sale View"],["admin","Admin View"]].map(([k,l]) => (
+          {[["sale","Sale"],["admin","Admin"]].map(([k,l]) => (
             <button key={k} onClick={() => setView(k)} style={{
-              padding:"0 18px", height:50, fontSize:12, fontWeight:500,
+              padding:"0 12px", height:50, fontSize:12, fontWeight:500,
               border:"none", borderBottom: view===k ? "2px solid #D4357A" : "2px solid transparent",
               background:"transparent", color: view===k ? "#fff" : D.subtext,
               cursor:"pointer", transition:"all .15s",
@@ -107,29 +107,28 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ display:"flex", alignItems:"center", gap:14, fontSize:11 }}>
-          <span style={{ display:"inline-flex", alignItems:"center", gap:5, color:"#888" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11 }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#888" }}>
             <span style={{ width:7, height:7, borderRadius:"50%", background:"#639922", display:"inline-block" }}/>
-            Sync ทุก 5 นาที
           </span>
           <button onClick={() => setDark(d => !d)} style={{
-            width:52, height:28, borderRadius:28, border:"none", cursor:"pointer", padding:0,
+            width:48, height:26, borderRadius:28, border:"none", cursor:"pointer", padding:0,
             position:"relative", background: dark ? "#4A3F8F" : "#E8A020", transition:"background .3s", flexShrink:0,
           }}>
-            <span style={{position:"absolute",left:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?1:0,transition:"opacity .2s"}}>🌙</span>
-            <span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",fontSize:12,opacity:dark?0:1,transition:"opacity .2s"}}>☀️</span>
+            <span style={{position:"absolute",left:5,top:"50%",transform:"translateY(-50%)",fontSize:11,opacity:dark?1:0,transition:"opacity .2s"}}>🌙</span>
+            <span style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",fontSize:11,opacity:dark?0:1,transition:"opacity .2s"}}>☀️</span>
             <span style={{
-              position:"absolute", top:3, left: dark ? 27 : 3,
-              width:22, height:22, borderRadius:"50%", background:"#fff",
+              position:"absolute", top:3, left: dark ? 24 : 3,
+              width:20, height:20, borderRadius:"50%", background:"#fff",
               boxShadow:"0 1px 4px rgba(0,0,0,0.3)", transition:"left .25s cubic-bezier(.4,0,.2,1)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:11,
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:10,
             }}>{dark ? "🌙" : "☀️"}</span>
           </button>
         </div>
       </div>
 
       {/* ── Content ── */}
-      <div style={{ padding:"20px 24px", maxWidth:1400, margin:"0 auto" }}>
+      <div style={{ padding:"12px 12px", maxWidth:1400, margin:"0 auto" }}>
         {loading ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300, color:"#888", fontSize:13 }}>
             กำลังโหลดข้อมูล...

@@ -177,30 +177,30 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       </div>
 
       {/* KPI Cards */}
-      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
-          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:16}}>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:20,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
         </div>
-        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
-          <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>BLOCK</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{filteredBl}</div>
+        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{filteredBl}</div>
         </div>
-        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
-          <div style={{fontSize:11,color:"#854F0B",marginBottom:4,fontWeight:500}}>WARNING</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{filteredWa}</div>
+        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+          <div style={{fontSize:20,fontWeight:600,color:"#854F0B"}}>{filteredWa}</div>
         </div>
-        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
-          <div style={{fontSize:11,color:"#3B6D11",marginBottom:4,fontWeight:500}}>NORMAL</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{filteredNo}</div>
+        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+          <div style={{fontSize:20,fontWeight:600,color:"#3B6D11"}}>{filteredNo}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:4}}>BR active</div>
-          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:3}}>BR active</div>
+          <div style={{fontSize:20,fontWeight:600,color:"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:100}}>
-          <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>มูลค่าค้างรวม</div>
-          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างรวม</div>
+          <div style={{fontSize:18,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
         </div>
       </div>
 
@@ -218,7 +218,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       )}
 
       {/* Charts */}
-      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.7fr)",gap:12,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.7fr)",gap:12,marginBottom:14,overflowX:"auto"}}>
         {/* Pie */}
         <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
           <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:"#555"}}>
@@ -334,7 +334,8 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
 
       {/* Full table */}
       <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden",marginBottom:14}}>
-        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+        <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
           <thead style={{background:"#f9f9f7",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
             <tr>
               {["#","รหัสลูกค้า","ชื่อลูกค้า","ทีม","Sale","BR","วันค้าง","สถานะ","อัปเดต"].map((h,i)=>(
@@ -370,12 +371,14 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Sync log */}
       <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:8}}>Sync log</div>
       <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+        <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:480}}>
           <thead style={{background:"#f9f9f7"}}>
             <tr>
               {["เวลา","สถานะ","ใหม่","เปลี่ยน","ปิด","error","เวลา(s)","หมายเหตุ"].map(h=>(
@@ -403,6 +406,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
