@@ -14,12 +14,21 @@ const S = {
 };
 
 function badge(status) {
-  const c = status==="BLOCK"?{bg:"#FCEBEB",txt:"#A32D2D",bd:"#F09595",dot:"#E24B4A"}
-           :status==="WARNING"?{bg:"#FAEEDA",txt:"#854F0B",bd:"#FAC775",dot:"#EF9F27"}
-           :{bg:"#EAF3DE",txt:"#3B6D11",bd:"#C0DD97",dot:"#639922"};
-  return <span style={{display:"inline-flex",alignItems:"center",gap:4,background:c.bg,color:c.txt,border:`0.5px solid ${c.bd}`,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>
-    <span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}
-  </span>;
+  if (status==="BLOCK") return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#E24B4A",color:"#fff",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(255,255,255,0.7)",flexShrink:0}}/>BLOCK
+    </span>
+  );
+  if (status==="WARNING") return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#EF9F27",color:"#fff",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(255,255,255,0.7)",flexShrink:0}}/>WARNING
+    </span>
+  );
+  return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#EAF3DE",color:"#3B6D11",border:"0.5px solid #C0DD97",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:"#639922",flexShrink:0}}/>NORMAL
+    </span>
+  );
 }
 
 function BRDetailModal({ br, onClose }) {
@@ -184,7 +193,7 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
 
   const bl = filtered.filter(c => c.status==="BLOCK").length;
   const wa = filtered.filter(c => c.status==="WARNING").length;
-  const rowBg = s => s==="BLOCK"?"rgba(252,235,235,0.35)":s==="WARNING"?"rgba(250,238,218,0.35)":"transparent";
+  const rowBg = s => s==="BLOCK"?"#FDF0F0":s==="WARNING"?"#FDF6E8":"var(--color-background-primary)";
 
   // หา team ของ sale แรกที่เจอ (สำหรับ filter เฉพาะ sale)
   const myTeam = saleFilter ? (() => {
@@ -209,19 +218,29 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
         </div>
       )}
 
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,flex:3,minWidth:300}}>
-          {[["ลูกค้าทั้งหมด",filtered.length,null],["BLOCK",bl,"#A32D2D"],["WARNING",wa,"#854F0B"],["NORMAL",filtered.length-bl-wa,"#3B6D11"]].map(([label,val,color])=>(
-            <div key={label} style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px"}}>
-              <div style={{fontSize:11,color:"#888",marginBottom:2}}>{label}</div>
-              <div style={{fontSize:20,fontWeight:600,color:color||"#1a1a1a"}}>{val}</div>
-            </div>
-          ))}
+      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,flex:3,minWidth:300}}>
+          <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
+            <div style={{fontSize:24,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length}</div>
+          </div>
+          <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>BLOCK</div>
+            <div style={{fontSize:24,fontWeight:600,color:"#A32D2D"}}>{bl}</div>
+          </div>
+          <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:"#854F0B",marginBottom:4,fontWeight:500}}>WARNING</div>
+            <div style={{fontSize:24,fontWeight:600,color:"#854F0B"}}>{wa}</div>
+          </div>
+          <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:"#3B6D11",marginBottom:4,fontWeight:500}}>NORMAL</div>
+            <div style={{fontSize:24,fontWeight:600,color:"#3B6D11"}}>{filtered.length-bl-wa}</div>
+          </div>
         </div>
-        <div style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px",flex:1,minWidth:140,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:140,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
           <div>
-            <div style={{fontSize:11,color:"#888",marginBottom:2}}>มูลค่าค้างชำระรวม</div>
-            <div style={{fontSize:18,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+            <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
+            <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
           </div>
           {myTeam && (
             <div style={{marginTop:6}}>

@@ -26,11 +26,19 @@ export const SC = {
 };
 
 export function StatusBadge({ status }) {
-  const c = SC[status] || SC.NORMAL;
+  if (status === "BLOCK") return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#E24B4A", color:"#fff", borderRadius:5, padding:"3px 9px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:"rgba(255,255,255,0.7)", flexShrink:0 }}/>BLOCK
+    </span>
+  );
+  if (status === "WARNING") return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#EF9F27", color:"#fff", borderRadius:5, padding:"3px 9px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:"rgba(255,255,255,0.7)", flexShrink:0 }}/>WARNING
+    </span>
+  );
   return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:c.bg, color:c.txt, border:`0.5px solid ${c.bd}`, borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:500, whiteSpace:"nowrap" }}>
-      <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot, flexShrink:0 }}/>
-      {status}
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#EAF3DE", color:"#3B6D11", border:"0.5px solid #C0DD97", borderRadius:5, padding:"3px 9px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:"#639922", flexShrink:0 }}/>NORMAL
     </span>
   );
 }

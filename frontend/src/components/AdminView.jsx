@@ -120,16 +120,30 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
 
   return (
     <div>
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        {[["ลูกค้าทั้งหมด",customersWithTeam.length,null],["BLOCK",totalBl,"#A32D2D"],["WARNING",totalWa,"#854F0B"],["NORMAL",totalNo,"#3B6D11"],["BR active",totalBR,null]].map(([l,v,c])=>(
-          <div key={l} style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px",flex:1,minWidth:80}}>
-            <div style={{fontSize:11,color:"#888",marginBottom:2}}>{l}</div>
-            <div style={{fontSize:19,fontWeight:600,color:c||"#1a1a1a"}}>{typeof v==="number"?v.toLocaleString():v}</div>
-          </div>
-        ))}
-        <div style={{background:"#f5f5f3",borderRadius:8,padding:"9px 14px",flex:1,minWidth:120}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:2}}>มูลค่าค้างรวม</div>
-          <div style={{fontSize:17,fontWeight:600,color:"#A32D2D"}}>{fmtVal(totalValue)}</div>
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:4}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{customersWithTeam.length.toLocaleString()}</div>
+        </div>
+        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
+          <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>BLOCK</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{totalBl}</div>
+        </div>
+        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
+          <div style={{fontSize:11,color:"#854F0B",marginBottom:4,fontWeight:500}}>WARNING</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{totalWa}</div>
+        </div>
+        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
+          <div style={{fontSize:11,color:"#3B6D11",marginBottom:4,fontWeight:500}}>NORMAL</div>
+          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{totalNo}</div>
+        </div>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"12px 14px",flex:1,minWidth:80}}>
+          <div style={{fontSize:11,color:"#888",marginBottom:4}}>BR active</div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{totalBR.toLocaleString()}</div>
+        </div>
+        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"12px 14px",flex:1,minWidth:100}}>
+          <div style={{fontSize:11,color:"#A32D2D",marginBottom:4,fontWeight:500}}>มูลค่าค้างรวม</div>
+          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{fmtVal(totalValue)}</div>
         </div>
       </div>
 
@@ -287,7 +301,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           </thead>
           <tbody>
             {filtered.slice(0,15).map((c,i)=>{
-              const bg=c.status==="BLOCK"?"rgba(252,235,235,0.25)":c.status==="WARNING"?"rgba(250,238,218,0.25)":"transparent";
+              const bg=c.status==="BLOCK"?"#FDF0F0":c.status==="WARNING"?"#FDF6E8":"var(--color-background-primary)";
               const tc=TEAM_COLORS[c.team]||"#888";
               return (
                 <tr key={c.cust_code} style={{background:bg,borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
