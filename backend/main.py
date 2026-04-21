@@ -247,6 +247,21 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                     updated_at=EXCLUDED.updated_at
             """), item_params)
 
+        # ── ลบ items ที่ถูก CLEAR แล้ว (product_code ไม่อยู่ใน batch นี้แล้ว) ──
+        # สร้าง map: borrow_no → set of product_codes ที่ยังอยู่ใน batch
+        bno_to_codes = {}
+        for p in item_params:
+            bno_to_codes.setdefault(p["bno"], set()).add(p["code"])
+
+        # เฉพาะ BR ที่มีสินค้าใน batch นี้ → เช็คว่ามี item เก่าใน DB ที่หายไปไหม
+        for bno, codes in bno_to_codes.items():
+            codes_list = list(codes)
+            db.execute(text("""
+                DELETE FROM borrow_items
+                WHERE borrow_no = :bno
+                  AND product_code != ALL(:codes)
+            """), {"bno": bno, "codes": codes_list})
+
         db.commit()
 
     except Exception as e:
@@ -265,19 +280,6 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         closed_count = len(result.fetchall())
         if closed_count > 0:
             stats["closed"] = closed_count
-        db.commit()
-    except: pass
-
-    # ── Auto-delete borrow_items ที่หายจาก Sheet (updated_at เก่ากว่า 3 ชั่วโมง
-    #    และ BR ยังเป็น active อยู่ = สินค้าชิ้นนั้นถูก CLEAR แล้ว) ────────────
-    try:
-        db.execute(text("""
-            DELETE FROM borrow_items
-            WHERE updated_at < NOW() - INTERVAL '3 hours'
-              AND borrow_no IN (
-                SELECT borrow_no FROM borrows WHERE sheet_status='active'
-              )
-        """))
         db.commit()
     except: pass
 
