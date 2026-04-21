@@ -3,49 +3,62 @@ import { StatusBadge } from "../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const S = {
-  overlay: { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
-  modal:   { background:"#fff", borderRadius:12, width:"92%", maxWidth:640, maxHeight:"90vh", overflowY:"auto", border:"0.5px solid rgba(0,0,0,0.1)", display:"flex", flexDirection:"column" },
-  mhead:   { padding:"13px 16px", borderBottom:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 },
-  mfoot:   { padding:"10px 16px", borderTop:"0.5px solid rgba(0,0,0,0.08)", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 },
-  btnBlue: { padding:"4px 10px", fontSize:11, fontWeight:500, borderRadius:6, cursor:"pointer", border:"0.5px solid #185FA5", background:"#E6F1FB", color:"#0C447C" },
-  btnGray: { padding:"5px 14px", fontSize:12, borderRadius:7, cursor:"pointer", border:"0.5px solid rgba(0,0,0,0.15)", background:"#fff", color:"#555" },
-  closeBtn:{ padding:"2px 6px", fontSize:14, border:"none", background:"none", cursor:"pointer", color:"#888", fontWeight:500 },
-};
+function getS(dark) { return {
+  overlay:  { position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
+  modal:    { background:dark?"#1a1a1a":"#fff", borderRadius:12, width:"92%", maxWidth:640, maxHeight:"90vh", overflowY:"auto", border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.1)"}`, display:"flex", flexDirection:"column" },
+  mhead:    { padding:"13px 16px", borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`, display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 },
+  mfoot:    { padding:"10px 16px", borderTop:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 },
+  btnBlue:  { padding:"4px 10px", fontSize:11, fontWeight:500, borderRadius:6, cursor:"pointer", border:"0.5px solid #185FA5", background:dark?"#0C2A4A":"#E6F1FB", color:dark?"#7BB8F5":"#0C447C" },
+  btnGray:  { padding:"5px 14px", fontSize:12, borderRadius:7, cursor:"pointer", border:`0.5px solid ${dark?"#333":"rgba(0,0,0,0.15)"}`, background:dark?"#222":"#fff", color:dark?"#aaa":"#555" },
+  closeBtn: { padding:"2px 6px", fontSize:14, border:"none", background:"none", cursor:"pointer", color:"#888", fontWeight:500 },
+}; }
 
-function badge(status) {
+function badge(status, dark) {
   if (status==="BLOCK") return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#E24B4A",color:"#fff",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
-      <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(255,255,255,0.7)",flexShrink:0}}/>BLOCK
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,
+      background:dark?"#3D1212":"#E24B4A", color:dark?"#F09595":"#fff",
+      border:dark?"0.5px solid #7A2020":"none",
+      borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:dark?"#E24B4A":"rgba(255,255,255,0.7)",flexShrink:0}}/>BLOCK
     </span>
   );
   if (status==="WARNING") return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#EF9F27",color:"#fff",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
-      <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(255,255,255,0.7)",flexShrink:0}}/>WARNING
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,
+      background:dark?"#3D2A00":"#EF9F27", color:dark?"#FAC775":"#fff",
+      border:dark?"0.5px solid #7A5500":"none",
+      borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:dark?"#EF9F27":"rgba(255,255,255,0.7)",flexShrink:0}}/>WARNING
     </span>
   );
   return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:4,background:"#EAF3DE",color:"#3B6D11",border:"0.5px solid #C0DD97",borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,
+      background:dark?"#1A2E0A":"#EAF3DE", color:dark?"#C0DD97":"#3B6D11",
+      border:`0.5px solid ${dark?"#3A6014":"#C0DD97"}`,
+      borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>
       <span style={{width:6,height:6,borderRadius:"50%",background:"#639922",flexShrink:0}}/>NORMAL
     </span>
   );
 }
 
-function BRDetailModal({ br, onClose }) {
+function BRDetailModal({ br, onClose, dark }) {
   if (!br) return null;
+  const S = getS(dark);
   const items = br.items || [];
   const total = items.reduce((s,i) => s + (Number(i.price)||0) * (Number(i.quantity)||0), 0);
+  const txt = dark ? "#ddd" : "#111";
+  const sub = dark ? "#666" : "#555";
+  const bdr = dark ? "#2a2a2a" : "rgba(0,0,0,0.08)";
 
   return (
     <div style={{...S.overlay, zIndex:1100}} onClick={e => e.target===e.currentTarget&&onClose()}>
       <div style={S.modal} onClick={e=>e.stopPropagation()}>
         <div style={S.mhead}>
           <div>
-            <div style={{fontSize:13,fontWeight:600}}>{br.borrow_no}</div>
+            <div style={{fontSize:13,fontWeight:600,color:txt}}>{br.borrow_no}</div>
             <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <span>{br.borrow_date}</span><span>·</span>
-              <span style={{color:br.days_borrowed>180?"#A32D2D":br.days_borrowed>90?"#854F0B":"#555",fontWeight:500}}>{br.days_borrowed} วัน</span>
-              <span>·</span>{badge(br.borrow_alert)}
+              <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):sub,fontWeight:500}}>{br.days_borrowed} วัน</span>
+              <span>·</span>{badge(br.borrow_alert, dark)}
             </div>
           </div>
           <button style={S.closeBtn} onClick={onClose}>✕</button>
@@ -56,32 +69,26 @@ function BRDetailModal({ br, onClose }) {
           ) : (
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
               <thead>
-                <tr style={{background:"#f5f5f3"}}>
+                <tr style={{background:dark?"#222":"#f5f5f3"}}>
                   {["#","รหัสสินค้า","ชื่อสินค้า","จำนวน","ราคา/หน่วย","รวม"].map(h=>(
-                    <th key={h} style={{
-                      padding:"6px 10px",
-                      textAlign:["จำนวน","ราคา/หน่วย","รวม"].includes(h)?"right":"left",
-                      fontWeight:600, color:"#555",
-                      borderBottom:"0.5px solid rgba(0,0,0,0.08)",
-                      width: h==="#"?"32px":undefined
-                    }}>{h}</th>
+                    <th key={h} style={{padding:"6px 10px",textAlign:["จำนวน","ราคา/หน่วย","รวม"].includes(h)?"right":"left",fontWeight:600,color:sub,borderBottom:`0.5px solid ${bdr}`,width:h==="#"?"32px":undefined}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {items.map((item,i)=>(
-                  <tr key={i} style={{borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
+                  <tr key={i} style={{borderBottom:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.05)"}`}}>
                     <td style={{padding:"6px 10px",color:"#888",fontWeight:500}}>{i+1}</td>
-                    <td style={{padding:"6px 10px",color:"#333",fontWeight:500}}>{item.product_code}</td>
-                    <td style={{padding:"6px 10px",color:"#111"}}>{item.product_name}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{item.quantity}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",color:"#333"}}>{Number(item.price).toLocaleString()}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:"#111"}}>{(Number(item.price) * Number(item.quantity)).toLocaleString()}</td>
+                    <td style={{padding:"6px 10px",color:dark?"#aaa":"#333",fontWeight:500}}>{item.product_code}</td>
+                    <td style={{padding:"6px 10px",color:txt}}>{item.product_name}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:dark?"#aaa":"#333"}}>{item.quantity}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:dark?"#aaa":"#333"}}>{Number(item.price).toLocaleString()}</td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:txt}}>{(Number(item.price) * Number(item.quantity)).toLocaleString()}</td>
                   </tr>
                 ))}
-                <tr style={{borderTop:"0.5px solid rgba(0,0,0,0.12)",background:"#f9f9f7"}}>
-                  <td colSpan={5} style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>รวมทั้งหมด</td>
-                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:"#111"}}>{total.toLocaleString()} บาท</td>
+                <tr style={{borderTop:`0.5px solid ${dark?"#333":"rgba(0,0,0,0.12)"}`,background:dark?"#222":"#f9f9f7"}}>
+                  <td colSpan={5} style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:sub}}>รวมทั้งหมด</td>
+                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:txt}}>{total.toLocaleString()} บาท</td>
                 </tr>
               </tbody>
             </table>
@@ -96,10 +103,14 @@ function BRDetailModal({ br, onClose }) {
   );
 }
 
-function CustomerModal({ customer, onClose }) {
+function CustomerModal({ customer, onClose, dark }) {
   const [brs, setBrs]         = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBr, setSelectedBr] = useState(null);
+  const S = getS(dark);
+  const txt = dark ? "#ddd" : "#111";
+  const sub = dark ? "#555" : "#555";
+  const bdr = dark ? "#2a2a2a" : "rgba(0,0,0,0.06)";
 
   useEffect(() => {
     if (!customer) return;
@@ -119,20 +130,19 @@ function CustomerModal({ customer, onClose }) {
         <div style={S.modal} onClick={e=>e.stopPropagation()}>
           <div style={S.mhead}>
             <div>
-              <div style={{fontSize:14,fontWeight:600}}>{customer.customer_name}</div>
+              <div style={{fontSize:14,fontWeight:600,color:txt}}>{customer.customer_name}</div>
               <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{background:"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:"#555"}}>{customer.cust_code}</span>
-                <span>·</span><span>Sale: {customer.sale}</span><span>·</span>
-                <span>{customer.active_br_count} BR active</span><span>·</span>
-                <span style={{color:customer.max_days>180?"#A32D2D":customer.max_days>90?"#854F0B":"#555",fontWeight:500}}>
+                <span style={{background:dark?"#222":"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:dark?"#aaa":"#555"}}>{customer.cust_code}</span>
+                <span>·</span><span style={{color:"#888"}}>Sale: {customer.sale}</span><span>·</span>
+                <span style={{color:"#888"}}>{customer.active_br_count} BR active</span><span>·</span>
+                <span style={{color:customer.max_days>180?(dark?"#F09595":"#A32D2D"):customer.max_days>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:500}}>
                   วันค้างสูงสุด {customer.max_days} วัน
                 </span><span>·</span>
-                {badge(customer.status)}
+                {badge(customer.status, dark)}
               </div>
             </div>
             <button style={S.closeBtn} onClick={onClose}>✕</button>
           </div>
-
           <div style={{flex:1,overflowY:"auto"}}>
             {loading ? (
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>กำลังโหลด BR...</div>
@@ -142,19 +152,20 @@ function CustomerModal({ customer, onClose }) {
               const items = br.items || [];
               const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
               return (
-                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:"0.5px solid rgba(0,0,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,
+                  background:br.borrow_alert==="BLOCK"?(dark?"#1e0e0e":"transparent"):br.borrow_alert==="WARNING"?(dark?"#1e1600":"transparent"):"transparent"}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
-                      <span style={{fontSize:12,fontWeight:600,color:"#111"}}>{br.borrow_no}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:txt}}>{br.borrow_no}</span>
                       <span style={{fontSize:11,color:"#888"}}>{br.borrow_date}</span>
-                      {badge(br.borrow_alert)}
+                      {badge(br.borrow_alert, dark)}
                     </div>
                     <div style={{fontSize:11,color:"#888"}}>
-                      <span style={{color:br.days_borrowed>180?"#A32D2D":br.days_borrowed>90?"#854F0B":"#555",fontWeight:br.days_borrowed>90?600:400}}>
+                      <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:br.days_borrowed>90?600:400}}>
                         {br.days_borrowed} วัน
                       </span>
                       {" · "}{items.length} รายการสินค้า{" · "}
-                      <span style={{color:"#333",fontWeight:500}}>{total.toLocaleString()} บาท</span>
+                      <span style={{color:dark?"#aaa":"#333",fontWeight:500}}>{total.toLocaleString()} บาท</span>
                     </div>
                   </div>
                   <button style={{...S.btnBlue,flexShrink:0}} onClick={()=>setSelectedBr(br)}>ดูรายละเอียด</button>
@@ -162,14 +173,13 @@ function CustomerModal({ customer, onClose }) {
               );
             })}
           </div>
-
           <div style={S.mfoot}>
             <div/>
             <button style={S.btnGray} onClick={onClose}>ปิด</button>
           </div>
         </div>
       </div>
-      {selectedBr && <BRDetailModal br={selectedBr} onClose={() => setSelectedBr(null)}/>}
+      {selectedBr && <BRDetailModal br={selectedBr} onClose={() => setSelectedBr(null)} dark={dark}/>}
     </>
   );
 }
@@ -180,10 +190,11 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
+  const S = getS(dark);
   const allSales = [...new Set(customers.map(c => c.sale))].sort();
 
   const filtered = customers.filter(c =>
-    (!search || 
+    (!search ||
       c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
       c.cust_code.toLowerCase().includes(search.toLowerCase())
     ) &&
@@ -193,9 +204,9 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
 
   const bl = filtered.filter(c => c.status==="BLOCK").length;
   const wa = filtered.filter(c => c.status==="WARNING").length;
-  const rowBg = s => s==="BLOCK"?"#FDF0F0":s==="WARNING"?"#FDF6E8":"var(--color-background-primary)";
 
-  // หา team ของ sale แรกที่เจอ (สำหรับ filter เฉพาะ sale)
+  const rowBg = s => s==="BLOCK"?(dark?"#1e0e0e":"#FDF0F0"):s==="WARNING"?(dark?"#1e1600":"#FDF6E8"):"transparent";
+
   const myTeam = saleFilter ? (() => {
     const TEAMS = {
       Bangkok:["TANG","OPAL","PAT","GAM","SHIRLEY","NAMPHUENG","CHOMPOO","RUNG"],
@@ -206,106 +217,99 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
     return null;
   })() : null;
 
-  // มูลค่าค้างรวมของลูกค้าที่ filter อยู่
   const filteredValue = filtered.reduce((sum, c) => sum + (custValues[c.cust_code] || 0), 0);
   const fmtVal = (v) => v >= 1000000 ? `฿ ${(v/1000000).toFixed(1)}M` : `฿ ${Math.round(v).toLocaleString()}`;
+  const inp = { padding:"7px 10px", fontSize:12, border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`, borderRadius:8, outline:"none", background:dark?"#1a1a1a":"#fff", color:dark?"#ddd":"#111" };
 
   return (
     <div>
       {bl > 0 && (
-        <div style={{background:"#FCEBEB",border:"0.5px solid #F09595",borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
+        <div style={{background:dark?"#2D1010":"#FCEBEB",border:`0.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:dark?"#F09595":"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
           <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน
         </div>
       )}
 
-      {/* KPI — 2 cols on mobile */}
+      {/* KPI */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:14}}>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
-          <div style={{fontSize:22,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length}</div>
+        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:dark?"#555":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
         </div>
-        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{bl}</div>
+        <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+          <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
         </div>
-        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#854F0B"}}>{wa}</div>
+        <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+          <div style={{fontSize:22,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
         </div>
-        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
-          <div style={{fontSize:22,fontWeight:600,color:"#3B6D11"}}>{filtered.length-bl-wa}</div>
+        <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+          <div style={{fontSize:22,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px",gridColumn:"1/-1",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px",gridColumn:"1/-1",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
-            <div style={{fontSize:22,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+            <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
           </div>
-          {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:"#E6F1FB",border:"0.5px solid #B5D4F4",borderRadius:4,padding:"2px 8px"}}>ทีม {myTeam}</span>}
+          {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"2px 8px"}}>ทีม {myTeam}</span>}
         </div>
       </div>
 
       {/* Filters */}
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."
-          style={{flex:1,minWidth:120,padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}}/>
-        <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff",flex:1,minWidth:100}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..." style={{...inp,flex:1,minWidth:120}}/>
+        <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
           <option value="">ทุก Sale</option>
           {allSales.map(s=><option key={s}>{s}</option>)}
         </select>
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
-          style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff",flex:1,minWidth:100}}>
+        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
           <option value="">ทุกสถานะ</option>
           <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
         </select>
       </div>
 
-      {/* Table with horizontal scroll on mobile */}
-      <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden"}}>
+      {/* Table */}
+      <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
-          <thead style={{background:"#f9f9f7",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
-            <tr>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"28px"}}>#</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"75px"}}>รหัส</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888"}}>ชื่อลูกค้า</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"65px"}}>Sale</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"38px"}}>BR</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}>วันค้าง</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"95px"}}>มูลค่า</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"80px"}}>สถานะ</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",width:"85px"}}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
-            ) : filtered.map((c,i)=>(
-              <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:"0.5px solid rgba(0,0,0,0.06)"}}>
-                <td style={{padding:"9px 10px",fontSize:11,color:"#aaa"}}>{i+1}</td>
-                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                <td style={{padding:"9px 10px",fontSize:12,fontWeight:500}}>{c.customer_name}</td>
-                <td style={{padding:"9px 10px",fontSize:11,color:"#777"}}>{c.sale}</td>
-                <td style={{padding:"9px 10px",fontSize:11,color:"#777"}}>{c.active_br_count}</td>
-                <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
-                  color:c.max_days>180?"#A32D2D":c.max_days>90?"#854F0B":"#1a1a1a"}}>{c.max_days} วัน</td>
-                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
-                  color:c.max_days>180?"#A32D2D":c.max_days>90?"#854F0B":"#888"}}>
-                  {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
-                </td>
-                <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
-                <td style={{padding:"9px 10px"}}>
-                  <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>ดูรายละเอียด</button>
-                </td>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
+            <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
+              <tr>
+                {["#","รหัส","ชื่อลูกค้า","Sale","BR","วันค้าง","มูลค่า","สถานะ",""].map((h,i)=>(
+                  <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888",
+                    width:i===0?"28px":i===1?"75px":i===3?"65px":i===4?"38px":i===5?"85px":i===6?"95px":i===7?"80px":i===8?"85px":"auto"}}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
+              ) : filtered.map((c,i)=>(
+                <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.06)"}`}}>
+                  <td style={{padding:"9px 10px",fontSize:11,color:"#444"}}>{i+1}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#666":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                  <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#555":"#777"}}>{c.sale}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#555":"#777"}}>{c.active_br_count}</td>
+                  <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
+                    color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#aaa":"#1a1a1a")}}>{c.max_days} วัน</td>
+                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
+                    color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#555":"#888")}}>
+                    {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
+                  </td>
+                  <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
+                  <td style={{padding:"9px 10px"}}>
+                    <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>ดูรายละเอียด</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
+
       {selectedCustomer && (
-        <CustomerModal customer={selectedCustomer} onClose={()=>setSelectedCustomer(null)}/>
+        <CustomerModal customer={selectedCustomer} onClose={()=>setSelectedCustomer(null)} dark={dark}/>
       )}
     </div>
   );

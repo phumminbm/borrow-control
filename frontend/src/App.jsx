@@ -92,8 +92,12 @@ export default function App() {
           <span style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.8px" }}>
             <span style={{ color:"#D4357A" }}>Neo</span>Biotech
           </span>
-          <span style={{ color:"#444", fontSize:13, display:"none" }} className="desktop-only">|</span>
-          <span style={{ fontSize:13, color:"#aaa", fontWeight:400, display:"none" }} className="desktop-only">Borrow Control</span>
+          <span style={{
+            fontSize:10, fontWeight:500, color:"#D4357A",
+            background: dark ? "#2D0F1A" : "#FBE8F1",
+            border:`0.5px solid ${dark ? "#7A2040" : "#F0A0C0"}`,
+            borderRadius:4, padding:"2px 8px", letterSpacing:"0.5px",
+          }}>BORROW SYSTEM</span>
         </div>
 
         <div style={{ display:"flex" }}>

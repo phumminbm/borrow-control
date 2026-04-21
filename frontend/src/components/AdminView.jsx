@@ -206,13 +206,13 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
 
       {/* Sync status */}
       {lastSync && (
-        <div style={{background:"#f9f9f7",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:8,padding:"8px 14px",marginBottom:14,fontSize:11,color:"#888",display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
-          <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:"#555"}}>Sync ล่าสุด:</strong> {lastSync.synced_at}</span>
+        <div style={{background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,borderRadius:8,padding:"8px 14px",marginBottom:14,fontSize:11,color:"#888",display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
+          <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:dark?"#aaa":"#555"}}>Sync ล่าสุด:</strong> {lastSync.synced_at}</span>
           <span>Sheet {lastSync.sheet_rows?.toLocaleString()} แถว</span>
           <span style={{color:"#185FA5"}}>+{lastSync.br_inserted} ใหม่</span>
           <span>~{lastSync.br_updated} เปลี่ยน</span>
           <span>-{lastSync.br_closed} ปิด</span>
-          <span style={{color:lastSync.errors>0?"#A32D2D":"#639922"}}>{lastSync.errors} error</span>
+          <span style={{color:lastSync.errors>0?(dark?"#F09595":"#A32D2D"):"#639922"}}>{lastSync.errors} error</span>
           <span>{(lastSync.duration_ms/1000).toFixed(1)}s</span>
         </div>
       )}
@@ -220,50 +220,50 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       {/* Charts */}
       <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.7fr)",gap:12,marginBottom:14,overflowX:"auto"}}>
         {/* Pie */}
-        <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-          <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:"#555"}}>
+        <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
+          <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:dark?"#aaa":"#555"}}>
             {saleFilter ? `สัดส่วน — ${saleFilter}` : teamFilter ? `สัดส่วน — ${teamFilter}` : "สัดส่วนรวมทุกทีม"}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{position:"relative",flexShrink:0}}>
               <Donut bl={pieData.bl} wa={pieData.wa} no={pieData.no}/>
               <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                <div style={{fontSize:18,fontWeight:600}}>{pieData.total}</div>
+                <div style={{fontSize:18,fontWeight:600,color:dark?"#eee":"#111"}}>{pieData.total}</div>
                 <div style={{fontSize:10,color:"#aaa"}}>ลูกค้า</div>
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:12}}>
-              {[["BLOCK","#E24B4A","#A32D2D",pieData.bl],["WARNING","#EF9F27","#854F0B",pieData.wa],["NORMAL","#97C459","#3B6D11",pieData.no]].map(([l,dot,txt,v])=>(
+              {[["BLOCK","#E24B4A",dark?"#F09595":"#A32D2D",pieData.bl],["WARNING","#EF9F27",dark?"#FAC775":"#854F0B",pieData.wa],["NORMAL","#97C459",dark?"#C0DD97":"#3B6D11",pieData.no]].map(([l,dot,txt,v])=>(
                 <div key={l} style={{display:"flex",alignItems:"center",gap:7}}>
                   <span style={{width:10,height:10,borderRadius:2,background:dot,flexShrink:0}}/>
                   <span style={{color:"#888",flex:1}}>{l}</span>
                   <strong style={{color:txt}}>{v}</strong>
-                  <span style={{color:"#ccc",fontSize:10,minWidth:36,textAlign:"right"}}>{pieData.total?Math.round(v/pieData.total*100):0}%</span>
+                  <span style={{color:dark?"#444":"#ccc",fontSize:10,minWidth:36,textAlign:"right"}}>{pieData.total?Math.round(v/pieData.total*100):0}%</span>
                 </div>
               ))}
-              <div style={{borderTop:"0.5px solid rgba(0,0,0,0.08)",paddingTop:6,display:"flex",justifyContent:"space-between"}}>
+              <div style={{borderTop:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
                 <span style={{color:"#aaa",fontSize:11}}>รวม</span>
-                <strong style={{fontSize:11}}>{pieData.total} ราย</strong>
+                <strong style={{fontSize:11,color:dark?"#ddd":"#111"}}>{pieData.total} ราย</strong>
               </div>
             </div>
           </div>
         </div>
 
         {/* Bar */}
-        <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-          <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:"#555"}}>
+        <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
+          <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:dark?"#aaa":"#555"}}>
             {selTeam?`Sale ทีม ${selTeam}`:"เลือกทีมเพื่อดูรายคน"}
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
             {Object.keys(TEAMS).map(t=>(
               <button key={t} onClick={()=>{setSelTeam(selTeam===t?null:t);setTeamFilter(selTeam===t?"":t);setSaleFilter("");}} style={{
                 padding:"4px 11px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",border:"0.5px solid",
-                background:selTeam===t?TEAM_COLORS[t]:"#fff",
+                background:selTeam===t?TEAM_COLORS[t]:dark?"#1a1a1a":"#fff",
                 color:selTeam===t?"#fff":TEAM_COLORS[t],
                 borderColor:TEAM_COLORS[t],transition:"all .15s",
               }}>{t}</button>
             ))}
-            {selTeam&&<button onClick={()=>{setSelTeam(null);setTeamFilter("");setSaleFilter("");}} style={{padding:"4px 11px",fontSize:11,borderRadius:20,cursor:"pointer",border:"0.5px solid rgba(0,0,0,0.15)",background:"#fff",color:"#888"}}>ล้าง</button>}
+            {selTeam&&<button onClick={()=>{setSelTeam(null);setTeamFilter("");setSaleFilter("");}} style={{padding:"4px 11px",fontSize:11,borderRadius:20,cursor:"pointer",border:`0.5px solid ${dark?"#333":"rgba(0,0,0,0.15)"}`,background:dark?"#1a1a1a":"#fff",color:"#888"}}>ล้าง</button>}
           </div>
           {selTeam ? (
             <>
@@ -277,7 +277,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
               </div>
             </>
           ) : (
-            <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"#bbb",fontSize:12}}>
+            <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:dark?"#333":"#bbb",fontSize:12}}>
               คลิกทีมด้านบนเพื่อดู Sale รายคน
             </div>
           )}
@@ -288,27 +288,27 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       {(filteredTop5.length > 0 || filteredSaleRanking.length > 0) && (
         <div style={{display:"grid",gridTemplateColumns:"1fr 1.5fr",gap:12,marginBottom:14}}>
           {/* Top 5 */}
-          <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>
+          <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
+            <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:10}}>
               Top 5 ค้างนานที่สุด{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
             </div>
             {filteredTop5.length === 0 ? (
               <div style={{fontSize:11,color:"#aaa",padding:"12px 0",textAlign:"center"}}>ไม่มีข้อมูล</div>
             ) : filteredTop5.map((c, i) => (
-              <div key={c.cust_code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<filteredTop5.length-1?"0.5px solid rgba(0,0,0,0.06)":"none"}}>
-                <span style={{width:18,height:18,borderRadius:"50%",background:i<3?"#E24B4A":"#FAEEDA",color:i<3?"#fff":"#854F0B",fontSize:9,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
-                <span style={{flex:1,fontSize:11,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.customer_name}</span>
-                <span style={{fontSize:11,color:"#A32D2D",fontWeight:500,flexShrink:0,marginLeft:8}}>{c.max_days.toLocaleString()} วัน</span>
+              <div key={c.cust_code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<filteredTop5.length-1?`0.5px solid ${dark?"#222":"rgba(0,0,0,0.06)"}`:``}}>
+                <span style={{width:18,height:18,borderRadius:"50%",background:i<3?"#E24B4A":dark?"#3D2A00":"#FAEEDA",color:i<3?"#fff":dark?"#FAC775":"#854F0B",fontSize:9,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
+                <span style={{flex:1,fontSize:11,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:dark?"#ddd":"#111"}}>{c.customer_name}</span>
+                <span style={{fontSize:11,color:dark?"#F09595":"#A32D2D",fontWeight:500,flexShrink:0,marginLeft:8}}>{c.max_days.toLocaleString()} วัน</span>
               </div>
             ))}
           </div>
 
-          {/* Sale Ranking — แสดงทั้งหมดตาม filter */}
-          <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:10}}>
+          {/* Sale Ranking */}
+          <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
+            <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:10}}>
               สรุปตาม Sale — BLOCK / WARNING / มูลค่า{teamFilter ? ` (${teamFilter})` : ""}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,fontSize:10,fontWeight:500,color:"#aaa",marginBottom:6,paddingBottom:4,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
+            <div style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,fontSize:10,fontWeight:500,color:"#555",marginBottom:6,paddingBottom:4,borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
               <span>Sale</span><span>สัดส่วน BLOCK</span><span style={{textAlign:"center"}}>BL</span><span style={{textAlign:"center"}}>WA</span><span style={{textAlign:"right"}}>มูลค่า</span>
             </div>
             <div style={{maxHeight:240,overflowY:"auto"}}>
@@ -316,13 +316,13 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
                 const maxBl = Math.max(...filteredSaleRanking.map(r => r.block_count), 1);
                 const pct = Math.round((s.block_count / maxBl) * 100);
                 return (
-                  <div key={s.sale} style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,alignItems:"center",padding:"5px 0",borderBottom:"0.5px solid rgba(0,0,0,0.04)",fontSize:11}}>
-                    <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sale}</span>
-                    <div style={{background:"rgba(0,0,0,0.06)",borderRadius:4,height:6}}>
+                  <div key={s.sale} style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,alignItems:"center",padding:"5px 0",borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.04)"}`,fontSize:11}}>
+                    <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:dark?"#ddd":"#111"}}>{s.sale}</span>
+                    <div style={{background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)",borderRadius:4,height:6}}>
                       <div style={{background: s.block_count > 0 ? "#E24B4A" : "#EF9F27",borderRadius:4,height:6,width:`${pct}%`}}/>
                     </div>
-                    <span style={{textAlign:"center",color:"#A32D2D",fontWeight:500}}>{s.block_count||"—"}</span>
-                    <span style={{textAlign:"center",color:"#854F0B"}}>{s.warn_count||"—"}</span>
+                    <span style={{textAlign:"center",color:dark?"#F09595":"#A32D2D",fontWeight:500}}>{s.block_count||"—"}</span>
+                    <span style={{textAlign:"center",color:dark?"#FAC775":"#854F0B"}}>{s.warn_count||"—"}</span>
                     <span style={{textAlign:"right",fontSize:10,color:"#888"}}>{fmtVal(s.total_value)}</span>
                   </div>
                 );
@@ -333,39 +333,39 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       )}
 
       {/* Full table */}
-      <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden",marginBottom:14}}>
+      <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden",marginBottom:14}}>
         <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
-          <thead style={{background:"#f9f9f7",borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>
+          <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
             <tr>
               {["#","รหัสลูกค้า","ชื่อลูกค้า","ทีม","Sale","BR","วันค้าง","สถานะ","อัปเดต"].map((h,i)=>(
-                <th key={h} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888",
+                <th key={h} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888",
                   width:i===0?"28px":i===1?"85px":i===3?"80px":i===4?"80px":i===5?"45px":i===6?"80px":i===7?"85px":i===8?"70px":"auto"}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.slice(0,15).map((c,i)=>{
-              const bg=c.status==="BLOCK"?"#FDF0F0":c.status==="WARNING"?"#FDF6E8":"var(--color-background-primary)";
+              const bg = c.status==="BLOCK"?(dark?"#1e0e0e":"#FDF0F0"):c.status==="WARNING"?(dark?"#1e1600":"#FDF6E8"):"transparent";
               const tc=TEAM_COLORS[c.team]||"#888";
               return (
-                <tr key={c.cust_code} style={{background:bg,borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#bbb"}}>{i+1}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500}}>{c.customer_name}</td>
+                <tr key={c.cust_code} style={{background:bg,borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`}}>
+                  <td style={{padding:"7px 11px",fontSize:11,color:"#444"}}>{i+1}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#666":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
                   <td style={{padding:"7px 11px"}}>
-                    <span style={{fontSize:10,fontWeight:500,color:tc,background:tc+"18",border:`0.5px solid ${tc}44`,borderRadius:4,padding:"1px 6px"}}>{c.team}</span>
+                    <span style={{fontSize:10,fontWeight:500,color:tc,background:tc+"22",border:`0.5px solid ${tc}55`,borderRadius:4,padding:"1px 6px"}}>{c.team}</span>
                   </td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#777"}}>{c.sale}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#aaa"}}>{c.active_br_count}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:c.max_days>90?500:400,color:c.max_days>180?"#A32D2D":c.max_days>90?"#854F0B":"#1a1a1a"}}>{c.max_days} วัน</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#555":"#777"}}>{c.sale}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#444":"#aaa"}}>{c.active_br_count}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:c.max_days>90?500:400,color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#aaa":"#1a1a1a")}}>{c.max_days} วัน</td>
                   <td style={{padding:"7px 11px"}}><StatusBadge status={c.status}/></td>
-                  <td style={{padding:"7px 11px",fontSize:10,color:"#bbb"}}>{c.updated_at ? new Date(c.updated_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                  <td style={{padding:"7px 11px",fontSize:10,color:dark?"#333":"#bbb"}}>{c.updated_at ? new Date(c.updated_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
                 </tr>
               );
             })}
             <tr>
-              <td colSpan={9} style={{padding:"8px",textAlign:"center",fontSize:11,color:"#aaa"}}>
+              <td colSpan={9} style={{padding:"8px",textAlign:"center",fontSize:11,color:"#555"}}>
                 แสดง {Math.min(15,filtered.length)} จาก {filtered.length} รายการ
               </td>
             </tr>
@@ -375,32 +375,34 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       </div>
 
       {/* Sync log */}
-      <div style={{fontSize:12,fontWeight:600,color:"#555",marginBottom:8}}>Sync log</div>
-      <div style={{background:"#fff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:10,overflow:"hidden"}}>
+      <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:8}}>Sync log</div>
+      <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:480}}>
-          <thead style={{background:"#f9f9f7"}}>
+          <thead style={{background:dark?"#1a1a1a":"#f9f9f7"}}>
             <tr>
               {["เวลา","สถานะ","ใหม่","เปลี่ยน","ปิด","error","เวลา(s)","หมายเหตุ"].map(h=>(
-                <th key={h} style={{padding:"7px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:"#888"}}>{h}</th>
+                <th key={h} style={{padding:"7px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888"}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {syncLogs.map((l,i)=>{
-              const sc=l.status==="success"?{bg:"#EAF3DE",txt:"#3B6D11",bd:"#C0DD97",label:"สำเร็จ"}
-                      :l.status==="partial"?{bg:"#FAEEDA",txt:"#854F0B",bd:"#FAC775",label:"บางส่วน"}
-                      :{bg:"#FCEBEB",txt:"#A32D2D",bd:"#F09595",label:"ล้มเหลว"};
+              const sc = l.status==="success"
+                ? {bg:dark?"#162010":"#EAF3DE", txt:dark?"#C0DD97":"#3B6D11", bd:dark?"#3A6014":"#C0DD97", label:"สำเร็จ"}
+                : l.status==="partial"
+                ? {bg:dark?"#2D1E00":"#FAEEDA", txt:dark?"#FAC775":"#854F0B", bd:dark?"#7A5500":"#FAC775", label:"บางส่วน"}
+                : {bg:dark?"#2D1010":"#FCEBEB", txt:dark?"#F09595":"#A32D2D", bd:dark?"#7A2020":"#F09595", label:"ล้มเหลว"};
               return (
-                <tr key={i} style={{borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#aaa"}}>{l.synced_at ? new Date(l.synced_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "—"}</td>
+                <tr key={i} style={{borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`}}>
+                  <td style={{padding:"7px 11px",fontSize:11,color:"#888"}}>{l.synced_at ? new Date(l.synced_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "—"}</td>
                   <td style={{padding:"7px 11px"}}><span style={{display:"inline-flex",alignItems:"center",gap:4,background:sc.bg,color:sc.txt,border:`0.5px solid ${sc.bd}`,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:500}}>{sc.label}</span></td>
                   <td style={{padding:"7px 11px",fontSize:11,color:"#185FA5"}}>{l.br_inserted>0?"+"+l.br_inserted:"—"}</td>
                   <td style={{padding:"7px 11px",fontSize:11,color:"#888"}}>{l.br_updated||"—"}</td>
                   <td style={{padding:"7px 11px",fontSize:11,color:"#888"}}>{l.br_closed>0?"-"+l.br_closed:"—"}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:l.errors>0?"#A32D2D":"#bbb"}}>{l.errors||"—"}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#aaa"}}>{(l.duration_ms/1000).toFixed(1)}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:"#A32D2D"}}>{l.error_msg||"—"}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:l.errors>0?(dark?"#F09595":"#A32D2D"):"#555"}}>{l.errors||"—"}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:"#888"}}>{(l.duration_ms/1000).toFixed(1)}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#F09595":"#A32D2D"}}>{l.error_msg||"—"}</td>
                 </tr>
               );
             })}
