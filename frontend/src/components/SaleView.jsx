@@ -232,7 +232,7 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
       {/* KPI */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
           <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
         </div>
         <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
@@ -248,7 +248,7 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
           <div style={{fontSize:22,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>BR active</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>BR active</div>
           <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
@@ -280,7 +280,7 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
             <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
               <tr>
                 {["#","รหัส","ชื่อลูกค้า","Sale","BR","วันค้าง","มูลค่า","สถานะ",""].map((h,i)=>(
-                  <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888",
+                  <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
                     width:i===0?"28px":i===1?"75px":i===3?"65px":i===4?"38px":i===5?"85px":i===6?"95px":i===7?"80px":i===8?"85px":"auto"}}>{h}</th>
                 ))}
               </tr>
@@ -291,10 +291,10 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
               ) : filtered.map((c,i)=>(
                 <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.06)"}`}}>
                   <td style={{padding:"9px 10px",fontSize:11,color:"#444"}}>{i+1}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#666":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
                   <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#555":"#777"}}>{c.sale}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#555":"#777"}}>{c.active_br_count}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
+                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.active_br_count}</td>
                   <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
                     color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#aaa":"#1a1a1a")}}>{c.max_days} วัน</td>
                   <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,

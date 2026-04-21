@@ -179,7 +179,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
       {/* KPI Cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
           <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
         </div>
         <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
@@ -195,7 +195,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           <div style={{fontSize:20,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filteredNo}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>BR active</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>BR active</div>
           <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
@@ -238,7 +238,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
                   <span style={{width:10,height:10,borderRadius:2,background:dot,flexShrink:0}}/>
                   <span style={{color:"#888",flex:1}}>{l}</span>
                   <strong style={{color:txt}}>{v}</strong>
-                  <span style={{color:dark?"#444":"#ccc",fontSize:10,minWidth:36,textAlign:"right"}}>{pieData.total?Math.round(v/pieData.total*100):0}%</span>
+                  <span style={{color:dark?"#ddd":"#ccc",fontSize:10,minWidth:36,textAlign:"right"}}>{pieData.total?Math.round(v/pieData.total*100):0}%</span>
                 </div>
               ))}
               <div style={{borderTop:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
@@ -277,7 +277,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
               </div>
             </>
           ) : (
-            <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:dark?"#333":"#bbb",fontSize:12}}>
+            <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:dark?"#ddd":"#bbb",fontSize:12}}>
               คลิกทีมด้านบนเพื่อดู Sale รายคน
             </div>
           )}
@@ -339,7 +339,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
             <tr>
               {["#","รหัสลูกค้า","ชื่อลูกค้า","ทีม","Sale","BR","วันค้าง","สถานะ","อัปเดต"].map((h,i)=>(
-                <th key={h} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888",
+                <th key={h} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
                   width:i===0?"28px":i===1?"85px":i===3?"80px":i===4?"80px":i===5?"45px":i===6?"80px":i===7?"85px":i===8?"70px":"auto"}}>{h}</th>
               ))}
             </tr>
@@ -351,16 +351,16 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
               return (
                 <tr key={c.cust_code} style={{background:bg,borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`}}>
                   <td style={{padding:"7px 11px",fontSize:11,color:"#444"}}>{i+1}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#666":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
                   <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
                   <td style={{padding:"7px 11px"}}>
                     <span style={{fontSize:10,fontWeight:500,color:tc,background:tc+"22",border:`0.5px solid ${tc}55`,borderRadius:4,padding:"1px 6px"}}>{c.team}</span>
                   </td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#555":"#777"}}>{c.sale}</td>
-                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#444":"#aaa"}}>{c.active_br_count}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
+                  <td style={{padding:"7px 11px",fontSize:11,color:dark?"#ddd":"#aaa"}}>{c.active_br_count}</td>
                   <td style={{padding:"7px 11px",fontSize:11,fontWeight:c.max_days>90?500:400,color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#aaa":"#1a1a1a")}}>{c.max_days} วัน</td>
                   <td style={{padding:"7px 11px"}}><StatusBadge status={c.status}/></td>
-                  <td style={{padding:"7px 11px",fontSize:10,color:dark?"#333":"#bbb"}}>{c.updated_at ? new Date(c.updated_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                  <td style={{padding:"7px 11px",fontSize:10,color:dark?"#ddd":"#bbb"}}>{c.updated_at ? new Date(c.updated_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
                 </tr>
               );
             })}
@@ -382,7 +382,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           <thead style={{background:dark?"#1a1a1a":"#f9f9f7"}}>
             <tr>
               {["เวลา","สถานะ","ใหม่","เปลี่ยน","ปิด","error","เวลา(s)","หมายเหตุ"].map(h=>(
-                <th key={h} style={{padding:"7px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#444":"#888"}}>{h}</th>
+                <th key={h} style={{padding:"7px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888"}}>{h}</th>
               ))}
             </tr>
           </thead>
