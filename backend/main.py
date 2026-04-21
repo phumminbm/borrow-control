@@ -225,6 +225,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                     days_borrowed,borrow_alert,sheet_status,first_seen_at,last_seen_at)
                 VALUES (:bno,:cc,:date,:status,:days,:alert,'active',:now,:now)
                 ON CONFLICT (borrow_no) DO UPDATE SET
+                    cust_code=EXCLUDED.cust_code,
                     days_borrowed=EXCLUDED.days_borrowed,
                     borrow_alert=EXCLUDED.borrow_alert,
                     status=EXCLUDED.status,
@@ -253,7 +254,21 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         try: db.rollback()
         except: pass
 
-    # ── Close BRs เฉพาะ batch สุดท้าย ────────────────────────────
+    # ── Auto-close BRs ที่หายจาก Sheet (ไม่ถูก sync มานาน > 3 ชั่วโมง) ──
+    try:
+        result = db.execute(text("""
+            UPDATE borrows SET sheet_status='closed', closed_at=:now
+            WHERE sheet_status='active'
+              AND last_seen_at < NOW() - INTERVAL '3 hours'
+            RETURNING borrow_no
+        """), {"now": now})
+        closed_count = len(result.fetchall())
+        if closed_count > 0:
+            stats["closed"] = closed_count
+        db.commit()
+    except: pass
+
+    # ── Close BRs เฉพาะ batch สุดท้าย (fallback) ─────────────────
     if payload.is_final_batch:
         try:
             active = db.execute(text(
