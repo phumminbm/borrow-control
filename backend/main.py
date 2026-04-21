@@ -77,12 +77,13 @@ def recalc_all_customers(db):
             END,
             updated_at = NOW()
         FROM (
-            SELECT cust_code,
-                   MAX(days_borrowed) AS max_days,
-                   COUNT(*)           AS cnt
-            FROM borrows
-            WHERE sheet_status = 'active'
-            GROUP BY cust_code
+            SELECT c2.cust_code,
+                   MAX(b.days_borrowed) AS max_days,
+                   COUNT(b.borrow_no)   AS cnt
+            FROM customers c2
+            LEFT JOIN borrows b
+                ON b.cust_code = c2.cust_code AND b.sheet_status = 'active'
+            GROUP BY c2.cust_code
         ) sub
         WHERE c.cust_code = sub.cust_code
     """))
