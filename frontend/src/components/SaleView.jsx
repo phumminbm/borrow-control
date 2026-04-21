@@ -57,7 +57,7 @@ function BRDetailModal({ br, onClose, dark, t }) {
             <div style={{fontSize:13,fontWeight:600,color:txt}}>{br.borrow_no}</div>
             <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <span>{br.borrow_date}</span><span>·</span>
-              <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):sub,fontWeight:500}}>{{br.days_borrowed} {t.days}}</span>
+              <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):sub,fontWeight:500}}>{br.days_borrowed} {t.days}</span>
               <span>·</span>{badge(br.borrow_alert, dark)}
             </div>
           </div>
