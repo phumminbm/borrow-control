@@ -75,7 +75,7 @@ function BarChart({ team, customers }) {
   return <canvas ref={ref} style={{width:"100%",height:160,display:"block"}}/>;
 }
 
-export default function AdminView({ customers, syncLogs, dark, analytics }) {
+export default function AdminView({ customers, syncLogs, dark, analytics, custValues = {} }) {
   const [selTeam, setSelTeam]       = useState(null);
   const [search, setSearch]         = useState("");
   const [teamFilter, setTeamFilter] = useState("");
@@ -111,6 +111,17 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
     .filter(c => c.status==="BLOCK" || c.status==="WARNING")
     .sort((a,b) => b.max_days - a.max_days)
     .slice(0, 5);
+
+  // ── Top 10 มูลค่าค้างสูงสุด ──
+  const top10ByValue = [...filtered]
+    .filter(c => analytics?.customer_value?.[c.cust_code] || custValues?.[c.cust_code])
+    .sort((a,b) => {
+      const va = analytics?.customer_value?.[b.cust_code] || 0;
+      const vb = analytics?.customer_value?.[a.cust_code] || 0;
+      return va - vb;
+    })
+    .slice(0, 10)
+    .map(c => ({...c, value: analytics?.customer_value?.[c.cust_code] || 0}));
 
   // ── Sale ranking ตาม filter ──
   const saleScope = saleFilter
@@ -219,33 +230,30 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
 
       {/* Charts */}
       <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.7fr)",gap:12,marginBottom:14,overflowX:"auto"}}>
-        {/* Pie */}
-        <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
-          <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:dark?"#aaa":"#555"}}>
+        {/* Pie — full card */}
+        <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14,display:"flex",flexDirection:"column",alignItems:"center"}}>
+          <div style={{fontSize:12,fontWeight:600,marginBottom:12,color:dark?"#ddd":"#555",alignSelf:"flex-start"}}>
             {saleFilter ? `สัดส่วน — ${saleFilter}` : teamFilter ? `สัดส่วน — ${teamFilter}` : "สัดส่วนรวมทุกทีม"}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <div style={{position:"relative",flexShrink:0}}>
-              <Donut bl={pieData.bl} wa={pieData.wa} no={pieData.no}/>
-              <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                <div style={{fontSize:18,fontWeight:600,color:dark?"#eee":"#111"}}>{pieData.total}</div>
-                <div style={{fontSize:10,color:"#aaa"}}>ลูกค้า</div>
-              </div>
+          <div style={{position:"relative",width:150,height:150,flexShrink:0}}>
+            <Donut bl={pieData.bl} wa={pieData.wa} no={pieData.no} size={150}/>
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              <div style={{fontSize:24,fontWeight:600,color:dark?"#eee":"#111"}}>{pieData.total}</div>
+              <div style={{fontSize:10,color:"#aaa"}}>ลูกค้า</div>
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8,fontSize:12}}>
-              {[["BLOCK","#E24B4A",dark?"#F09595":"#A32D2D",pieData.bl],["WARNING","#EF9F27",dark?"#FAC775":"#854F0B",pieData.wa],["NORMAL","#97C459",dark?"#C0DD97":"#3B6D11",pieData.no]].map(([l,dot,txt,v])=>(
-                <div key={l} style={{display:"flex",alignItems:"center",gap:7}}>
-                  <span style={{width:10,height:10,borderRadius:2,background:dot,flexShrink:0}}/>
-                  <span style={{color:"#888",flex:1}}>{l}</span>
-                  <strong style={{color:txt}}>{v}</strong>
-                  <span style={{color:dark?"#ddd":"#ccc",fontSize:10,minWidth:36,textAlign:"right"}}>{pieData.total?Math.round(v/pieData.total*100):0}%</span>
-                </div>
-              ))}
-              <div style={{borderTop:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
-                <span style={{color:"#aaa",fontSize:11}}>รวม</span>
-                <strong style={{fontSize:11,color:dark?"#ddd":"#111"}}>{pieData.total} ราย</strong>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginTop:12,width:"100%"}}>
+            {[
+              ["BLOCK","#2D1010","#7A2020","#F09595",pieData.bl],
+              ["WARNING","#2D1E00","#7A5500","#FAC775",pieData.wa],
+              ["NORMAL","#162010","#3A6014","#C0DD97",pieData.no],
+            ].map(([l,bg,bd,txt,v])=>(
+              <div key={l} style={{background:dark?bg:"#f9f9f7",border:`0.5px solid ${dark?bd:"rgba(0,0,0,0.08)"}`,borderRadius:8,padding:"7px",textAlign:"center"}}>
+                <div style={{fontSize:9,color:dark?txt:txt,marginBottom:3,fontWeight:500}}>{l}</div>
+                <div style={{fontSize:16,fontWeight:600,color:dark?txt:txt}}>{v}</div>
+                <div style={{fontSize:9,color:dark?bd:"#aaa",marginTop:2}}>{pieData.total?Math.round(v/pieData.total*100):0}%</div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -331,6 +339,41 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
           </div>
         </div>
       )}
+
+      {/* Top 10 มูลค่าค้างสูงสุด */}
+      <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14,marginBottom:14}}>
+        <div style={{fontSize:12,fontWeight:600,color:dark?"#ddd":"#555",marginBottom:10}}>
+          Top 10 มูลค่าค้างสูงสุด{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
+        </div>
+        {/* header */}
+        <div style={{display:"grid",gridTemplateColumns:"28px 1fr 80px 80px 100px 80px",gap:4,fontSize:10,fontWeight:500,color:dark?"#ddd":"#888",marginBottom:6,paddingBottom:4,borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
+          <span>#</span><span>ชื่อลูกค้า</span><span>Sale</span><span style={{textAlign:"center"}}>วันค้าง</span><span style={{textAlign:"right"}}>มูลค่าค้าง</span><span style={{textAlign:"center"}}>สถานะ</span>
+        </div>
+        {(() => {return null;})()}
+        {[...filtered]
+          .sort((a,b) => (custValues[b.cust_code]||0) - (custValues[a.cust_code]||0))
+          .slice(0,10)
+          .map((c,i) => {
+            const val = custValues[c.cust_code] || 0;
+            const statusColor = c.status==="BLOCK"?(dark?"#F09595":"#A32D2D"):c.status==="WARNING"?(dark?"#FAC775":"#854F0B"):(dark?"#C0DD97":"#3B6D11");
+            const rowBg = c.status==="BLOCK"?(dark?"#1e0e0e":"#FDF0F0"):c.status==="WARNING"?(dark?"#1e1600":"#FDF6E8"):"transparent";
+            return (
+              <div key={c.cust_code} style={{display:"grid",gridTemplateColumns:"28px 1fr 80px 80px 100px 80px",gap:4,alignItems:"center",padding:"7px 0",borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`,background:rowBg,fontSize:11}}>
+                <span style={{color:dark?"#ddd":"#aaa",fontWeight:500}}>{i+1}</span>
+                <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:dark?"#ddd":"#111"}}>{c.customer_name}</span>
+                <span style={{color:dark?"#ddd":"#777"}}>{c.sale}</span>
+                <span style={{textAlign:"center",color:statusColor,fontWeight:500}}>{c.max_days.toLocaleString()} วัน</span>
+                <span style={{textAlign:"right",fontWeight:600,color:statusColor}}>{val ? fmtVal(val) : "—"}</span>
+                <span style={{textAlign:"center"}}>
+                  {c.status==="BLOCK" ? <span style={{background:dark?"#3D1212":"#E24B4A",color:dark?"#F09595":"#fff",border:dark?"0.5px solid #7A2020":"none",borderRadius:5,padding:"2px 6px",fontSize:10,fontWeight:600}}>BLOCK</span>
+                  : c.status==="WARNING" ? <span style={{background:dark?"#3D2A00":"#EF9F27",color:dark?"#FAC775":"#fff",border:dark?"0.5px solid #7A5500":"none",borderRadius:5,padding:"2px 6px",fontSize:10,fontWeight:600}}>WARNING</span>
+                  : <span style={{background:dark?"#1A2E0A":"#EAF3DE",color:dark?"#C0DD97":"#3B6D11",border:`0.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:5,padding:"2px 6px",fontSize:10,fontWeight:600}}>NORMAL</span>}
+                </span>
+              </div>
+            );
+          })
+        }
+      </div>
 
       {/* Full table */}
       <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden",marginBottom:14}}>

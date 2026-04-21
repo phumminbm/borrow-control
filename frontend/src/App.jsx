@@ -140,7 +140,7 @@ export default function App() {
         ) : view === "sale" ? (
           <SaleView customers={customers} dark={dark} custValues={custValues} analytics={analytics}/>
         ) : (
-          <AdminView customers={customers} syncLogs={syncLogs} dark={dark} analytics={analytics}/>
+          <AdminView customers={customers} syncLogs={syncLogs} dark={dark} analytics={analytics} custValues={custValues}/>
         )}
       </div>
     </div>
