@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { TEAMS, TEAM_COLORS, SC, StatusBadge } from "../App";
+import { TEAMS, TEAM_COLORS, SC, StatusBadge, T } from "../App";
 
 // lookup team จาก sale name
 function getTeam(sale) {
@@ -75,7 +75,8 @@ function BarChart({ team, customers }) {
   return <canvas ref={ref} style={{width:"100%",height:160,display:"block"}}/>;
 }
 
-export default function AdminView({ customers, syncLogs, dark, analytics, custValues = {} }) {
+export default function AdminView({ customers, syncLogs, dark, analytics, custValues = {}, lang = "th" }) {
+  const t = T[lang];
   const [selTeam, setSelTeam]       = useState(null);
   const [search, setSearch]         = useState("");
   const [teamFilter, setTeamFilter] = useState("");
@@ -112,7 +113,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
     .sort((a,b) => b.max_days - a.max_days)
     .slice(0, 5);
 
-  // ── Top 10 มูลค่าค้างสูงสุด ──
+  // ── {t.top10Value} ──
   const top10ByValue = [...filtered]
     .filter(c => analytics?.customer_value?.[c.cust_code] || custValues?.[c.cust_code])
     .sort((a,b) => {
@@ -190,7 +191,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
       {/* KPI Cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>{t.totalCustomers}</div>
           <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
         </div>
         <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
@@ -206,11 +207,11 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
           <div style={{fontSize:20,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filteredNo}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>BR active</div>
+          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>{t.brActive}</div>
           <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
         </div>
         <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างรวม</div>
+          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>{t.totalValue}</div>
           <div style={{fontSize:18,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
         </div>
       </div>
@@ -218,8 +219,8 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
       {/* Sync status */}
       {lastSync && (
         <div style={{background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,borderRadius:8,padding:"8px 14px",marginBottom:14,fontSize:11,color:"#888",display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
-          <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:dark?"#aaa":"#555"}}>Sync ล่าสุด:</strong> {lastSync.synced_at}</span>
-          <span>Sheet {lastSync.sheet_rows?.toLocaleString()} แถว</span>
+          <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:dark?"#aaa":"#555"}}>{t.syncLatest}:</strong> {lastSync.synced_at}</span>
+          <span>Sheet {lastSync.sheet_rows?.toLocaleString()} {t.rows}</span>
           <span style={{color:"#185FA5"}}>+{lastSync.br_inserted} ใหม่</span>
           <span>~{lastSync.br_updated} เปลี่ยน</span>
           <span>-{lastSync.br_closed} ปิด</span>
@@ -233,7 +234,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         {/* Pie — full card */}
         <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14,display:"flex",flexDirection:"column",alignItems:"center"}}>
           <div style={{fontSize:12,fontWeight:600,marginBottom:12,color:dark?"#ddd":"#555",alignSelf:"flex-start"}}>
-            {saleFilter ? `สัดส่วน — ${saleFilter}` : teamFilter ? `สัดส่วน — ${teamFilter}` : "สัดส่วนรวมทุกทีม"}
+            {saleFilter ? `${t.proportion} — ${saleFilter}` : teamFilter ? `${t.proportion} — ${teamFilter}` : "{t.allTeamsProportion}"}
           </div>
           <div style={{position:"relative",width:150,height:150,flexShrink:0}}>
             <Donut bl={pieData.bl} wa={pieData.wa} no={pieData.no} size={150}/>
@@ -260,7 +261,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         {/* Bar */}
         <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
           <div style={{fontSize:12,fontWeight:600,marginBottom:10,color:dark?"#aaa":"#555"}}>
-            {selTeam?`Sale ทีม ${selTeam}`:"เลือกทีมเพื่อดูรายคน"}
+            {selTeam?t.saleTeam(selTeam):"{t.selectTeam}"}
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
             {Object.keys(TEAMS).map(t=>(
@@ -286,7 +287,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
             </>
           ) : (
             <div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:dark?"#ddd":"#bbb",fontSize:12}}>
-              คลิกทีมด้านบนเพื่อดู Sale รายคน
+              {t.selectTeam}
             </div>
           )}
         </div>
@@ -298,10 +299,10 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
           {/* Top 5 */}
           <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
             <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:10}}>
-              Top 5 ค้างนานที่สุด{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
+              {t.top5Days}{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
             </div>
             {filteredTop5.length === 0 ? (
-              <div style={{fontSize:11,color:"#aaa",padding:"12px 0",textAlign:"center"}}>ไม่มีข้อมูล</div>
+              <div style={{fontSize:11,color:"#aaa",padding:"12px 0",textAlign:"center"}}>{t.noData}</div>
             ) : filteredTop5.map((c, i) => (
               <div key={c.cust_code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<filteredTop5.length-1?`0.5px solid ${dark?"#222":"rgba(0,0,0,0.06)"}`:``}}>
                 <span style={{width:18,height:18,borderRadius:"50%",background:i<3?"#E24B4A":dark?"#3D2A00":"#FAEEDA",color:i<3?"#fff":dark?"#FAC775":"#854F0B",fontSize:9,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
@@ -314,7 +315,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
           {/* Sale Ranking */}
           <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14}}>
             <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:10}}>
-              สรุปตาม Sale — BLOCK / WARNING / มูลค่า{teamFilter ? ` (${teamFilter})` : ""}
+              {t.saleSummary}{teamFilter ? ` (${teamFilter})` : ""}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"70px 1fr 36px 36px 80px",gap:4,fontSize:10,fontWeight:500,color:"#555",marginBottom:6,paddingBottom:4,borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
               <span>Sale</span><span>สัดส่วน BLOCK</span><span style={{textAlign:"center"}}>BL</span><span style={{textAlign:"center"}}>WA</span><span style={{textAlign:"right"}}>มูลค่า</span>
@@ -340,14 +341,14 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         </div>
       )}
 
-      {/* Top 10 มูลค่าค้างสูงสุด */}
+      {/* {t.top10Value} */}
       <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,color:dark?"#ddd":"#555",marginBottom:10}}>
-          Top 10 มูลค่าค้างสูงสุด{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
+          {t.top10Value}{teamFilter ? ` — ${teamFilter}` : ""}{saleFilter ? ` — ${saleFilter}` : ""}
         </div>
         {/* header */}
         <div style={{display:"grid",gridTemplateColumns:"28px 1fr 80px 80px 100px 80px",gap:4,fontSize:10,fontWeight:500,color:dark?"#ddd":"#888",marginBottom:6,paddingBottom:4,borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
-          <span>#</span><span>ชื่อลูกค้า</span><span>Sale</span><span style={{textAlign:"center"}}>วันค้าง</span><span style={{textAlign:"right"}}>มูลค่าค้าง</span><span style={{textAlign:"center"}}>สถานะ</span>
+          <span>#</span><span>{t.custName}</span><span>Sale</span><span style={{textAlign:"center"}}>{t.daysOverdue}</span><span style={{textAlign:"right"}}>{t.value}</span><span style={{textAlign:"center"}}>{t.status}</span>
         </div>
         {(() => {return null;})()}
         {[...filtered]
@@ -381,7 +382,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
           <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
             <tr>
-              {["#","รหัสลูกค้า","ชื่อลูกค้า","ทีม","Sale","BR","วันค้าง","สถานะ","อัปเดต"].map((h,i)=>(
+              {["#",t.custCode,t.custName,t.team,"Sale",t.br,t.daysOverdue,t.status,t.updated].map((h,i)=>(
                 <th key={h} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
                   width:i===0?"28px":i===1?"85px":i===3?"80px":i===4?"80px":i===5?"45px":i===6?"80px":i===7?"85px":i===8?"70px":"auto"}}>{h}</th>
               ))}
@@ -409,7 +410,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
             })}
             <tr>
               <td colSpan={9} style={{padding:"8px",textAlign:"center",fontSize:11,color:"#555"}}>
-                แสดง {Math.min(15,filtered.length)} จาก {filtered.length} รายการ
+                {t.show} {Math.min(15,filtered.length)} {t.from} {filtered.length} {t.items}
               </td>
             </tr>
           </tbody>
@@ -417,8 +418,8 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         </div>
       </div>
 
-      {/* Sync log */}
-      <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:8}}>Sync log</div>
+      {/* {t.syncLog} */}
+      <div style={{fontSize:12,fontWeight:600,color:dark?"#aaa":"#555",marginBottom:8}}>{t.syncLog}</div>
       <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:480}}>
@@ -432,10 +433,10 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
           <tbody>
             {syncLogs.map((l,i)=>{
               const sc = l.status==="success"
-                ? {bg:dark?"#162010":"#EAF3DE", txt:dark?"#C0DD97":"#3B6D11", bd:dark?"#3A6014":"#C0DD97", label:"สำเร็จ"}
+                ? {bg:dark?"#162010":"#EAF3DE", txt:dark?"#C0DD97":"#3B6D11", bd:dark?"#3A6014":"#C0DD97", label:lang==="th"?"สำเร็จ":"Success"}
                 : l.status==="partial"
-                ? {bg:dark?"#2D1E00":"#FAEEDA", txt:dark?"#FAC775":"#854F0B", bd:dark?"#7A5500":"#FAC775", label:"บางส่วน"}
-                : {bg:dark?"#2D1010":"#FCEBEB", txt:dark?"#F09595":"#A32D2D", bd:dark?"#7A2020":"#F09595", label:"ล้มเหลว"};
+                ? {bg:dark?"#2D1E00":"#FAEEDA", txt:dark?"#FAC775":"#854F0B", bd:dark?"#7A5500":"#FAC775", label:lang==="th"?"บางส่วน":"Partial"}
+                : {bg:dark?"#2D1010":"#FCEBEB", txt:dark?"#F09595":"#A32D2D", bd:dark?"#7A2020":"#F09595", label:lang==="th"?"ล้มเหลว":"Failed"};
               return (
                 <tr key={i} style={{borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`}}>
                   <td style={{padding:"7px 11px",fontSize:11,color:"#888"}}>{l.synced_at ? new Date(l.synced_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "—"}</td>
