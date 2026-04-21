@@ -141,20 +141,20 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
   return (
     <div>
       {/* ── FILTER ROW ด้านบนสุด ── */}
-      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+      <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
         {/* Team buttons */}
         <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
           <button onClick={()=>{setTeamFilter("");setSelTeam(null);setSaleFilter("");}} style={{
             padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
-            border:"1px solid rgba(0,0,0,0.15)",
-            background:!teamFilter?"#111":"#fff",
-            color:!teamFilter?"#fff":"#555",transition:"all .15s",
+            border:`1px solid ${dark?"#333":"rgba(0,0,0,0.15)"}`,
+            background:!teamFilter?(dark?"#eee":"#111"):(dark?"#222":"#fff"),
+            color:!teamFilter?(dark?"#111":"#fff"):(dark?"#888":"#555"),transition:"all .15s",
           }}>ทุกทีม</button>
           {Object.keys(TEAMS).map(t => (
             <button key={t} onClick={()=>{setTeamFilter(t===teamFilter?"":t);setSelTeam(t===teamFilter?null:t);setSaleFilter("");}} style={{
               padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
               border:`1px solid ${TEAM_COLORS[t]}`,
-              background:teamFilter===t?TEAM_COLORS[t]:"#fff",
+              background:teamFilter===t?TEAM_COLORS[t]:(dark?"#1a1a1a":"#fff"),
               color:teamFilter===t?"#fff":TEAM_COLORS[t],transition:"all .15s",
             }}>{t}</button>
           ))}
@@ -162,45 +162,45 @@ export default function AdminView({ customers, syncLogs, dark, analytics }) {
         {/* Dropdowns + Search */}
         <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
           <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)}
-            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
+            style={{padding:"7px 10px",fontSize:12,border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`,borderRadius:8,background:dark?"#1a1a1a":"#fff",color:dark?"#ddd":"#111"}}>
             <option value="">ทุก Sale</option>
             {[...new Set(allSales)].map(s=><option key={s}>{s}</option>)}
           </select>
           <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
-            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,background:"#fff"}}>
+            style={{padding:"7px 10px",fontSize:12,border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`,borderRadius:8,background:dark?"#1a1a1a":"#fff",color:dark?"#ddd":"#111"}}>
             <option value="">ทุกสถานะ</option>
             <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
           </select>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."
-            style={{padding:"7px 10px",fontSize:12,border:"0.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none",width:160}}/>
+            style={{padding:"7px 10px",fontSize:12,border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`,borderRadius:8,outline:"none",width:160,background:dark?"#1a1a1a":"#fff",color:dark?"#ddd":"#111"}}/>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:16}}>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
-          <div style={{fontSize:20,fontWeight:600,color:"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+          <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length.toLocaleString()}</div>
         </div>
-        <div style={{background:"#FCEBEB",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
-          <div style={{fontSize:20,fontWeight:600,color:"#A32D2D"}}>{filteredBl}</div>
+        <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+          <div style={{fontSize:20,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{filteredBl}</div>
         </div>
-        <div style={{background:"#FAEEDA",border:"1.5px solid #FAC775",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
-          <div style={{fontSize:20,fontWeight:600,color:"#854F0B"}}>{filteredWa}</div>
+        <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+          <div style={{fontSize:20,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{filteredWa}</div>
         </div>
-        <div style={{background:"#EAF3DE",border:"1.5px solid #C0DD97",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
-          <div style={{fontSize:20,fontWeight:600,color:"#3B6D11"}}>{filteredNo}</div>
+        <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+          <div style={{fontSize:20,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filteredNo}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid var(--color-border-secondary)",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#888",marginBottom:3}}>BR active</div>
-          <div style={{fontSize:20,fontWeight:600,color:"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
+        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#666":"#888",marginBottom:3}}>BR active</div>
+          <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filteredBR.toLocaleString()}</div>
         </div>
-        <div style={{background:"var(--color-background-primary)",border:"1.5px solid #F09595",borderRadius:10,padding:"10px 12px"}}>
-          <div style={{fontSize:11,color:"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างรวม</div>
-          <div style={{fontSize:18,fontWeight:600,color:"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างรวม</div>
+          <div style={{fontSize:18,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
         </div>
       </div>
 

@@ -87,7 +87,7 @@ export default function App() {
     <div style={{ minHeight:"100vh", background:D.bg, transition:"background .2s" }}>
 
       {/* ── Navbar ── */}
-      <div style={{ background:D.navbar, color:D.text, padding:"0 12px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
+      <div style={{ background:D.navbar, color:D.text, padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.8px" }}>
             <span style={{ color:"#D4357A" }}>Neo</span>Biotech
@@ -132,7 +132,7 @@ export default function App() {
       </div>
 
       {/* ── Content ── */}
-      <div style={{ padding:"12px 12px", maxWidth:1400, margin:"0 auto" }}>
+      <div style={{ padding:"14px 24px" }}>
         {loading ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300, color:"#888", fontSize:13 }}>
             กำลังโหลดข้อมูล...
