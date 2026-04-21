@@ -268,6 +268,19 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         db.commit()
     except: pass
 
+    # ── Auto-delete borrow_items ที่หายจาก Sheet (updated_at เก่ากว่า 3 ชั่วโมง
+    #    และ BR ยังเป็น active อยู่ = สินค้าชิ้นนั้นถูก CLEAR แล้ว) ────────────
+    try:
+        db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE updated_at < NOW() - INTERVAL '3 hours'
+              AND borrow_no IN (
+                SELECT borrow_no FROM borrows WHERE sheet_status='active'
+              )
+        """))
+        db.commit()
+    except: pass
+
     # ── Close BRs เฉพาะ batch สุดท้าย (fallback) ─────────────────
     if payload.is_final_batch:
         try:
