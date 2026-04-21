@@ -222,94 +222,96 @@ export default function SaleView({ customers, dark, custValues = {}, analytics }
   const inp = { padding:"7px 10px", fontSize:12, border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`, borderRadius:8, outline:"none", background:dark?"#1a1a1a":"#fff", color:dark?"#ddd":"#111" };
 
   return (
-    <div>
-      {bl > 0 && (
-        <div style={{background:dark?"#2D1010":"#FCEBEB",border:`0.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:dark?"#F09595":"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
-          <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน
-        </div>
-      )}
-
-      {/* KPI */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
-        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
-          <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
-        </div>
-        <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
-          <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
-        </div>
-        <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
-          <div style={{fontSize:22,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
-        </div>
-        <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
-          <div style={{fontSize:22,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
-        </div>
-        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-          <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>BR active</div>
-          <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
-        </div>
-        <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 50px)"}}>
+      {/* Fixed top section */}
+      <div style={{flexShrink:0}}>
+        {bl > 0 && (
+          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`0.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:8,padding:"9px 14px",marginBottom:10,fontSize:12,color:dark?"#F09595":"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
+            <strong>แจ้งเตือน:</strong> มีลูกค้า BLOCK {bl} ราย ที่ค้างชำระเกิน 180 วัน
           </div>
-          {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"2px 8px",alignSelf:"flex-start",marginTop:4}}>ทีม {myTeam}</span>}
+        )}
+
+        {/* KPI */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>ลูกค้าทั้งหมด</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
+          </div>
+          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
+          </div>
+          <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
+          </div>
+          <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
+          </div>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>BR active</div>
+            <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
+          </div>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+            <div>
+              <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>มูลค่าค้างชำระรวม</div>
+              <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+            </div>
+            {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"2px 8px",alignSelf:"flex-start",marginTop:4}}>ทีม {myTeam}</span>}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..." style={{...inp,flex:1,minWidth:120}}/>
+          <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
+            <option value="">ทุก Sale</option>
+            {allSales.map(s=><option key={s}>{s}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
+            <option value="">ทุกสถานะ</option>
+            <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
+          </select>
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..." style={{...inp,flex:1,minWidth:120}}/>
-        <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
-          <option value="">ทุก Sale</option>
-          {allSales.map(s=><option key={s}>{s}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
-          <option value="">ทุกสถานะ</option>
-          <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden"}}>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
-            <thead style={{background:dark?"#1a1a1a":"#f9f9f7",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`}}>
-              <tr>
-                {["#","รหัส","ชื่อลูกค้า","Sale","BR","วันค้าง","มูลค่า","สถานะ",""].map((h,i)=>(
-                  <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
-                    width:i===0?"28px":i===1?"75px":i===3?"65px":i===4?"38px":i===5?"85px":i===6?"95px":i===7?"80px":i===8?"85px":"auto"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
-              ) : filtered.map((c,i)=>(
-                <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.06)"}`}}>
-                  <td style={{padding:"9px 10px",fontSize:11,color:"#444"}}>{i+1}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                  <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
-                  <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.active_br_count}</td>
-                  <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
-                    color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#aaa":"#1a1a1a")}}>{c.max_days} วัน</td>
-                  <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
-                    color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#555":"#888")}}>
-                    {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
-                  </td>
-                  <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
-                  <td style={{padding:"9px 10px"}}>
-                    <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>ดูรายละเอียด</button>
-                  </td>
-                </tr>
+      {/* Scrollable table */}
+      <div style={{flex:1,overflow:"auto",background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
+          <thead>
+            <tr style={{position:"sticky",top:0,zIndex:10,background:dark?"#1a1a1a":"#f9f9f7"}}>
+              {["#","รหัส","ชื่อลูกค้า","Sale","BR","วันค้าง","มูลค่า","สถานะ",""].map((h,i)=>(
+                <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
+                  borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,
+                  width:i===0?"28px":i===1?"75px":i===3?"65px":i===4?"38px":i===5?"85px":i===6?"95px":i===7?"80px":i===8?"85px":"auto"}}>{h}</th>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>ไม่พบลูกค้า</td></tr>
+            ) : filtered.map((c,i)=>(
+              <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.06)"}`}}>
+                <td style={{padding:"9px 10px",fontSize:11,color:"#ddd"}}>{i+1}</td>
+                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
+                <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
+                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
+                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.active_br_count}</td>
+                <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
+                  color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#ddd":"#1a1a1a")}}>{c.max_days} วัน</td>
+                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
+                  color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#ddd":"#888")}}>
+                  {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
+                </td>
+                <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
+                <td style={{padding:"9px 10px"}}>
+                  <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>ดูรายละเอียด</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {selectedCustomer && (
