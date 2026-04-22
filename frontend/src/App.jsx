@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import SaleView from "./components/SaleView";
 import AdminView from "./components/AdminView";
+import MobileApp from "./components/MobileApp";
 
-const MOCK_MODE = false;
-const API_BASE  = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const TEAMS = {
   Bangkok:      ["TANG","OPAL","PAT","GAM","SHIRLEY","NAMPHUENG","CHOMPOO","RUNG"],
@@ -90,7 +90,19 @@ export const T = {
   },
 };
 
-export default function App() {
+// ── Detect mobile ──────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
+
+// ── Desktop App ────────────────────────────────────────────────────────
+function DesktopApp() {
   const [view, setView]           = useState("sale");
   const [customers, setCustomers] = useState([]);
   const [syncLogs, setSyncLogs]   = useState([]);
@@ -122,38 +134,27 @@ export default function App() {
   }, []);
 
   const D = {
-    bg:      dark ? "#0f0f0f" : "#f5f5f3",
-    navbar:  dark ? "#1a1a1a" : "#111",
-    navBorder: dark ? "#333" : "#222",
-    text:    dark ? "#eee"   : "#fff",
-    subtext: dark ? "#666"   : "#777",
+    bg:        dark ? "#0f0f0f" : "#f5f5f3",
+    navbar:    dark ? "#1a1a1a" : "#111",
+    navBorder: dark ? "#333"    : "#222",
+    text:      dark ? "#eee"    : "#fff",
+    subtext:   dark ? "#666"    : "#777",
   };
 
   return (
     <div style={{ minHeight:"100vh", background:D.bg, transition:"background .2s" }}>
-
-      {/* ── Navbar ── */}
+      {/* Navbar */}
       <div style={{ background:D.navbar, color:D.text, padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, borderBottom:`0.5px solid ${D.navBorder}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:20, fontWeight:700, letterSpacing:"-0.8px" }}>
             <span style={{ color:"#D4357A" }}>Neo</span>Biotech
           </span>
-          <span style={{
-            fontSize:10, fontWeight:500, color:"#D4357A",
-            background: dark ? "#2D0F1A" : "#FBE8F1",
-            border:`0.5px solid ${dark ? "#7A2040" : "#F0A0C0"}`,
-            borderRadius:4, padding:"2px 8px", letterSpacing:"0.5px",
-          }}>BORROW SYSTEM</span>
+          <span style={{ fontSize:10, fontWeight:500, color:"#D4357A", background:dark?"#2D0F1A":"#FBE8F1", border:`0.5px solid ${dark?"#7A2040":"#F0A0C0"}`, borderRadius:4, padding:"2px 8px", letterSpacing:"0.5px" }}>BORROW SYSTEM</span>
         </div>
 
         <div style={{ display:"flex" }}>
           {[["sale","Sale"],["admin","Admin"]].map(([k,l]) => (
-            <button key={k} onClick={() => setView(k)} style={{
-              padding:"0 12px", height:50, fontSize:12, fontWeight:500,
-              border:"none", borderBottom: view===k ? "2px solid #D4357A" : "2px solid transparent",
-              background:"transparent", color: view===k ? "#fff" : D.subtext,
-              cursor:"pointer", transition:"all .15s",
-            }}>{l}</button>
+            <button key={k} onClick={() => setView(k)} style={{ padding:"0 12px", height:50, fontSize:12, fontWeight:500, border:"none", borderBottom:view===k?"2px solid #D4357A":"2px solid transparent", background:"transparent", color:view===k?"#fff":D.subtext, cursor:"pointer", transition:"all .15s" }}>{l}</button>
           ))}
         </div>
 
@@ -161,34 +162,20 @@ export default function App() {
           <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#888" }}>
             <span style={{ width:7, height:7, borderRadius:"50%", background:"#639922", display:"inline-block" }}/>
           </span>
-          {/* Lang toggle */}
           <div style={{ display:"flex", background:dark?"#111":"#333", borderRadius:6, padding:2, gap:2 }}>
             {["th","en"].map(l => (
-              <button key={l} onClick={() => setLang(l)} style={{
-                padding:"3px 8px", fontSize:11, fontWeight:600, border:"none",
-                borderRadius:4, cursor:"pointer", transition:"all .15s",
-                background: lang===l ? "#D4357A" : "transparent",
-                color: lang===l ? "#fff" : "#666",
-              }}>{l.toUpperCase()}</button>
+              <button key={l} onClick={() => setLang(l)} style={{ padding:"3px 8px", fontSize:11, fontWeight:600, border:"none", borderRadius:4, cursor:"pointer", transition:"all .15s", background:lang===l?"#D4357A":"transparent", color:lang===l?"#fff":"#666" }}>{l.toUpperCase()}</button>
             ))}
           </div>
-          <button onClick={() => setDark(d => !d)} style={{
-            width:48, height:26, borderRadius:28, border:"none", cursor:"pointer", padding:0,
-            position:"relative", background: dark ? "#4A3F8F" : "#E8A020", transition:"background .3s", flexShrink:0,
-          }}>
-            <span style={{position:"absolute",left:5,top:"50%",transform:"translateY(-50%)",fontSize:11,opacity:dark?1:0,transition:"opacity .2s"}}>🌙</span>
-            <span style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",fontSize:11,opacity:dark?0:1,transition:"opacity .2s"}}>☀️</span>
-            <span style={{
-              position:"absolute", top:3, left: dark ? 24 : 3,
-              width:20, height:20, borderRadius:"50%", background:"#fff",
-              boxShadow:"0 1px 4px rgba(0,0,0,0.3)", transition:"left .25s cubic-bezier(.4,0,.2,1)",
-              display:"flex", alignItems:"center", justifyContent:"center", fontSize:10,
-            }}>{dark ? "🌙" : "☀️"}</span>
+          <button onClick={() => setDark(d => !d)} style={{ width:48, height:26, borderRadius:28, border:"none", cursor:"pointer", padding:0, position:"relative", background:dark?"#4A3F8F":"#E8A020", transition:"background .3s", flexShrink:0 }}>
+            <span style={{ position:"absolute", left:5, top:"50%", transform:"translateY(-50%)", fontSize:11, opacity:dark?1:0, transition:"opacity .2s" }}>🌙</span>
+            <span style={{ position:"absolute", right:5, top:"50%", transform:"translateY(-50%)", fontSize:11, opacity:dark?0:1, transition:"opacity .2s" }}>☀️</span>
+            <span style={{ position:"absolute", top:3, left:dark?24:3, width:20, height:20, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.3)", transition:"left .25s cubic-bezier(.4,0,.2,1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10 }}>{dark?"🌙":"☀️"}</span>
           </button>
         </div>
       </div>
 
-      {/* ── Content ── */}
+      {/* Content */}
       <div style={{ padding:"14px 24px" }}>
         {loading ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300, color:"#888", fontSize:13 }}>
@@ -202,4 +189,10 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ── Root — auto-switch Desktop / Mobile ────────────────────────────────
+export default function App() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileApp /> : <DesktopApp />;
 }
