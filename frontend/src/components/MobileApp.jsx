@@ -176,7 +176,7 @@ function HomeScreen({ customers, analytics, custValues, syncLogs, lang, setTab, 
   const wa = customers.filter(c => c.status === "WARNING").length;
   const no = customers.filter(c => c.status === "NORMAL").length;
   const totalBR = customers.reduce((s, c) => s + c.active_br_count, 0);
-  const totalVal = analytics?.total_value || Object.values(custValues).reduce((s, v) => s + v, 0);
+  const totalVal = customers.reduce((s, c) => s + (custValues[c.cust_code] || 0), 0);
   const criticals = [...customers].filter(c => c.status === "BLOCK").sort((a, b) => b.max_days - a.max_days).slice(0, 3);
   const lastSync = syncLogs[0];
   const hour = new Date().getHours();
