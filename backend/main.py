@@ -29,6 +29,7 @@ def get_db():
         db.close()
 
 def ensure_tables(db):
+    # ── ตารางหลัก ──────────────────────────────────────────────────
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS customers (
             cust_code TEXT PRIMARY KEY,
@@ -63,6 +64,28 @@ def ensure_tables(db):
             duration_ms INTEGER DEFAULT 0, error_msg TEXT
         )
     """))
+
+    # ── ตาราง Staging (รับข้อมูลระหว่าง sync) ──────────────────────
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS borrows_staging (
+            borrow_no TEXT PRIMARY KEY, cust_code TEXT, borrow_date TEXT,
+            status TEXT, days_borrowed INTEGER DEFAULT 0, borrow_alert TEXT
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS borrow_items_staging (
+            id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
+            product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
+            total_price NUMERIC(14,2),
+            UNIQUE(borrow_no, product_code)
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS customers_staging (
+            cust_code TEXT PRIMARY KEY,
+            customer_name TEXT, istock_id TEXT, erp_id TEXT, sale TEXT
+        )
+    """))
     db.commit()
 
 def recalc_all_customers(db):
@@ -77,17 +100,91 @@ def recalc_all_customers(db):
             END,
             updated_at = NOW()
         FROM (
-            SELECT c2.cust_code,
-                   MAX(b.days_borrowed) AS max_days,
-                   COUNT(b.borrow_no)   AS cnt
-            FROM customers c2
-            LEFT JOIN borrows b
-                ON b.cust_code = c2.cust_code AND b.sheet_status = 'active'
-            GROUP BY c2.cust_code
+            SELECT cust_code,
+                   MAX(days_borrowed) AS max_days,
+                   COUNT(*)           AS cnt
+            FROM borrows
+            WHERE sheet_status = 'active'
+            GROUP BY cust_code
         ) sub
         WHERE c.cust_code = sub.cust_code
     """))
     db.commit()
+
+def swap_staging_to_main(db):
+    """
+    SWAP staging → main tables ทีเดียว
+    Sale จะเห็นข้อมูลใหม่ครบพร้อมกัน ไม่เห็นข้อมูลครึ่งๆ ระหว่าง sync
+    """
+    now = datetime.now(timezone.utc)
+
+    # 1. Upsert customers จาก staging → main
+    db.execute(text("""
+        INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale,
+            status, max_days, active_br_count, updated_at)
+        SELECT cust_code, customer_name, istock_id, erp_id, sale,
+            'NORMAL', 0, 0, :now
+        FROM customers_staging
+        ON CONFLICT (cust_code) DO UPDATE SET
+            customer_name = EXCLUDED.customer_name,
+            sale          = EXCLUDED.sale,
+            updated_at    = EXCLUDED.updated_at
+    """), {"now": now})
+
+    # 2. Mark borrows ที่ไม่อยู่ใน staging แล้วว่า closed
+    db.execute(text("""
+        UPDATE borrows SET sheet_status='closed', closed_at=:now
+        WHERE sheet_status='active'
+          AND borrow_no NOT IN (SELECT borrow_no FROM borrows_staging)
+    """), {"now": now})
+
+    # 3. Upsert borrows จาก staging → main
+    db.execute(text("""
+        INSERT INTO borrows (borrow_no, cust_code, borrow_date, status,
+            days_borrowed, borrow_alert, sheet_status, first_seen_at, last_seen_at)
+        SELECT borrow_no, cust_code, borrow_date, status,
+            days_borrowed, borrow_alert, 'active', :now, :now
+        FROM borrows_staging
+        ON CONFLICT (borrow_no) DO UPDATE SET
+            cust_code     = EXCLUDED.cust_code,
+            days_borrowed = EXCLUDED.days_borrowed,
+            borrow_alert  = EXCLUDED.borrow_alert,
+            status        = EXCLUDED.status,
+            sheet_status  = 'active',
+            last_seen_at  = EXCLUDED.last_seen_at
+    """), {"now": now})
+
+    # 4. Upsert borrow_items จาก staging → main
+    db.execute(text("""
+        INSERT INTO borrow_items
+            (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
+        SELECT borrow_no, product_code, product_name, price, quantity, total_price, :now
+        FROM borrow_items_staging
+        ON CONFLICT (borrow_no, product_code) DO UPDATE SET
+            product_name = EXCLUDED.product_name,
+            price        = EXCLUDED.price,
+            quantity     = EXCLUDED.quantity,
+            total_price  = EXCLUDED.total_price,
+            updated_at   = EXCLUDED.updated_at
+    """), {"now": now})
+
+    # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
+    db.execute(text("""
+        DELETE FROM borrow_items
+        WHERE (borrow_no, product_code) NOT IN (
+            SELECT borrow_no, product_code FROM borrow_items_staging
+        )
+        AND borrow_no IN (SELECT borrow_no FROM borrows_staging)
+    """))
+
+    db.commit()
+
+def clear_staging(db):
+    """ล้าง staging tables พร้อมรับ sync รอบใหม่"""
+    db.execute(text("TRUNCATE borrows_staging, borrow_items_staging, customers_staging"))
+    db.commit()
+
+# ── Models ────────────────────────────────────────────────────────────
 
 class SyncRow(BaseModel):
     borrow_no: str
@@ -109,6 +206,8 @@ class SyncRow(BaseModel):
 class SyncPayload(BaseModel):
     rows: list[SyncRow]
     is_final_batch: bool = False
+
+# ── Endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health():
@@ -178,90 +277,67 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     try: ensure_tables(db)
     except: pass
 
-    now = datetime.now(timezone.utc)
-    sheet_brs = {r.borrow_no for r in payload.rows if r.borrow_no}
-
     try:
-        # ── Bulk upsert customers ─────────────────────────────────
-        cust_map = {}
-        for row in payload.rows:
-            if not row.borrow_no or not row.cust_code: continue
-            if row.cust_code not in cust_map:
-                cust_map[row.cust_code] = {
-                    "cc": row.cust_code, "name": row.customer_name,
-                    "istock": row.istock_id, "erp": row.erp_id,
-                    "sale": row.sale, "now": now
-                }
-        if cust_map:
-            db.execute(text("""
-                INSERT INTO customers (cust_code,customer_name,istock_id,erp_id,sale,
-                    status,max_days,active_br_count,updated_at)
-                VALUES (:cc,:name,:istock,:erp,:sale,'NORMAL',0,0,:now)
-                ON CONFLICT (cust_code) DO UPDATE SET
-                    customer_name=EXCLUDED.customer_name,
-                    sale=EXCLUDED.sale,
-                    updated_at=EXCLUDED.updated_at
-            """), list(cust_map.values()))
-
-        # ── Bulk upsert borrows ───────────────────────────────────
+        # ── INSERT เข้า staging ทุก batch (ไม่แตะ borrows จริงเลย) ──────
+        cust_params = []
         borrow_params = []
         item_params = []
+
         for row in payload.rows:
             if not row.borrow_no: continue
+
+            if row.cust_code:
+                cust_params.append({
+                    "cc": row.cust_code, "name": row.customer_name,
+                    "istock": row.istock_id, "erp": row.erp_id, "sale": row.sale
+                })
+
             borrow_params.append({
                 "bno": row.borrow_no, "cc": row.cust_code,
                 "date": row.borrow_date, "status": row.status,
-                "days": row.days_borrowed, "alert": row.borrow_alert, "now": now
+                "days": row.days_borrowed, "alert": row.borrow_alert
             })
+
             if row.product_code:
                 item_params.append({
                     "bno": row.borrow_no, "code": row.product_code,
                     "name": row.product_name, "price": row.price,
-                    "qty": row.quantity, "total": row.total_price, "now": now
+                    "qty": row.quantity, "total": row.total_price
                 })
+
+        if cust_params:
+            db.execute(text("""
+                INSERT INTO customers_staging (cust_code, customer_name, istock_id, erp_id, sale)
+                VALUES (:cc, :name, :istock, :erp, :sale)
+                ON CONFLICT (cust_code) DO UPDATE SET
+                    customer_name = EXCLUDED.customer_name,
+                    sale          = EXCLUDED.sale
+            """), cust_params)
 
         if borrow_params:
             db.execute(text("""
-                INSERT INTO borrows (borrow_no,cust_code,borrow_date,status,
-                    days_borrowed,borrow_alert,sheet_status,first_seen_at,last_seen_at)
-                VALUES (:bno,:cc,:date,:status,:days,:alert,'active',:now,:now)
+                INSERT INTO borrows_staging
+                    (borrow_no, cust_code, borrow_date, status, days_borrowed, borrow_alert)
+                VALUES (:bno, :cc, :date, :status, :days, :alert)
                 ON CONFLICT (borrow_no) DO UPDATE SET
-                    cust_code=EXCLUDED.cust_code,
-                    days_borrowed=EXCLUDED.days_borrowed,
-                    borrow_alert=EXCLUDED.borrow_alert,
-                    status=EXCLUDED.status,
-                    sheet_status='active',
-                    last_seen_at=EXCLUDED.last_seen_at
+                    cust_code     = EXCLUDED.cust_code,
+                    days_borrowed = EXCLUDED.days_borrowed,
+                    borrow_alert  = EXCLUDED.borrow_alert,
+                    status        = EXCLUDED.status
             """), borrow_params)
             stats["updated"] = len(borrow_params)
 
         if item_params:
             db.execute(text("""
-                INSERT INTO borrow_items
-                    (borrow_no,product_code,product_name,price,quantity,total_price,updated_at)
-                VALUES (:bno,:code,:name,:price,:qty,:total,:now)
-                ON CONFLICT (borrow_no,product_code) DO UPDATE SET
-                    product_name=EXCLUDED.product_name,
-                    price=EXCLUDED.price,
-                    quantity=EXCLUDED.quantity,
-                    total_price=EXCLUDED.total_price,
-                    updated_at=EXCLUDED.updated_at
+                INSERT INTO borrow_items_staging
+                    (borrow_no, product_code, product_name, price, quantity, total_price)
+                VALUES (:bno, :code, :name, :price, :qty, :total)
+                ON CONFLICT (borrow_no, product_code) DO UPDATE SET
+                    product_name = EXCLUDED.product_name,
+                    price        = EXCLUDED.price,
+                    quantity     = EXCLUDED.quantity,
+                    total_price  = EXCLUDED.total_price
             """), item_params)
-
-        # ── ลบ items ที่ถูก CLEAR แล้ว (product_code ไม่อยู่ใน batch นี้แล้ว) ──
-        # สร้าง map: borrow_no → set of product_codes ที่ยังอยู่ใน batch
-        bno_to_codes = {}
-        for p in item_params:
-            bno_to_codes.setdefault(p["bno"], set()).add(p["code"])
-
-        # เฉพาะ BR ที่มีสินค้าใน batch นี้ → เช็คว่ามี item เก่าใน DB ที่หายไปไหม
-        for bno, codes in bno_to_codes.items():
-            codes_list = list(codes)
-            db.execute(text("""
-                DELETE FROM borrow_items
-                WHERE borrow_no = :bno
-                  AND product_code != ALL(:codes)
-            """), {"bno": bno, "codes": codes_list})
 
         db.commit()
 
@@ -270,46 +346,22 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         try: db.rollback()
         except: pass
 
-    # ── Auto-close BRs ที่หายจาก Sheet (ไม่ถูก sync มานาน > 3 ชั่วโมง) ──
-    try:
-        result = db.execute(text("""
-            UPDATE borrows SET sheet_status='closed', closed_at=:now
-            WHERE sheet_status='active'
-              AND last_seen_at < NOW() - INTERVAL '3 hours'
-            RETURNING borrow_no
-        """), {"now": now})
-        closed_count = len(result.fetchall())
-        if closed_count > 0:
-            stats["closed"] = closed_count
-        db.commit()
-    except: pass
-
-    # ── Close BRs เฉพาะ batch สุดท้าย (fallback) ─────────────────
+    # ── batch สุดท้าย → SWAP staging → main → recalc ─────────────────
     if payload.is_final_batch:
         try:
-            active = db.execute(text(
-                "SELECT borrow_no FROM borrows WHERE sheet_status='active'"
-            )).fetchall()
-            gone = [r[0] for r in active if r[0] not in sheet_brs]
-            if gone:
-                db.execute(text("""
-                    UPDATE borrows SET sheet_status='closed',closed_at=:now
-                    WHERE borrow_no=ANY(:ids)
-                """), {"now": now, "ids": gone})
-                stats["closed"] = len(gone)
-            db.commit()
-        except: pass
-
-    # ── Recalculate customer status ───────────────────────────────
-    try:
-        recalc_all_customers(db)
-    except: pass
+            swap_staging_to_main(db)
+            recalc_all_customers(db)
+            # ล้าง staging พร้อมรับ sync รอบหน้า
+            clear_staging(db)
+            stats["closed"] = 0  # closed ถูก handle ใน swap แล้ว
+        except Exception as e:
+            stats["errors"] += 1
 
     duration = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
     try:
         db.execute(text("""
-            INSERT INTO sync_logs (status,sheet_rows,br_inserted,br_updated,br_closed,errors,duration_ms)
-            VALUES (:st,:rows,:ins,:upd,:cl,:err,:dur)
+            INSERT INTO sync_logs (status, sheet_rows, br_inserted, br_updated, br_closed, errors, duration_ms)
+            VALUES (:st, :rows, :ins, :upd, :cl, :err, :dur)
         """), {"st": "success" if not stats["errors"] else "partial",
                "rows": len(payload.rows), "ins": stats["inserted"],
                "upd": stats["updated"], "cl": stats["closed"],
@@ -333,25 +385,13 @@ def recalc(db: Session = Depends(get_db)):
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
     try:
-        b = db.execute(text("SELECT COUNT(*) FROM borrows")).fetchone()[0]
-        c = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
-        i = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
-        return {"customers": c, "borrows": b, "borrow_items": i}
+        b  = db.execute(text("SELECT COUNT(*) FROM borrows")).fetchone()[0]
+        c  = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
+        i  = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        bs = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
+        return {"customers": c, "borrows": b, "borrow_items": i, "borrows_staging": bs}
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/migrate")
-def migrate(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("""
-            ALTER TABLE borrow_items
-            ADD CONSTRAINT borrow_items_borrow_no_product_code_key
-            UNIQUE (borrow_no, product_code)
-        """))
-        db.commit()
-        return {"success": True, "message": "Constraint added"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
 
 @app.get("/debug-borrow/{cust_code}")
 def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
@@ -370,7 +410,6 @@ def debug_borrow(cust_code: str, db: Session = Depends(get_db)):
 def analytics_summary(db: Session = Depends(get_db)):
     """มูลค่าค้างรวม + top5 + sale ranking"""
     try:
-        # มูลค่าค้างรวมทั้งระบบ
         total_value = db.execute(text("""
             SELECT COALESCE(SUM(bi.total_price), 0)
             FROM borrow_items bi
@@ -378,7 +417,6 @@ def analytics_summary(db: Session = Depends(get_db)):
             WHERE b.sheet_status = 'active'
         """)).fetchone()[0]
 
-        # Top 5 ค้างนานที่สุด
         top5 = db.execute(text("""
             SELECT c.cust_code, c.customer_name, c.sale, c.max_days, c.status,
                    COALESCE(SUM(bi.total_price), 0) AS total_value
@@ -391,7 +429,6 @@ def analytics_summary(db: Session = Depends(get_db)):
             LIMIT 5
         """)).fetchall()
 
-        # Sale ranking
         sale_rank = db.execute(text("""
             SELECT c.sale,
                    COUNT(*) FILTER (WHERE c.status='BLOCK')   AS block_count,
@@ -406,7 +443,6 @@ def analytics_summary(db: Session = Depends(get_db)):
             ORDER BY block_count DESC, warn_count DESC
         """)).fetchall()
 
-        # มูลค่าค้างแยกตาม sale (สำหรับ Sale View)
         sale_value = db.execute(text("""
             SELECT c.sale, COALESCE(SUM(bi.total_price), 0) AS total_value
             FROM customers c
@@ -439,8 +475,21 @@ def customer_value(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/migrate")
+def migrate(db: Session = Depends(get_db)):
+    """สร้าง staging tables ถ้ายังไม่มี"""
+    try:
+        ensure_tables(db)
+        return {"success": True, "message": "Tables ensured"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @app.delete("/reset-db")
 def reset_db(db: Session = Depends(get_db)):
-    db.execute(text("TRUNCATE borrow_items, borrows, customers, sync_logs RESTART IDENTITY CASCADE"))
+    db.execute(text("""
+        TRUNCATE borrow_items, borrows, customers, sync_logs,
+                 borrows_staging, borrow_items_staging, customers_staging
+        RESTART IDENTITY CASCADE
+    """))
     db.commit()
     return {"success": True, "message": "DB cleared"}
