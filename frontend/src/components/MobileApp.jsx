@@ -171,7 +171,7 @@ function SalePicker({ onSelect, dark, setDark, lang, setLang }) {
 }
 
 // ── HOME SCREEN ────────────────────────────────────────────────────────
-function HomeScreen({ customers, analytics, custValues, syncLogs, lang, setTab, setSelectedCustomer, refreshing, onRefresh, dark }) {
+function HomeScreen({ customers, analytics, custValues, syncLogs, lang, setTab, setSelectedCustomer, refreshing, onRefresh, dark, selectedSale }) {
   const bl = customers.filter(c => c.status === "BLOCK").length;
   const wa = customers.filter(c => c.status === "WARNING").length;
   const no = customers.filter(c => c.status === "NORMAL").length;
@@ -191,7 +191,7 @@ function HomeScreen({ customers, analytics, custValues, syncLogs, lang, setTab, 
       {/* Greeting */}
       <div style={{ paddingTop: 6, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: sub, marginBottom: 3, fontWeight: 500 }}>{greet}</div>
-        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5 }}>NeoBiotech <span style={{ color: "#D4357A" }}>·</span></div>
+        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5, color: text }}>{lang === "th" ? "คุณ " : ""}<span style={{ color: "#D4357A" }}>{selectedSale}</span> <span style={{ color: "#D4357A" }}>·</span></div>
         <div style={{ fontSize: 11, color: sub, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#639922", display: "inline-block" }} />
           {lang === "th" ? "ออนไลน์" : "Online"} · {lastSync ? (lang === "th" ? "ซิงค์ล่าสุด" : "Last sync") + " " + new Date(lastSync.synced_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "—"}
@@ -810,7 +810,7 @@ export default function MobileApp() {
         ) : loading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: dark ? "#555" : "#aaa", fontSize: 13 }}>{lang === "th" ? "กำลังโหลดข้อมูล..." : "Loading..."}</div>
         ) : tab === "home" ? (
-          <HomeScreen customers={myCusts} analytics={analytics} custValues={custValues} syncLogs={syncLogs} lang={lang} setTab={setTab} setSelectedCustomer={setSelectedCustomer} refreshing={refreshing} onRefresh={() => load(true)} dark={dark} />
+          <HomeScreen customers={myCusts} analytics={analytics} custValues={custValues} syncLogs={syncLogs} lang={lang} setTab={setTab} setSelectedCustomer={setSelectedCustomer} refreshing={refreshing} onRefresh={() => load(true)} dark={dark} selectedSale={selectedSale} />
         ) : tab === "customers" ? (
           <CustomersScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
         ) : tab === "alerts" ? (
