@@ -593,6 +593,13 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
         {customer && (
           <>
             <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+              {/* Close button row */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: sub }}>{lang === "th" ? "ข้อมูลลูกค้า" : "Customer Detail"}</div>
+                <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke={sub} strokeWidth="1.8" fill="none" strokeLinecap="round"/></svg>
+                </button>
+              </div>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <div style={{ width: 54, height: 54, borderRadius: 13, flexShrink: 0, background: customer.status === "BLOCK" ? "#3D1212" : customer.status === "WARNING" ? "#3D2A00" : "#1A2E0A", color: customer.status === "NORMAL" ? "#C0DD97" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700 }}>
                   {customer.customer_name.slice(0, 2)}
@@ -666,6 +673,16 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
           return (
             <>
               <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+                {/* Header row with back + close */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <button onClick={() => setSelectedBR(null)} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "#D4357A", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                    <svg width={16} height={16} viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" stroke="#D4357A" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    {lang === "th" ? "← กลับ" : "← Back"}
+                  </button>
+                  <button onClick={() => setSelectedBR(null)} style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke={sub} strokeWidth="1.8" fill="none" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
                 <div style={{ fontSize: 11, color: sub, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "เลขที่ใบยืม" : "Borrow No."}</div>
                 <div style={{ fontSize: 17, fontWeight: 700, color: text, fontFamily: "ui-monospace,monospace", marginBottom: 8 }}>{selectedBR.borrow_no}</div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 11, color: sub }}>
