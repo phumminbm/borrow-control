@@ -76,21 +76,26 @@ function TeamPill({ team, size = "sm" }) {
 }
 
 // ── BottomSheet ────────────────────────────────────────────────────────
-function BottomSheet({ open, onClose, children, title, height = "85%" }) {
+function BottomSheet({ open, onClose, children, title, height = "85%", dark = true }) {
+  const sheetBg  = dark ? "#141414" : "#ffffff";
+  const handleBg = dark ? "#333"    : "#e0e0e0";
+  const titleBdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
+  const titleCol = dark ? "#eee"    : "#111";
+  const closeCol = dark ? "#888"    : "#666";
   return (
     <>
       <div
         onClick={onClose}
         style={{ position: "fixed", inset: 0, background: open ? "rgba(0,0,0,0.5)" : "transparent", backdropFilter: open ? "blur(2px)" : "none", transition: "background 0.25s", pointerEvents: open ? "auto" : "none", zIndex: 200 }}
       />
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, height, background: "#141414", borderRadius: "20px 20px 0 0", transform: open ? "translateY(0)" : "translateY(100%)", transition: "transform 0.3s cubic-bezier(.32,.72,0,1)", zIndex: 201, display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.4)", maxHeight: "92vh" }}>
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, height, background: sheetBg, borderRadius: "20px 20px 0 0", transform: open ? "translateY(0)" : "translateY(100%)", transition: "transform 0.3s cubic-bezier(.32,.72,0,1)", zIndex: 201, display: "flex", flexDirection: "column", boxShadow: "0 -8px 40px rgba(0,0,0,0.25)", maxHeight: "92vh" }}>
         <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 0", flexShrink: 0 }}>
-          <div style={{ width: 36, height: 4, background: "#333", borderRadius: 2 }} />
+          <div style={{ width: 36, height: 4, background: handleBg, borderRadius: 2 }} />
         </div>
         {title && (
-          <div style={{ padding: "10px 20px 12px", borderBottom: "0.5px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "#eee" }}>{title}</div>
-            <button onClick={onClose} style={{ border: "none", background: "transparent", color: "#888", fontSize: 14, cursor: "pointer", padding: 4 }}>✕</button>
+          <div style={{ padding: "10px 20px 12px", borderBottom: `0.5px solid ${titleBdr}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: titleCol }}>{title}</div>
+            <button onClick={onClose} style={{ border: "none", background: "transparent", color: closeCol, fontSize: 14, cursor: "pointer", padding: 4 }}>✕</button>
           </div>
         )}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>{children}</div>
@@ -381,7 +386,7 @@ function CustomersScreen({ customers, custValues, lang, setSelectedCustomer, dar
         })}
       </div>
 
-      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title={lang === "th" ? "ตัวกรอง" : "Filter"} height="55%">
+      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title={lang === "th" ? "ตัวกรอง" : "Filter"} height="55%" dark={dark}>
         <div style={{ padding: "16px 20px" }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: sub, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>{lang === "th" ? "เรียงโดย" : "Sort by"}</div>
           {[["days", lang === "th" ? "วันค้างมากสุด" : "Most days overdue"], ["value", lang === "th" ? "มูลค่าสูงสุด" : "Highest value"], ["name", lang === "th" ? "ชื่อ (A-Z)" : "Name (A-Z)"]].map(([v, l]) => (
@@ -584,7 +589,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
 
   return (
     <>
-      <BottomSheet open={!!customer} onClose={onClose} height="92%">
+      <BottomSheet open={!!customer} onClose={onClose} height="92%" dark={dark}>
         {customer && (
           <>
             <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}` }}>
@@ -655,7 +660,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
       </BottomSheet>
 
       {/* BR Detail Sheet */}
-      <BottomSheet open={!!selectedBR} onClose={() => setSelectedBR(null)} height="80%">
+      <BottomSheet open={!!selectedBR} onClose={() => setSelectedBR(null)} height="80%" dark={dark}>
         {selectedBR && (() => {
           const total = selectedBR.items.reduce((s, i) => s + i.price * i.quantity, 0);
           return (
@@ -751,8 +756,26 @@ export default function MobileApp() {
       {/* ── Navbar ── */}
       {selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderBottom: `0.5px solid ${navBdr}`, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.5, color: navText }}>
-            <span style={{ color: "#D4357A" }}>Neo</span>Biotech
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* ปุ่มย้อนกลับ — แสดงเมื่ออยู่หน้าที่ไม่ใช่ home */}
+            {tab !== "home" ? (
+              <button onClick={() => setTab("home")} style={{ width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${navBdr}`, background: dark ? "#141414" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={18} height={18} viewBox="0 0 24 24" style={{ display: "block" }}>
+                  <path d="M15 6l-6 6 6 6" stroke={dark ? "#eee" : "#111"} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            ) : (
+              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.5, color: navText }}>
+                <span style={{ color: "#D4357A" }}>Neo</span>Biotech
+              </div>
+            )}
+            {tab !== "home" && (
+              <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
+                {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
+                 : tab === "alerts"    ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
+                 : (lang === "th" ? "โปรไฟล์" : "Profile")}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 10, fontWeight: 600, color: "#D4357A", background: dark ? "#2D0F1A" : "#FBE8F1", border: "0.5px solid #D4357A44", borderRadius: 6, padding: "3px 8px" }}>{selectedSale}</span>
