@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dark background -->
+  <rect width="512" height="512" rx="115" fill="#1a0a12"/>
+  <!-- Pink border glow -->
+  <rect x="3" y="3" width="506" height="506" rx="113" fill="none" stroke="#D4357A" stroke-width="5" opacity="0.35"/>
+  <!-- Inner glow effect -->
+  <radialGradient id="glow" cx="50%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#D4357A" stop-opacity="0.12"/>
+    <stop offset="100%" stop-color="#D4357A" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="512" height="512" rx="115" fill="url(#glow)"/>
+  <!-- N (pink) -->
+  <text x="42" y="305" font-family="Arial Black, Impact, sans-serif" font-size="230" font-weight="900" fill="#D4357A">N</text>
+  <!-- eo (white) -->
+  <text x="200" y="305" font-family="Arial Black, Impact, sans-serif" font-size="230" font-weight="900" fill="#ffffff">eo</text>
+  <!-- BR label -->
+  <text x="256" y="415" font-family="Arial Black, Impact, sans-serif" font-size="105" font-weight="900" fill="#D4357A" text-anchor="middle" letter-spacing="18">BR</text>
+</svg>
