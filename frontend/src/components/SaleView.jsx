@@ -107,6 +107,7 @@ function CustomerModal({ customer, onClose, dark, t }) {
   const [brs, setBrs]         = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBr, setSelectedBr] = useState(null);
+  const [brSearch, setBrSearch] = useState("");
   const S = getS(dark);
   const txt = dark ? "#ddd" : "#111";
   const sub = dark ? "#555" : "#555";
@@ -115,6 +116,7 @@ function CustomerModal({ customer, onClose, dark, t }) {
   useEffect(() => {
     if (!customer) return;
     setLoading(true);
+    setBrSearch("");
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json())
       .then(d => setBrs(Array.isArray(d) ? d : []))
@@ -123,6 +125,10 @@ function CustomerModal({ customer, onClose, dark, t }) {
   }, [customer]);
 
   if (!customer) return null;
+
+  const filteredBrs = brs.filter(br =>
+    !brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase())
+  );
 
   return (
     <>
@@ -143,12 +149,41 @@ function CustomerModal({ customer, onClose, dark, t }) {
             </div>
             <button style={S.closeBtn} onClick={onClose}>✕</button>
           </div>
+
+          {/* ── BR Search ── */}
+          {!loading && brs.length > 0 && (
+            <div style={{padding:"8px 16px", borderBottom:`0.5px solid ${bdr}`, flexShrink:0}}>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"#555",pointerEvents:"none"}}>🔍</span>
+                <input
+                  value={brSearch}
+                  onChange={e => setBrSearch(e.target.value)}
+                  placeholder="ค้นหาเลข BR..."
+                  style={{
+                    width:"100%", padding:"6px 10px 6px 30px", fontSize:12,
+                    border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`,
+                    borderRadius:7, outline:"none",
+                    background:dark?"#111":"#f9f9f7",
+                    color:dark?"#ddd":"#111",
+                  }}
+                />
+              </div>
+              {brSearch && (
+                <div style={{fontSize:10,color:"#555",marginTop:4}}>
+                  พบ <span style={{color:"#D4357A",fontWeight:600}}>{filteredBrs.length}</span> รายการ จาก {brs.length} BR
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{flex:1,overflowY:"auto"}}>
             {loading ? (
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.brLoading}</div>
-            ) : brs.length === 0 ? (
-              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.noBR}</div>
-            ) : brs.map(br => {
+            ) : filteredBrs.length === 0 ? (
+              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>
+                {brSearch ? "ไม่พบ BR ที่ค้นหา" : t.noBR}
+              </div>
+            ) : filteredBrs.map(br => {
               const items = br.items || [];
               const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
               return (
