@@ -719,6 +719,15 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                   <div style={{ fontSize: 12, color: "#D4357A", fontWeight: 600 }}>{lang === "th" ? "รวมทั้งหมด" : "Grand Total"}</div>
                   <div style={{ fontSize: 18, color: "#D4357A", fontWeight: 700 }}>฿{total.toLocaleString()}</div>
                 </div>
+                {selectedBR.remark && (
+                  <div style={{ marginTop: 10, padding: "12px", background: dark ? "#1a1010" : "#FFF8F5", border: `0.5px solid ${dark ? "#5A2020" : "#F0C4B0"}`, borderRadius: 11, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: dark ? "#2D1010" : "#FCEBEB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📋</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#D4357A", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 4 }}>Remark</div>
+                      <div style={{ fontSize: 13, color: dark ? "#ddd" : "#333", lineHeight: 1.55 }}>{selectedBR.remark}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           );

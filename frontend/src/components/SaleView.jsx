@@ -93,6 +93,15 @@ function BRDetailModal({ br, onClose, dark, t }) {
               </tbody>
             </table>
           )}
+          {br.remark && (
+            <div style={{marginTop:12,padding:"10px 12px",background:dark?"#1a1010":"#FFF8F5",border:`0.5px solid ${dark?"#5A2020":"#F0C4B0"}`,borderRadius:9,display:"flex",gap:10,alignItems:"flex-start"}}>
+              <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:dark?"#2D1010":"#FCEBEB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📋</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#D4357A",letterSpacing:"0.8px",textTransform:"uppercase",marginBottom:4}}>Remark</div>
+                <div style={{fontSize:12,color:dark?"#ddd":"#333",lineHeight:1.55}}>{br.remark}</div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={S.mfoot}>
           <button style={S.btnGray} onClick={onClose}>← กลับ</button>

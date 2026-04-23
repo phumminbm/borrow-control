@@ -42,10 +42,15 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrows (
             borrow_no TEXT PRIMARY KEY, cust_code TEXT, borrow_date TEXT,
             status TEXT, days_borrowed INTEGER DEFAULT 0, borrow_alert TEXT,
+            remark TEXT,
             sheet_status TEXT DEFAULT 'active',
             first_seen_at TIMESTAMPTZ DEFAULT NOW(),
             last_seen_at TIMESTAMPTZ DEFAULT NOW(), closed_at TIMESTAMPTZ
         )
+    """))
+    # migrate existing table: add remark column if missing
+    db.execute(text("""
+        ALTER TABLE borrows ADD COLUMN IF NOT EXISTS remark TEXT
     """))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS borrow_items (
@@ -69,8 +74,12 @@ def ensure_tables(db):
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS borrows_staging (
             borrow_no TEXT PRIMARY KEY, cust_code TEXT, borrow_date TEXT,
-            status TEXT, days_borrowed INTEGER DEFAULT 0, borrow_alert TEXT
+            status TEXT, days_borrowed INTEGER DEFAULT 0, borrow_alert TEXT,
+            remark TEXT
         )
+    """))
+    db.execute(text("""
+        ALTER TABLE borrows_staging ADD COLUMN IF NOT EXISTS remark TEXT
     """))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS borrow_items_staging (
@@ -155,14 +164,15 @@ def swap_staging_to_main(db):
     # 3. Upsert borrows จาก staging → main
     db.execute(text("""
         INSERT INTO borrows (borrow_no, cust_code, borrow_date, status,
-            days_borrowed, borrow_alert, sheet_status, first_seen_at, last_seen_at)
+            days_borrowed, borrow_alert, remark, sheet_status, first_seen_at, last_seen_at)
         SELECT borrow_no, cust_code, borrow_date, status,
-            days_borrowed, borrow_alert, 'active', :now, :now
+            days_borrowed, borrow_alert, remark, 'active', :now, :now
         FROM borrows_staging
         ON CONFLICT (borrow_no) DO UPDATE SET
             cust_code     = EXCLUDED.cust_code,
             days_borrowed = EXCLUDED.days_borrowed,
             borrow_alert  = EXCLUDED.borrow_alert,
+            remark        = EXCLUDED.remark,
             status        = EXCLUDED.status,
             sheet_status  = 'active',
             last_seen_at  = EXCLUDED.last_seen_at
@@ -211,6 +221,7 @@ class SyncRow(BaseModel):
     status: str = ""
     days_borrowed: int = 0
     borrow_alert: str = ""
+    remark: str = ""
     product_code: str = ""
     product_name: str = ""
     price: float = 0
@@ -246,7 +257,7 @@ def get_customers(
 @app.get("/customers/{cust_code}/brs")
 def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
     brs = db.execute(text("""
-        SELECT borrow_no, borrow_date, days_borrowed, borrow_alert, status
+        SELECT borrow_no, borrow_date, days_borrowed, borrow_alert, status, remark
         FROM borrows WHERE cust_code=:cc AND sheet_status='active'
         ORDER BY days_borrowed DESC
     """), {"cc": cust_code}).fetchall()
@@ -309,7 +320,8 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
             borrow_params.append({
                 "bno": row.borrow_no, "cc": row.cust_code,
                 "date": row.borrow_date, "status": row.status,
-                "days": row.days_borrowed, "alert": row.borrow_alert
+                "days": row.days_borrowed, "alert": row.borrow_alert,
+                "remark": row.remark,
             })
 
             if row.product_code:
@@ -331,13 +343,14 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         if borrow_params:
             db.execute(text("""
                 INSERT INTO borrows_staging
-                    (borrow_no, cust_code, borrow_date, status, days_borrowed, borrow_alert)
-                VALUES (:bno, :cc, :date, :status, :days, :alert)
+                    (borrow_no, cust_code, borrow_date, status, days_borrowed, borrow_alert, remark)
+                VALUES (:bno, :cc, :date, :status, :days, :alert, :remark)
                 ON CONFLICT (borrow_no) DO UPDATE SET
                     cust_code     = EXCLUDED.cust_code,
                     days_borrowed = EXCLUDED.days_borrowed,
                     borrow_alert  = EXCLUDED.borrow_alert,
-                    status        = EXCLUDED.status
+                    status        = EXCLUDED.status,
+                    remark        = EXCLUDED.remark
             """), borrow_params)
             stats["updated"] = len(borrow_params)
 
