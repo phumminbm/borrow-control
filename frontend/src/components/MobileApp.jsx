@@ -15,6 +15,12 @@ function fmtVal(v) {
   return `฿${Math.round(v).toLocaleString()}`;
 }
 
+// แสดงราคาแบบตรงตัว ไม่ปัด K/M — ใช้ใน BR list และ item detail
+function fmtFull(v) {
+  if (!v) return "—";
+  return `฿${Number(v).toLocaleString()}`;
+}
+
 // ── Icons ──────────────────────────────────────────────────────────────
 function Icon({ name, size = 20, color = "currentColor" }) {
   const icons = {
@@ -659,7 +665,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                             <Icon name="calendar" size={11} color={sub} />
                             {br.borrow_date} · <b style={{ color: daysCol, fontWeight: 600 }}>{br.days_borrowed} {lang === "th" ? "วัน" : "d"}</b> · {br.items.length} {lang === "th" ? "รายการ" : "items"}
                           </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: text }}>{fmtVal(total)}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: text }}>{fmtFull(total)}</span>
                         </div>
                       </div>
                     );
