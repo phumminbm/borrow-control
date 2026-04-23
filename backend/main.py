@@ -388,6 +388,15 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 @app.get("/recalc")
 def recalc(db: Session = Depends(get_db)):
     try:
+        # ถ้า staging มีข้อมูลอยู่ แปลว่า sync กำลังทำอยู่ → ไม่ recalc ป้องกันข้อมูลหาย
+        staging_count = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
+        if staging_count > 0:
+            return {
+                "success": False,
+                "reason": "sync_in_progress",
+                "message": f"Sync กำลังทำอยู่ (staging มี {staging_count} แถว) — รอ sync เสร็จแล้วลองใหม่",
+                "borrows_staging": staging_count
+            }
         recalc_all_customers(db)
         c = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='BLOCK'")).fetchone()[0]
         w = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='WARNING'")).fetchone()[0]
