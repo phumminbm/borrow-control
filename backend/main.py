@@ -89,13 +89,14 @@ def ensure_tables(db):
     db.commit()
 
 def recalc_all_customers(db):
+    # 1. อัปเดตลูกค้าที่ยังมี active BR อยู่
     db.execute(text("""
         UPDATE customers c SET
-            max_days        = COALESCE(sub.max_days, 0),
-            active_br_count = COALESCE(sub.cnt, 0),
+            max_days        = sub.max_days,
+            active_br_count = sub.cnt,
             status = CASE
-                WHEN COALESCE(sub.max_days, 0) > 180 THEN 'BLOCK'
-                WHEN COALESCE(sub.max_days, 0) > 90  THEN 'WARNING'
+                WHEN sub.max_days > 180 THEN 'BLOCK'
+                WHEN sub.max_days > 90  THEN 'WARNING'
                 ELSE 'NORMAL'
             END,
             updated_at = NOW()
@@ -109,6 +110,19 @@ def recalc_all_customers(db):
         ) sub
         WHERE c.cust_code = sub.cust_code
     """))
+
+    # 2. Reset ลูกค้าที่ไม่มี active BR แล้ว → max_days=0, count=0, NORMAL
+    db.execute(text("""
+        UPDATE customers SET
+            max_days        = 0,
+            active_br_count = 0,
+            status          = 'NORMAL',
+            updated_at      = NOW()
+        WHERE cust_code NOT IN (
+            SELECT DISTINCT cust_code FROM borrows WHERE sheet_status = 'active'
+        )
+    """))
+
     db.commit()
 
 def swap_staging_to_main(db):
