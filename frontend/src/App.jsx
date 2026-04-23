@@ -10,7 +10,7 @@ export const TEAMS = {
   North:        ["ICE","MAI","PLU"],
   "North-East": ["JONG","NING","HONGFAH","WHAN"],
   East:         ["EVE","MAMAEW","BEN"],
-  South:        ["MOD"],
+  South:        ["MOD","NENG"],
   Office:       ["NEO BIOTECH"],
 };
 
