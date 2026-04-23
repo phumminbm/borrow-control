@@ -114,41 +114,44 @@ function SalePicker({ onSelect, dark, setDark, lang, setLang }) {
   const sub = dark ? "#888" : "#666";
 
   return (
-    <div style={{ flex: 1, background: bg, display: "flex", flexDirection: "column", overflowY: "auto" }}>
-      {/* Header */}
-      <div style={{ padding: "32px 24px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -1, marginBottom: 6 }}>
-          <span style={{ color: "#D4357A" }}>Neo</span><span style={{ color: text }}>Biotech</span>
-        </div>
-        <div style={{ fontSize: 12, color: "#D4357A", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 20 }}>BORROW SYSTEM</div>
-        <div style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 4 }}>{lang === "th" ? "เลือกชื่อ Sale ของคุณ" : "Select your Sale name"}</div>
-        <div style={{ fontSize: 12, color: sub }}>{lang === "th" ? "เพื่อดูข้อมูลของคุณเท่านั้น" : "To view only your data"}</div>
-      </div>
-
-      {/* Sale list */}
-      <div style={{ padding: "0 16px", flex: 1 }}>
-        {Object.entries(TEAMS).map(([team, sales]) => (
-          <div key={team} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: TEAM_COLORS[team] || "#888", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>{team} Team</div>
-            <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden" }}>
-              {sales.map((sale, i) => (
-                <div key={sale} onClick={() => setSelected(sale)} style={{ padding: "13px 16px", borderBottom: i < sales.length - 1 ? `0.5px solid ${bdr}` : "none", display: "flex", alignItems: "center", justifyContent: "space-between", background: selected === sale ? (dark ? "#2D0F1A" : "#FBE8F1") : "transparent", cursor: "pointer", userSelect: "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: (TEAM_COLORS[team] || "#888") + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: TEAM_COLORS[team] || "#888" }}>
-                      {sale.slice(0, 2)}
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: selected === sale ? "#D4357A" : text }}>{sale}</span>
-                  </div>
-                  {selected === sale && <span style={{ color: "#D4357A", fontSize: 16 }}>✓</span>}
-                </div>
-              ))}
-            </div>
+    <div style={{ flex: 1, background: bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Scrollable area */}
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        {/* Header */}
+        <div style={{ padding: "32px 24px 20px", textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -1, marginBottom: 6 }}>
+            <span style={{ color: "#D4357A" }}>Neo</span><span style={{ color: text }}>Biotech</span>
           </div>
-        ))}
+          <div style={{ fontSize: 12, color: "#D4357A", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 20 }}>BORROW SYSTEM</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 4 }}>{lang === "th" ? "เลือกชื่อ Sale ของคุณ" : "Select your Sale name"}</div>
+          <div style={{ fontSize: 12, color: sub }}>{lang === "th" ? "เพื่อดูข้อมูลของคุณเท่านั้น" : "To view only your data"}</div>
+        </div>
+
+        {/* Sale list */}
+        <div style={{ padding: "0 16px 16px" }}>
+          {Object.entries(TEAMS).map(([team, sales]) => (
+            <div key={team} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: TEAM_COLORS[team] || "#888", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8, paddingLeft: 4 }}>{team} Team</div>
+              <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden" }}>
+                {sales.map((sale, i) => (
+                  <div key={sale} onClick={() => setSelected(sale)} style={{ padding: "13px 16px", borderBottom: i < sales.length - 1 ? `0.5px solid ${bdr}` : "none", display: "flex", alignItems: "center", justifyContent: "space-between", background: selected === sale ? (dark ? "#2D0F1A" : "#FBE8F1") : "transparent", cursor: "pointer", userSelect: "none" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 9, background: (TEAM_COLORS[team] || "#888") + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: TEAM_COLORS[team] || "#888" }}>
+                        {sale.slice(0, 2)}
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: selected === sale ? "#D4357A" : text }}>{sale}</span>
+                    </div>
+                    {selected === sale && <span style={{ color: "#D4357A", fontSize: 16 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: "16px", position: "sticky", bottom: 0, background: bg, borderTop: `0.5px solid ${bdr}` }}>
+      {/* Footer — fixed ไม่ขยับ ไม่ว่าจะ scroll ไปไหน */}
+      <div style={{ flexShrink: 0, padding: "14px 16px", background: bg, borderTop: `0.5px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 12 }}>
           <div style={{ display: "flex", background: dark ? "#1a1a1a" : "#e8e8e4", borderRadius: 8, padding: 2, gap: 2 }}>
             {["th", "en"].map(l => <button key={l} onClick={() => setLang(l)} style={{ padding: "4px 10px", fontSize: 10, fontWeight: 700, border: "none", borderRadius: 6, cursor: "pointer", background: lang === l ? "#D4357A" : "transparent", color: lang === l ? "#fff" : sub }}>{l.toUpperCase()}</button>)}
