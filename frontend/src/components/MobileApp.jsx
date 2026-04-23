@@ -807,19 +807,23 @@ export default function MobileApp() {
       )}
 
       {/* ── Screen ── */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {!selectedSale ? (
           <SalePicker onSelect={s => { setSelectedSale(s); setTab("home"); }} dark={dark} setDark={setDark} lang={lang} setLang={setLang} />
         ) : loading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: dark ? "#555" : "#aaa", fontSize: 13 }}>{lang === "th" ? "กำลังโหลดข้อมูล..." : "Loading..."}</div>
-        ) : tab === "home" ? (
-          <HomeScreen customers={myCusts} analytics={analytics} custValues={custValues} syncLogs={syncLogs} lang={lang} setTab={setTab} setSelectedCustomer={setSelectedCustomer} refreshing={refreshing} onRefresh={() => load(true)} dark={dark} selectedSale={selectedSale} />
-        ) : tab === "customers" ? (
-          <CustomersScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
-        ) : tab === "alerts" ? (
-          <AlertsScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: dark ? "#555" : "#aaa", fontSize: 13 }}>{lang === "th" ? "กำลังโหลดข้อมูล..." : "Loading..."}</div>
         ) : (
-          <ProfileScreen dark={dark} setDark={setDark} lang={lang} setLang={setLang} selectedSale={selectedSale} onChangeSale={() => { setSelectedSale(null); setTab("home"); }} syncLogs={syncLogs} customers={customers} />
+          <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+            {tab === "home" ? (
+              <HomeScreen customers={myCusts} analytics={analytics} custValues={custValues} syncLogs={syncLogs} lang={lang} setTab={setTab} setSelectedCustomer={setSelectedCustomer} refreshing={refreshing} onRefresh={() => load(true)} dark={dark} selectedSale={selectedSale} />
+            ) : tab === "customers" ? (
+              <CustomersScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
+            ) : tab === "alerts" ? (
+              <AlertsScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
+            ) : (
+              <ProfileScreen dark={dark} setDark={setDark} lang={lang} setLang={setLang} selectedSale={selectedSale} onChangeSale={() => { setSelectedSale(null); setTab("home"); }} syncLogs={syncLogs} customers={customers} />
+            )}
+          </div>
         )}
       </div>
 
