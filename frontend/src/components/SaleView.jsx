@@ -162,10 +162,30 @@ function CustomerModal({ customer, onClose, dark, t }) {
     }
   };
 
-  const handleBulkExport = () => {
-    [...selected].forEach((bno, i) => {
-      setTimeout(() => window.open(`${API_BASE}/brs/${bno}/pdf`, "_blank"), i * 400);
-    });
+  const handleBulkExport = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/export-pdf/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          borrow_nos: [...selected],
+          cust_code: customer?.cust_code || "",
+          customer_name: customer?.customer_name || ""
+        })
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${customer?.customer_name || "customer"}(${customer?.cust_code || ""})_All BR.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Export ไม่สำเร็จ: " + e.message);
+    }
   };
 
   return (

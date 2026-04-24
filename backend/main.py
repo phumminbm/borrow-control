@@ -804,3 +804,62 @@ def export_br_pdf(borrow_no: str, db: Session = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{borrow_no}.pdf"'}
     )
+
+
+class BulkExportRequest(BaseModel):
+    borrow_nos: list
+    cust_code: str = ""
+    customer_name: str = ""
+
+
+@app.post("/export-pdf/bulk")
+def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
+    """Merge multiple BR PDFs into one file"""
+    from pypdf import PdfWriter, PdfReader
+    from fastapi import HTTPException
+
+    if not payload.borrow_nos:
+        raise HTTPException(400, "No borrow_nos provided")
+
+    writer = PdfWriter()
+
+    for bno in payload.borrow_nos:
+        br_row = db.execute(text("""
+            SELECT b.borrow_no, b.borrow_date, b.days_borrowed, b.borrow_alert,
+                   b.status, b.remark, b.cust_code
+            FROM borrows b WHERE b.borrow_no = :bno AND b.sheet_status = 'active'
+        """), {"bno": bno}).fetchone()
+        if not br_row:
+            continue
+
+        cust_row = db.execute(text("""
+            SELECT cust_code, customer_name, sale FROM customers WHERE cust_code = :cc
+        """), {"cc": br_row.cust_code}).fetchone()
+
+        items = db.execute(text("""
+            SELECT product_code, product_name, price, quantity, total_price
+            FROM borrow_items WHERE borrow_no = :bno ORDER BY id
+        """), {"bno": bno}).fetchall()
+
+        br_dict       = dict(br_row._mapping)
+        customer_dict = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": ""}
+        items_list    = [dict(r._mapping) for r in items]
+
+        pdf_bytes = generate_br_pdf(br_dict, items_list, customer_dict)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        for page in reader.pages:
+            writer.add_page(page)
+
+    if len(writer.pages) == 0:
+        raise HTTPException(404, "No valid BRs found")
+
+    out = io.BytesIO()
+    writer.write(out)
+    out.seek(0)
+
+    safe_name = f"{payload.customer_name}({payload.cust_code})_All BR.pdf"
+    return StreamingResponse(
+        io.BytesIO(out.read()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'}
+    )
