@@ -546,8 +546,8 @@ def _ensure_fonts():
     global _FONT_REGISTERED
     if _FONT_REGISTERED: return
     fonts = {
-        "TH":  "FreeSerif.ttf",
-        "THB": "FreeSerifBold.ttf",
+        "TH":  "tahoma.ttf",
+        "THB": "tahomabd.ttf",
     }
     for name, fname in fonts.items():
         fpath = _FONT_DIR / fname
