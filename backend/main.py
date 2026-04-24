@@ -580,9 +580,8 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
     ML = 14*mm; MR = 14*mm; MT = 12*mm
     CW = W - ML - MR
     c  = rl_canvas.Canvas(buf, pagesize=A4)
-    y  = H - MT
 
-    # Write logo to temp file
+    # ── Logo source ──────────────────────────────────────────
     logo_file = Path(__file__).parent / "images" / "neobiotech_logo.png"
     if logo_file.exists():
         logo_src = str(logo_file)
@@ -593,39 +592,23 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
         tmp_logo.write(logo_data); tmp_logo.close()
         logo_src = tmp_logo.name
 
-    # ── Header ──────────────────────────────────────────────
-    HDR_H  = 28*mm
-    LOGO_W = CW * 0.45
-    RX     = ML + CW - 2*mm
-    _sf(c, WHITE); c.rect(ML, y - HDR_H, CW, HDR_H, fill=1, stroke=0)
-    c.drawImage(logo_src, ML, y - HDR_H + 2*mm,
-                width=LOGO_W, height=HDR_H - 4*mm,
-                preserveAspectRatio=True, anchor='w', mask='auto')
-    _sf(c, BLACK)
-    c.setFont("THB", 10)
-    c.drawRightString(RX, y - 7*mm, "Neobiotech (Thailand) Co.,Ltd.")
-    c.setFont("TH", 7.5)
-    c.drawRightString(RX, y - 12*mm, "เลขที่ 16 อาคารคอมโพแม็ก ห้องเลขที่ 201,401 ชั้น 2,4")
-    c.drawRightString(RX, y - 16*mm, "ซ.เอกมัย 4 ถ.สุขุมวิท 63 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพฯ 10110")
-    c.setFont("THB", 7.5)
-    c.drawRightString(RX, y - 20.5*mm, "TAX ID No. 0105559043311")
-    c.setFont("TH", 7.5)
-    c.drawRightString(RX, y - 25*mm, "Tel. 02-020-1536     Fax. 02-020-8448")
-    _hl(c, ML, ML+CW, y - HDR_H, GRAY, 0.5)
-    y -= HDR_H + 1*mm
-
-    # ── Title ────────────────────────────────────────────────
+    # ── Layout constants ─────────────────────────────────────
+    ITEMS_PER_PAGE = 15
+    HDR_H   = 28*mm
     TITLE_H = 11*mm
-    _sf(c, LGRAY); c.rect(ML, y - TITLE_H, CW, TITLE_H, fill=1, stroke=0)
-    _sf(c, BLACK)
-    c.setFont("THB", 12); c.drawCentredString(ML+CW/2, y - 4.5*mm, "Borrowing Form")
-    c.setFont("TH",  9);  c.drawCentredString(ML+CW/2, y - 8.5*mm, "ใบยืมสินค้า")
-    _hl(c, ML, ML+CW, y - TITLE_H, GRAY, 0.5)
-    y -= TITLE_H
+    ROW_H   = 7.5*mm
+    R_H     = 7.5*mm
+    TH_H    = 13*mm
+    LOGO_W  = CW * 0.45
+    RX      = ML + CW - 2*mm
+    DIV_X   = ML + CW * 0.55
 
-    # ── Info rows ────────────────────────────────────────────
-    ROW_H = 7.5*mm
-    DIV_X = ML + CW * 0.55
+    colW = [9*mm, 21*mm, 0, 13*mm, 12*mm, 23*mm, 27*mm]
+    colW[2] = CW - sum(w for w in colW if w > 0)
+    colX = [ML]
+    for w in colW: colX.append(colX[-1] + w)
+
+    def mid(a, b): return (colX[a] + colX[b]) / 2
 
     def info_row(lbl_l, val_l, lbl_r, val_r, ry):
         _sf(c, WHITE); c.rect(ML, ry - ROW_H, CW, ROW_H, fill=1, stroke=0)
@@ -639,109 +622,149 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
         _sf(c, BLACK); c.setFont("TH", 8)
         c.drawRightString(ML + CW - 2*mm, ry - ROW_H + 2.5*mm, val_r)
 
-    info_row("Customer Code", str(customer.get("cust_code","")),
-             "NO.", br.get("borrow_no",""), y); y -= ROW_H
-    info_row("Customer Name", customer.get("customer_name",""),
-             "DATE", br.get("borrow_date",""), y); y -= ROW_H
+    # ── Paginate items ───────────────────────────────────────
+    page_chunks = [items[i:i+ITEMS_PER_PAGE] for i in range(0, len(items), ITEMS_PER_PAGE)] if items else [[]]
+    total_pages = len(page_chunks)
+    grand = sum(float(it.get("total_price", 0) or 0) for it in items)
 
-    _sf(c, WHITE); c.rect(ML, y - ROW_H, CW, ROW_H, fill=1, stroke=0)
-    _hl(c, ML, ML+CW, y - ROW_H, LGRAY, 0.3)
-    _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
-    c.drawString(DIV_X + 2*mm, y - ROW_H + 2.5*mm, "Sale Representative Name")
-    _sf(c, BLACK); c.setFont("TH", 8)
-    c.drawRightString(ML + CW - 2*mm, y - ROW_H + 2.5*mm, customer.get("sale",""))
-    y -= ROW_H + 2*mm
+    # ── Draw each page ───────────────────────────────────────
+    for page_idx, page_items in enumerate(page_chunks):
+        is_last = (page_idx == total_pages - 1)
+        y = H - MT
 
-    # ── Table ────────────────────────────────────────────────
-    colW = [9*mm, 21*mm, 0, 13*mm, 12*mm, 23*mm, 27*mm]
-    colW[2] = CW - sum(w for w in colW if w > 0)
-    colX = [ML]
-    for w in colW: colX.append(colX[-1] + w)
-
-    TH_H = 13*mm
-    _sf(c, LGRAY); c.rect(ML, y - TH_H, CW, TH_H, fill=1, stroke=0)
-    _sf(c, BLACK)
-    hdrs = [("No.","ลำดับ","C",0),("Code","รหัส","C",1),
-            ("Description","รายการ","L",2),("Quantity","จำนวน","C",3),
-            ("Unit","หน่วย","C",4),("Unit Price","ราคาต่อหน่วย","C",5),
-            ("Amount (Baht)","จำนวนเงิน (บาท)","C",6)]
-    for en, th, align, i in hdrs:
-        mid = (colX[i]+colX[i+1])/2
+        # Header (every page)
+        _sf(c, WHITE); c.rect(ML, y - HDR_H, CW, HDR_H, fill=1, stroke=0)
+        c.drawImage(logo_src, ML, y - HDR_H + 2*mm,
+                    width=LOGO_W, height=HDR_H - 4*mm,
+                    preserveAspectRatio=True, anchor='w', mask='auto')
+        _sf(c, BLACK)
+        c.setFont("THB", 10)
+        c.drawRightString(RX, y - 7*mm, "Neobiotech (Thailand) Co.,Ltd.")
+        c.setFont("TH", 7.5)
+        c.drawRightString(RX, y - 12*mm, "เลขที่ 16 อาคารคอมโพแม็ก ห้องเลขที่ 201,401 ชั้น 2,4")
+        c.drawRightString(RX, y - 16*mm, "ซ.เอกมัย 4 ถ.สุขุมวิท 63 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพฯ 10110")
         c.setFont("THB", 7.5)
-        if align=="C": c.drawCentredString(mid, y-5*mm, en)
-        else: c.drawString(colX[i]+1.5*mm, y-5*mm, en)
-        c.setFont("TH", 7)
-        if align=="C": c.drawCentredString(mid, y-9*mm, th)
-        else: c.drawString(colX[i]+1.5*mm, y-9*mm, th)
-    y -= TH_H
+        c.drawRightString(RX, y - 20.5*mm, "TAX ID No. 0105559043311")
+        c.setFont("TH", 7.5)
+        c.drawRightString(RX, y - 25*mm, "Tel. 02-020-1536     Fax. 02-020-8448")
+        _hl(c, ML, ML+CW, y - HDR_H, GRAY, 0.5)
+        y -= HDR_H + 1*mm
 
-    R_H = 7.5*mm; grand = 0; n_rows = max(10, len(items))
-    for i in range(n_rows):
-        bg = (0.975,0.975,0.975) if i%2==0 else WHITE
-        _sf(c, bg); c.rect(ML, y-R_H, CW, R_H, fill=1, stroke=0)
-        _hl(c, ML, ML+CW, y-R_H, LGRAY, 0.25)
-        if i < len(items):
-            item = items[i]; grand += float(item.get("total_price",0) or 0)
-            _sf(c, BLACK); c.setFont("TH", 8)
-            mid = lambda a,b: (colX[a]+colX[b])/2
-            c.drawCentredString(mid(0,1), y-R_H+2.5*mm, str(i+1))
-            c.drawString(colX[1]+1.5*mm, y-R_H+2.5*mm, str(item.get("product_code","")))
-            c.drawString(colX[2]+1.5*mm, y-R_H+2.5*mm, str(item.get("product_name","")))
-            c.drawCentredString(mid(3,4), y-R_H+2.5*mm, str(item.get("quantity","")))
-            c.drawCentredString(mid(4,5), y-R_H+2.5*mm, "EA")
-            c.drawRightString(colX[6]-2*mm, y-R_H+2.5*mm, _fmt(item.get("price",0)))
-            c.drawRightString(colX[7]-2*mm, y-R_H+2.5*mm, _fmt(item.get("total_price",0)))
-        y -= R_H
-    _hl(c, ML, ML+CW, y, GRAY, 0.5); y -= 3*mm
+        # Title (every page)
+        _sf(c, LGRAY); c.rect(ML, y - TITLE_H, CW, TITLE_H, fill=1, stroke=0)
+        _sf(c, BLACK)
+        c.setFont("THB", 12); c.drawCentredString(ML+CW/2, y - 4.5*mm, "Borrowing Form")
+        c.setFont("TH",  9);  c.drawCentredString(ML+CW/2, y - 8.5*mm, "ใบยืมสินค้า")
+        _hl(c, ML, ML+CW, y - TITLE_H, GRAY, 0.5)
+        y -= TITLE_H
 
-    # ── Totals ───────────────────────────────────────────────
-    net = grand / 1.07; vat = grand - net
-    T_H = 7*mm; LBL_TW = 74*mm; VAL_TW = 28*mm
-    TX  = ML + CW - LBL_TW - VAL_TW
-    for label, val, is_grand in [
-        ("Total (รวมเงิน)", grand, False),
-        ("Discount (ส่วนลด)", None, False),
-        ("Net Total (มูลค่าก่อนภาษีมูลค่าเพิ่ม)", net, False),
-        ("Vat 7% (ภาษีมูลค่าเพิ่ม)", vat, False),
-        ("Grand Total (รวมเงินทั้งสิ้น)", grand, True),
-    ]:
-        if is_grand:
-            _sf(c, LGRAY); c.rect(TX, y-T_H, LBL_TW+VAL_TW, T_H, fill=1, stroke=0)
-            _sf(c, BLACK); c.setFont("THB", 8.5)
-        else:
-            _hl(c, TX, TX+LBL_TW+VAL_TW, y-T_H, LGRAY, 0.3)
-            _sf(c, BLACK); c.setFont("THB", 8)
-        c.drawRightString(TX+LBL_TW-2*mm, y-T_H+2.5*mm, label)
-        c.setFont("THB" if is_grand else "TH", 8.5 if is_grand else 8)
-        c.drawRightString(TX+LBL_TW+VAL_TW-2*mm, y-T_H+2.5*mm,
-                          _fmt(val) if val is not None else "-")
-        y -= T_H
-    y -= 5*mm
-
-    # ── Remark ───────────────────────────────────────────────
-    remark = br.get("remark","")
-    if remark:
-        REM_H = 13*mm
-        _sf(c, PINK); c.rect(ML, y-REM_H, 2.5, REM_H, fill=1, stroke=0)
-        _sf(c, (1.0,0.96,0.97)); c.rect(ML+2.5, y-REM_H, CW-2.5, REM_H, fill=1, stroke=0)
-        _sf(c, PINK); c.setFont("THB", 7.5)
-        c.drawString(ML+4*mm, y-4*mm, "REMARK :")
+        # Customer info rows (every page)
+        info_row("Customer Code", str(customer.get("cust_code","")),
+                 "NO.", br.get("borrow_no",""), y); y -= ROW_H
+        info_row("Customer Name", customer.get("customer_name",""),
+                 "DATE", br.get("borrow_date",""), y); y -= ROW_H
+        _sf(c, WHITE); c.rect(ML, y - ROW_H, CW, ROW_H, fill=1, stroke=0)
+        _hl(c, ML, ML+CW, y - ROW_H, LGRAY, 0.3)
+        _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
+        c.drawString(DIV_X + 2*mm, y - ROW_H + 2.5*mm, "Sale Representative Name")
         _sf(c, BLACK); c.setFont("TH", 8)
-        c.drawString(ML+4*mm, y-9*mm, remark[:110])
-        if len(remark) > 110:
-            c.drawString(ML+4*mm, y-13*mm, remark[110:210])
-        y -= REM_H + 5*mm
+        c.drawRightString(ML + CW - 2*mm, y - ROW_H + 2.5*mm, customer.get("sale",""))
+        y -= ROW_H + 2*mm
 
-    # ── Signatures ───────────────────────────────────────────
-    y -= 4*mm; SIG_H = 22*mm; SIG_W = CW/3
-    for i, lbl in enumerate(["Sale Representative","Authorized By","Customer"]):
-        sx = ML + SIG_W*i
-        _hl(c, sx+4*mm, sx+SIG_W-4*mm, y-7*mm, GRAY, 0.4)
-        _sf(c, (0.5,0.5,0.5)); c.setFont("TH", 7.5)
-        c.drawString(sx+3*mm, y-7*mm+1*mm, "(")
-        c.drawRightString(sx+SIG_W-3*mm, y-7*mm+1*mm, ")")
-        _sf(c, BLACK); c.setFont("TH", 8)
-        c.drawCentredString(sx+SIG_W/2, y-SIG_H+3*mm, lbl)
+        # Table header (every page)
+        _sf(c, LGRAY); c.rect(ML, y - TH_H, CW, TH_H, fill=1, stroke=0)
+        _sf(c, BLACK)
+        hdrs = [("No.","ลำดับ","C",0),("Code","รหัส","C",1),
+                ("Description","รายการ","L",2),("Quantity","จำนวน","C",3),
+                ("Unit","หน่วย","C",4),("Unit Price","ราคาต่อหน่วย","C",5),
+                ("Amount (Baht)","จำนวนเงิน (บาท)","C",6)]
+        for en, th, align, ci in hdrs:
+            mx = mid(ci, ci+1)
+            c.setFont("THB", 7.5)
+            if align=="C": c.drawCentredString(mx, y-5*mm, en)
+            else: c.drawString(colX[ci]+1.5*mm, y-5*mm, en)
+            c.setFont("TH", 7)
+            if align=="C": c.drawCentredString(mx, y-9*mm, th)
+            else: c.drawString(colX[ci]+1.5*mm, y-9*mm, th)
+        y -= TH_H
+
+        # Item rows — always ITEMS_PER_PAGE rows
+        start_idx = page_idx * ITEMS_PER_PAGE
+        for ri in range(ITEMS_PER_PAGE):
+            bg = (0.975,0.975,0.975) if ri%2==0 else WHITE
+            _sf(c, bg); c.rect(ML, y-R_H, CW, R_H, fill=1, stroke=0)
+            _hl(c, ML, ML+CW, y-R_H, LGRAY, 0.25)
+            if ri < len(page_items):
+                item = page_items[ri]
+                _sf(c, BLACK); c.setFont("TH", 8)
+                c.drawCentredString(mid(0,1), y-R_H+2.5*mm, str(start_idx+ri+1))
+                c.drawString(colX[1]+1.5*mm, y-R_H+2.5*mm, str(item.get("product_code","")))
+                c.drawString(colX[2]+1.5*mm, y-R_H+2.5*mm, str(item.get("product_name","")))
+                c.drawCentredString(mid(3,4), y-R_H+2.5*mm, str(item.get("quantity","")))
+                c.drawCentredString(mid(4,5), y-R_H+2.5*mm, "EA")
+                c.drawRightString(colX[6]-2*mm, y-R_H+2.5*mm, _fmt(item.get("price",0)))
+                c.drawRightString(colX[7]-2*mm, y-R_H+2.5*mm, _fmt(item.get("total_price",0)))
+            y -= R_H
+        _hl(c, ML, ML+CW, y, GRAY, 0.5); y -= 3*mm
+
+        # Page number (shown on all pages when multi-page)
+        if total_pages > 1:
+            _sf(c, (0.5, 0.5, 0.5)); c.setFont("TH", 7)
+            c.drawRightString(ML+CW, 8*mm, f"Page {page_idx+1} / {total_pages}")
+
+        # ── Footer: Totals + Remark + Signatures (last page only) ──
+        if is_last:
+            # Totals
+            net = grand / 1.07; vat = grand - net
+            T_H = 7*mm; LBL_TW = 74*mm; VAL_TW = 28*mm
+            TX  = ML + CW - LBL_TW - VAL_TW
+            for label, val, is_grand in [
+                ("Total (รวมเงิน)", grand, False),
+                ("Discount (ส่วนลด)", None, False),
+                ("Net Total (มูลค่าก่อนภาษีมูลค่าเพิ่ม)", net, False),
+                ("Vat 7% (ภาษีมูลค่าเพิ่ม)", vat, False),
+                ("Grand Total (รวมเงินทั้งสิ้น)", grand, True),
+            ]:
+                if is_grand:
+                    _sf(c, LGRAY); c.rect(TX, y-T_H, LBL_TW+VAL_TW, T_H, fill=1, stroke=0)
+                    _sf(c, BLACK); c.setFont("THB", 8.5)
+                else:
+                    _hl(c, TX, TX+LBL_TW+VAL_TW, y-T_H, LGRAY, 0.3)
+                    _sf(c, BLACK); c.setFont("THB", 8)
+                c.drawRightString(TX+LBL_TW-2*mm, y-T_H+2.5*mm, label)
+                c.setFont("THB" if is_grand else "TH", 8.5 if is_grand else 8)
+                c.drawRightString(TX+LBL_TW+VAL_TW-2*mm, y-T_H+2.5*mm,
+                                  _fmt(val) if val is not None else "-")
+                y -= T_H
+            y -= 5*mm
+
+            # Remark
+            remark = br.get("remark","")
+            if remark:
+                REM_H = 13*mm
+                _sf(c, PINK); c.rect(ML, y-REM_H, 2.5, REM_H, fill=1, stroke=0)
+                _sf(c, (1.0,0.96,0.97)); c.rect(ML+2.5, y-REM_H, CW-2.5, REM_H, fill=1, stroke=0)
+                _sf(c, PINK); c.setFont("THB", 7.5)
+                c.drawString(ML+4*mm, y-4*mm, "REMARK :")
+                _sf(c, BLACK); c.setFont("TH", 8)
+                c.drawString(ML+4*mm, y-9*mm, remark[:110])
+                if len(remark) > 110:
+                    c.drawString(ML+4*mm, y-13*mm, remark[110:210])
+                y -= REM_H + 5*mm
+
+            # Signatures
+            y -= 4*mm; SIG_H = 22*mm; SIG_W = CW/3
+            for si, lbl in enumerate(["Sale Representative","Authorized By","Customer"]):
+                sx = ML + SIG_W*si
+                _hl(c, sx+4*mm, sx+SIG_W-4*mm, y-7*mm, GRAY, 0.4)
+                _sf(c, (0.5,0.5,0.5)); c.setFont("TH", 7.5)
+                c.drawString(sx+3*mm, y-7*mm+1*mm, "(")
+                c.drawRightString(sx+SIG_W-3*mm, y-7*mm+1*mm, ")")
+                _sf(c, BLACK); c.setFont("TH", 8)
+                c.drawCentredString(sx+SIG_W/2, y-SIG_H+3*mm, lbl)
+
+        if not is_last:
+            c.showPage()
 
     c.save()
     if tmp_logo:
