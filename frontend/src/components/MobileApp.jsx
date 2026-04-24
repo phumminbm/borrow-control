@@ -581,6 +581,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   const [loadingBrs, setLoadingBrs] = useState(false);
   const [brSearch, setBrSearch] = useState("");
   const [selectedBR, setSelectedBR] = useState(null);
+  const [selectedBRs, setSelectedBRs] = useState(new Set());
   const text = dark ? "#eee" : "#111";
   const sub = dark ? "#888" : "#666";
   const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
@@ -588,13 +589,56 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
 
   useEffect(() => {
     if (!customer) return;
-    setLoadingBrs(true); setBrs([]); setBrSearch("");
+    setLoadingBrs(true); setBrs([]); setBrSearch(""); setSelectedBRs(new Set());
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json()).then(d => setBrs(Array.isArray(d) ? d : [])).catch(() => setBrs([])).finally(() => setLoadingBrs(false));
   }, [customer]);
 
   const filteredBRs = brs.filter(br => !brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase()));
   const val = custValues[customer?.cust_code];
+
+  const allSelected  = filteredBRs.length > 0 && filteredBRs.every(br => selectedBRs.has(br.borrow_no));
+  const someSelected = filteredBRs.some(br => selectedBRs.has(br.borrow_no));
+
+  const toggleBR = (bno) => setSelectedBRs(prev => {
+    const next = new Set(prev);
+    next.has(bno) ? next.delete(bno) : next.add(bno);
+    return next;
+  });
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedBRs(prev => { const n = new Set(prev); filteredBRs.forEach(br => n.delete(br.borrow_no)); return n; });
+    } else {
+      setSelectedBRs(prev => { const n = new Set(prev); filteredBRs.forEach(br => n.add(br.borrow_no)); return n; });
+    }
+  };
+
+  const handleBulkExport = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/export-pdf/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          borrow_nos: [...selectedBRs],
+          cust_code: customer?.cust_code || "",
+          customer_name: customer?.customer_name || ""
+        })
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${customer?.customer_name || "customer"}(${customer?.cust_code || ""})_All BR.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Export ไม่สำเร็จ: " + e.message);
+    }
+  };
 
   return (
     <>
@@ -634,9 +678,27 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
               </div>
             </div>
 
-            {/* BR search */}
+            {/* BR search + select toolbar */}
             <div style={{ padding: "10px 20px 6px" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8 }}>BR List <span style={{ color: sub, fontWeight: 500, fontSize: 11 }}>({brs.length})</span></div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>BR List <span style={{ color: sub, fontWeight: 500, fontSize: 11 }}>({brs.length})</span></span>
+                {selectedBRs.size > 0 && (
+                  <button onClick={handleBulkExport} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 7, border: "none", background: "#D4357A", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+                    Export ({selectedBRs.size})
+                  </button>
+                )}
+              </div>
+              {brs.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div onClick={toggleAll} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${someSelected ? "#D4357A" : bdr}`, background: allSelected ? "#D4357A" : someSelected ? "#7a1840" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    {allSelected && <svg width="10" height="8" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                    {someSelected && !allSelected && <div style={{ width: 8, height: 8, background: "#D4357A", borderRadius: 1 }} />}
+                  </div>
+                  <span style={{ fontSize: 12, color: sub }}>เลือกทั้งหมด</span>
+                  {selectedBRs.size > 0 && <span style={{ fontSize: 11, color: "#D4357A", fontWeight: 600 }}>{selectedBRs.size} ใบเลือกแล้ว</span>}
+                </div>
+              )}
               {brs.length > 0 && (
                 <div style={{ background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${bdr}`, borderRadius: 10, display: "flex", alignItems: "center", padding: "0 10px" }}>
                   <Icon name="search" size={14} color={sub} />
@@ -651,21 +713,29 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
               {loadingBrs ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{lang === "th" ? "กำลังโหลด BR..." : "Loading BR..."}</div>
                 : filteredBRs.length === 0 ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{brSearch ? (lang === "th" ? "ไม่พบ BR ที่ค้นหา" : "No BR found") : (lang === "th" ? "ยังไม่มี BR" : "No BR data")}</div>
                   : filteredBRs.map(br => {
-                    const total = br.items.reduce((s, i) => s + i.price * i.quantity, 0);
-                    const daysCol = br.days_borrowed > 180 ? (dark ? "#F09595" : "#A32D2D") : br.days_borrowed > 90 ? (dark ? "#FAC775" : "#854F0B") : text;
-                    const rowBg = br.borrow_alert === "BLOCK" ? (dark ? "#1A0A0A" : "#FEF5F5") : br.borrow_alert === "WARNING" ? (dark ? "#1A1400" : "#FEFAEE") : card;
+                    const total      = br.items.reduce((s, i) => s + i.price * i.quantity, 0);
+                    const daysCol    = br.days_borrowed > 180 ? (dark ? "#F09595" : "#A32D2D") : br.days_borrowed > 90 ? (dark ? "#FAC775" : "#854F0B") : text;
+                    const rowBg      = br.borrow_alert === "BLOCK" ? (dark ? "#1A0A0A" : "#FEF5F5") : br.borrow_alert === "WARNING" ? (dark ? "#1A1400" : "#FEFAEE") : card;
+                    const isChecked  = selectedBRs.has(br.borrow_no);
                     return (
-                      <div key={br.borrow_no} onClick={() => setSelectedBR(br)} style={{ background: rowBg, border: `0.5px solid ${bdr}`, borderRadius: 11, padding: "11px 12px", marginBottom: 7, cursor: "pointer" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: text, fontFamily: "ui-monospace,monospace" }}>{br.borrow_no}</span>
-                          <StatusPill status={br.borrow_alert} size="xs" />
+                      <div key={br.borrow_no} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                        {/* Checkbox */}
+                        <div onClick={() => toggleBR(br.borrow_no)} style={{ width: 20, height: 20, borderRadius: 5, border: `1.5px solid ${isChecked ? "#D4357A" : bdr}`, background: isChecked ? "#D4357A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                          {isChecked && <svg width="11" height="9" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: sub }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <Icon name="calendar" size={11} color={sub} />
-                            {br.borrow_date} · <b style={{ color: daysCol, fontWeight: 600 }}>{br.days_borrowed} {lang === "th" ? "วัน" : "d"}</b> · {br.items.length} {lang === "th" ? "รายการ" : "items"}
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: text }}>{fmtFull(total)}</span>
+                        {/* Row content */}
+                        <div onClick={() => setSelectedBR(br)} style={{ flex: 1, background: rowBg, border: `0.5px solid ${isChecked ? "#D4357A88" : bdr}`, borderRadius: 11, padding: "11px 12px", cursor: "pointer" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: text, fontFamily: "ui-monospace,monospace" }}>{br.borrow_no}</span>
+                            <StatusPill status={br.borrow_alert} size="xs" />
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: sub }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <Icon name="calendar" size={11} color={sub} />
+                              {br.borrow_date} · <b style={{ color: daysCol, fontWeight: 600 }}>{br.days_borrowed} {lang === "th" ? "วัน" : "d"}</b> · {br.items.length} {lang === "th" ? "รายการ" : "items"}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: text }}>{fmtFull(total)}</span>
+                          </div>
                         </div>
                       </div>
                     );
