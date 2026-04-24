@@ -888,9 +888,14 @@ def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
         raise HTTPException(404, "No valid BRs found")
 
     pdf_bytes = generate_multi_br_pdf(brs_data)
-    safe_name = f"{payload.customer_name}({payload.cust_code})_All BR.pdf"
+    # Content-Disposition header supports latin-1 only — use RFC 5987 UTF-8 encoding
+    from urllib.parse import quote as _q
+    display_name = f"{payload.customer_name}({payload.cust_code})_All BR.pdf"
+    ascii_fallback = f"{payload.cust_code}_All BR.pdf"
+    encoded_name  = _q(display_name, safe="() ._-")
+    disposition   = f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_name}"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'}
+        headers={"Content-Disposition": disposition}
     )
