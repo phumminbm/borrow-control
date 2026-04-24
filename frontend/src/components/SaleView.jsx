@@ -93,19 +93,19 @@ function BRDetailModal({ br, onClose, dark, t }) {
               </tbody>
             </table>
           )}
-          {br.remark && (
-            <div style={{marginTop:12,padding:"10px 12px",background:dark?"#1a1010":"#FFF8F5",border:`0.5px solid ${dark?"#5A2020":"#F0C4B0"}`,borderRadius:9,display:"flex",gap:10,alignItems:"flex-start"}}>
-              <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:dark?"#2D1010":"#FCEBEB",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📋</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#D4357A",letterSpacing:"0.8px",textTransform:"uppercase",marginBottom:4}}>Remark</div>
-                <div style={{fontSize:12,color:dark?"#ddd":"#333",lineHeight:1.55}}>{br.remark}</div>
-              </div>
-            </div>
-          )}
         </div>
         <div style={S.mfoot}>
           <button style={S.btnGray} onClick={onClose}>← กลับ</button>
-          <button style={S.btnGray} onClick={onClose}>ปิด</button>
+          <div style={{display:"flex",gap:8}}>
+            <button
+              onClick={() => window.open(`${API_BASE}/brs/${br.borrow_no}/pdf`, "_blank")}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:7,border:"none",background:"#D4357A",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+              Export PDF
+            </button>
+            <button style={S.btnGray} onClick={onClose}>ปิด</button>
+          </div>
         </div>
       </div>
     </div>
@@ -113,19 +113,19 @@ function BRDetailModal({ br, onClose, dark, t }) {
 }
 
 function CustomerModal({ customer, onClose, dark, t }) {
-  const [brs, setBrs]         = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [brs, setBrs]               = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [selectedBr, setSelectedBr] = useState(null);
-  const [brSearch, setBrSearch] = useState("");
-  const S = getS(dark);
+  const [brSearch, setBrSearch]     = useState("");
+  const [selected, setSelected]     = useState(new Set());
+  const S   = getS(dark);
   const txt = dark ? "#ddd" : "#111";
   const sub = dark ? "#555" : "#555";
   const bdr = dark ? "#2a2a2a" : "rgba(0,0,0,0.06)";
 
   useEffect(() => {
     if (!customer) return;
-    setLoading(true);
-    setBrSearch("");
+    setLoading(true); setBrSearch(""); setSelected(new Set());
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json())
       .then(d => setBrs(Array.isArray(d) ? d : []))
@@ -138,6 +138,29 @@ function CustomerModal({ customer, onClose, dark, t }) {
   const filteredBrs = brs.filter(br =>
     !brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase())
   );
+
+  const toggleOne = (bno) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(bno) ? next.delete(bno) : next.add(bno);
+    return next;
+  });
+
+  const allSelected = filteredBrs.length > 0 && filteredBrs.every(br => selected.has(br.borrow_no));
+  const someSelected = filteredBrs.some(br => selected.has(br.borrow_no));
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(prev => { const next = new Set(prev); filteredBrs.forEach(br => next.delete(br.borrow_no)); return next; });
+    } else {
+      setSelected(prev => { const next = new Set(prev); filteredBrs.forEach(br => next.add(br.borrow_no)); return next; });
+    }
+  };
+
+  const handleBulkExport = () => {
+    [...selected].forEach((bno, i) => {
+      setTimeout(() => window.open(`${API_BASE}/brs/${bno}/pdf`, "_blank"), i * 400);
+    });
+  };
 
   return (
     <>
@@ -158,6 +181,34 @@ function CustomerModal({ customer, onClose, dark, t }) {
             </div>
             <button style={S.closeBtn} onClick={onClose}>✕</button>
           </div>
+
+          {/* ── Select toolbar ── */}
+          {!loading && brs.length > 0 && (
+            <div style={{padding:"7px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,color:dark?"#ccc":"#444"}}>
+                <div
+                  onClick={toggleAll}
+                  style={{width:15,height:15,borderRadius:3,border:`1.5px solid ${someSelected?"#D4357A":dark?"#444":"#bbb"}`,background:allSelected?"#D4357A":someSelected?"#7a1840":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
+                >
+                  {allSelected && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                  {someSelected && !allSelected && <div style={{width:7,height:7,background:"#D4357A",borderRadius:1}}/>}
+                </div>
+                เลือกทั้งหมด
+              </label>
+              {selected.size > 0 && (
+                <>
+                  <span style={{fontSize:11,color:"#888"}}>{selected.size} ใบเลือกแล้ว</span>
+                  <button
+                    onClick={handleBulkExport}
+                    style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:"none",background:"#D4357A",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+                    Export ({selected.size})
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {/* ── BR Search ── */}
           {!loading && brs.length > 0 && (
@@ -195,9 +246,17 @@ function CustomerModal({ customer, onClose, dark, t }) {
             ) : filteredBrs.map(br => {
               const items = br.items || [];
               const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
+              const isChk = selected.has(br.borrow_no);
               return (
-                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,
-                  background:br.borrow_alert==="BLOCK"?(dark?"#1e0e0e":"transparent"):br.borrow_alert==="WARNING"?(dark?"#1e1600":"transparent"):"transparent"}}>
+                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,
+                  background:isChk?(dark?"#2D1020":"#FFF0F5"):br.borrow_alert==="BLOCK"?(dark?"#1e0e0e":"transparent"):br.borrow_alert==="WARNING"?(dark?"#1e1600":"transparent"):"transparent"}}>
+                  {/* Checkbox */}
+                  <div
+                    onClick={() => toggleOne(br.borrow_no)}
+                    style={{width:15,height:15,borderRadius:3,border:`1.5px solid ${isChk?"#D4357A":dark?"#444":"#bbb"}`,background:isChk?"#D4357A":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
+                  >
+                    {isChk && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                  </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
                       <span style={{fontSize:12,fontWeight:600,color:txt}}>{br.borrow_no}</span>

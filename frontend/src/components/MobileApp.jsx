@@ -719,15 +719,13 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                   <div style={{ fontSize: 12, color: "#D4357A", fontWeight: 600 }}>{lang === "th" ? "รวมทั้งหมด" : "Grand Total"}</div>
                   <div style={{ fontSize: 18, color: "#D4357A", fontWeight: 700 }}>฿{total.toLocaleString()}</div>
                 </div>
-                {selectedBR.remark && (
-                  <div style={{ marginTop: 10, padding: "12px", background: dark ? "#1a1010" : "#FFF8F5", border: `0.5px solid ${dark ? "#5A2020" : "#F0C4B0"}`, borderRadius: 11, display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: dark ? "#2D1010" : "#FCEBEB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📋</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#D4357A", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 4 }}>Remark</div>
-                      <div style={{ fontSize: 13, color: dark ? "#ddd" : "#333", lineHeight: 1.55 }}>{selectedBR.remark}</div>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => window.open(`${API_BASE}/brs/${selectedBR.borrow_no}/pdf`, "_blank")}
+                  style={{ marginTop: 12, width: "100%", padding: "13px", borderRadius: 11, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+                  Export PDF
+                </button>
               </div>
             </>
           );
