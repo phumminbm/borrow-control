@@ -94,6 +94,12 @@ function BRDetailModal({ br, onClose, dark, t }) {
             </table>
           )}
         </div>
+        {br.remark && (
+          <div style={{padding:"10px 14px",borderTop:`0.5px solid ${bdr}`}}>
+            <div style={{fontSize:10,fontWeight:600,color:sub,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Remark</div>
+            <div style={{fontSize:12,color:txt,background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${bdr}`,borderRadius:7,padding:"7px 10px"}}>{br.remark}</div>
+          </div>
+        )}
         <div style={S.mfoot}>
           <button style={S.btnGray} onClick={onClose}>← กลับ</button>
           <div style={{display:"flex",gap:8}}>
