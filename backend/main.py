@@ -583,27 +583,34 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
     y  = H - MT
 
     # Write logo to temp file
-    logo_data = base64.b64decode(LOGO_B64)
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmp.write(logo_data); tmp.close()
+    logo_file = Path(__file__).parent / "images" / "neobiotech_logo.png"
+    if logo_file.exists():
+        logo_src = str(logo_file)
+        tmp_logo = None
+    else:
+        logo_data = base64.b64decode(LOGO_B64)
+        tmp_logo = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp_logo.write(logo_data); tmp_logo.close()
+        logo_src = tmp_logo.name
 
     # ── Header ──────────────────────────────────────────────
     HDR_H  = 28*mm
-    LOGO_W = CW * 0.40
+    LOGO_W = CW * 0.45
+    RX     = ML + CW - 2*mm
     _sf(c, WHITE); c.rect(ML, y - HDR_H, CW, HDR_H, fill=1, stroke=0)
-    c.drawImage(tmp.name, ML, y - HDR_H + 2*mm,
+    c.drawImage(logo_src, ML, y - HDR_H + 2*mm,
                 width=LOGO_W, height=HDR_H - 4*mm,
                 preserveAspectRatio=True, anchor='w', mask='auto')
     _sf(c, BLACK)
     c.setFont("THB", 10)
-    c.drawString(ML + LOGO_W + 4*mm, y - 7*mm, "Neobiotech (Thailand) Co.,Ltd.")
+    c.drawRightString(RX, y - 7*mm, "Neobiotech (Thailand) Co.,Ltd.")
     c.setFont("TH", 7.5)
-    c.drawString(ML + LOGO_W + 4*mm, y - 12*mm, "เลขที่ 16 อาคารคอมโพแม็ก ห้องเลขที่ 201,401 ชั้น 2,4")
-    c.drawString(ML + LOGO_W + 4*mm, y - 16*mm, "ซ.เอกมัย 4 ถ.สุขุมวิท 63 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพฯ 10110")
+    c.drawRightString(RX, y - 12*mm, "เลขที่ 16 อาคารคอมโพแม็ก ห้องเลขที่ 201,401 ชั้น 2,4")
+    c.drawRightString(RX, y - 16*mm, "ซ.เอกมัย 4 ถ.สุขุมวิท 63 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพฯ 10110")
     c.setFont("THB", 7.5)
-    c.drawString(ML + LOGO_W + 4*mm, y - 20.5*mm, "TAX ID No. 0105559043311")
+    c.drawRightString(RX, y - 20.5*mm, "TAX ID No. 0105559043311")
     c.setFont("TH", 7.5)
-    c.drawString(ML + LOGO_W + 4*mm, y - 25*mm, "Tel. 02-020-1536     Fax. 02-020-8448")
+    c.drawRightString(RX, y - 25*mm, "Tel. 02-020-1536     Fax. 02-020-8448")
     _hl(c, ML, ML+CW, y - HDR_H, GRAY, 0.5)
     y -= HDR_H + 1*mm
 
@@ -737,7 +744,8 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
         c.drawCentredString(sx+SIG_W/2, y-SIG_H+3*mm, lbl)
 
     c.save()
-    _os.unlink(tmp.name)
+    if tmp_logo:
+        _os.unlink(tmp_logo.name)
     buf.seek(0)
     return buf.read()
 
