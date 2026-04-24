@@ -839,10 +839,17 @@ def export_br_pdf(borrow_no: str, db: Session = Depends(get_db)):
     items_list = [dict(r._mapping) for r in items]
 
     pdf_bytes = generate_br_pdf(br, items_list, customer)
+    from urllib.parse import quote as _q
+    cust_name    = customer.get("customer_name", "")
+    cust_code    = customer.get("cust_code", br_row.cust_code)
+    display_name = f"{borrow_no}_{cust_name}({cust_code}).pdf"
+    ascii_name   = f"{borrow_no}_{cust_code}.pdf"
+    encoded_name = _q(display_name, safe="() ._-")
+    disposition  = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{borrow_no}.pdf"'}
+        headers={"Content-Disposition": disposition}
     )
 
 
