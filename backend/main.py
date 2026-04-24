@@ -567,7 +567,23 @@ def _ss(c, col): c.setStrokeColorRGB(*col)
 def _hl(c, x1, x2, y, col=(0.75,0.75,0.75), w=0.4):
     _ss(c, col); c.setLineWidth(w); c.line(x1, y, x2, y)
 
-def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
+def _logo_setup():
+    """Returns (logo_src, tmp_name_or_None)."""
+    logo_file = Path(__file__).parent / "images" / "neobiotech_logo.png"
+    if logo_file.exists():
+        return str(logo_file), None
+    logo_data = base64.b64decode(LOGO_B64)
+    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+    tmp.write(logo_data); tmp.close()
+    return tmp.name, tmp.name
+
+
+def generate_br_pdf(br: dict, items: list, customer: dict,
+                    _ext_canvas=None, _logo_src=None) -> bytes:
+    """Draw one BR's pages.
+    If _ext_canvas is None  → create canvas, save, return bytes.
+    If _ext_canvas provided → draw onto it (caller saves); return None.
+    """
     _ensure_fonts()
     PINK  = (0.831, 0.208, 0.475)
     BLACK = (0.12,  0.12,  0.12)
@@ -575,22 +591,22 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
     LGRAY = (0.93,  0.93,  0.93)
     WHITE = (1.0,   1.0,   1.0)
 
-    buf = io.BytesIO()
-    W, H = A4
-    ML = 14*mm; MR = 14*mm; MT = 12*mm
-    CW = W - ML - MR
-    c  = rl_canvas.Canvas(buf, pagesize=A4)
-
-    # ── Logo source ──────────────────────────────────────────
-    logo_file = Path(__file__).parent / "images" / "neobiotech_logo.png"
-    if logo_file.exists():
-        logo_src = str(logo_file)
-        tmp_logo = None
+    standalone = (_ext_canvas is None)
+    if standalone:
+        buf = io.BytesIO()
+        W, H = A4
+        ML = 14*mm; MR = 14*mm; MT = 12*mm
+        CW = W - ML - MR
+        c  = rl_canvas.Canvas(buf, pagesize=A4)
+        logo_src, tmp_name = _logo_setup()
     else:
-        logo_data = base64.b64decode(LOGO_B64)
-        tmp_logo = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-        tmp_logo.write(logo_data); tmp_logo.close()
-        logo_src = tmp_logo.name
+        buf = None
+        W, H = A4
+        ML = 14*mm; MR = 14*mm; MT = 12*mm
+        CW = W - ML - MR
+        c  = _ext_canvas
+        logo_src = _logo_src
+        tmp_name = None
 
     # ── Layout constants ─────────────────────────────────────
     ITEMS_PER_PAGE = 15
@@ -766,9 +782,33 @@ def generate_br_pdf(br: dict, items: list, customer: dict) -> bytes:
         if not is_last:
             c.showPage()
 
+    if standalone:
+        c.save()
+        if tmp_name:
+            _os.unlink(tmp_name)
+        buf.seek(0)
+        return buf.read()
+    # else: caller owns canvas — don't save here
+    return None
+
+
+def generate_multi_br_pdf(brs_data: list) -> bytes:
+    """Render multiple BRs into one PDF using a single ReportLab canvas.
+    brs_data: list of (br_dict, items_list, customer_dict)
+    """
+    _ensure_fonts()
+    buf = io.BytesIO()
+    c   = rl_canvas.Canvas(buf, pagesize=A4)
+    logo_src, tmp_name = _logo_setup()
+
+    for idx, (br, items, customer) in enumerate(brs_data):
+        if idx > 0:
+            c.showPage()   # end last page of previous BR before starting next
+        generate_br_pdf(br, items, customer, _ext_canvas=c, _logo_src=logo_src)
+
     c.save()
-    if tmp_logo:
-        _os.unlink(tmp_logo.name)
+    if tmp_name:
+        _os.unlink(tmp_name)
     buf.seek(0)
     return buf.read()
 
@@ -814,15 +854,13 @@ class BulkExportRequest(BaseModel):
 
 @app.post("/export-pdf/bulk")
 def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
-    """Merge multiple BR PDFs into one file"""
-    from pypdf import PdfWriter, PdfReader
+    """Merge multiple BR PDFs into one file (pure ReportLab, no pypdf)"""
     from fastapi import HTTPException
 
     if not payload.borrow_nos:
         raise HTTPException(400, "No borrow_nos provided")
 
-    writer = PdfWriter()
-
+    brs_data = []
     for bno in payload.borrow_nos:
         br_row = db.execute(text("""
             SELECT b.borrow_no, b.borrow_date, b.days_borrowed, b.borrow_alert,
@@ -844,22 +882,15 @@ def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
         br_dict       = dict(br_row._mapping)
         customer_dict = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": ""}
         items_list    = [dict(r._mapping) for r in items]
+        brs_data.append((br_dict, items_list, customer_dict))
 
-        pdf_bytes = generate_br_pdf(br_dict, items_list, customer_dict)
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        for page in reader.pages:
-            writer.add_page(page)
-
-    if len(writer.pages) == 0:
+    if not brs_data:
         raise HTTPException(404, "No valid BRs found")
 
-    out = io.BytesIO()
-    writer.write(out)
-    out.seek(0)
-
+    pdf_bytes = generate_multi_br_pdf(brs_data)
     safe_name = f"{payload.customer_name}({payload.cust_code})_All BR.pdf"
     return StreamingResponse(
-        io.BytesIO(out.read()),
+        io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{safe_name}"'}
     )
