@@ -6,3 +6,5 @@ pydantic==2.7.1
 google-api-python-client==2.131.0
 google-auth==2.29.0
 python-dotenv==1.0.1
+reportlab==4.4.10
+pillow==10.3.0
