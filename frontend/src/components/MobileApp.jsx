@@ -582,6 +582,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   const [brSearch, setBrSearch] = useState("");
   const [selectedBR, setSelectedBR] = useState(null);
   const [selectedBRs, setSelectedBRs] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
   const text = dark ? "#eee" : "#111";
   const sub = dark ? "#888" : "#666";
   const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
@@ -615,6 +616,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   };
 
   const handleBulkExport = async () => {
+    setExporting(true);
     try {
       const res = await fetch(`${API_BASE}/export-pdf/bulk`, {
         method: "POST",
@@ -637,11 +639,65 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
       URL.revokeObjectURL(url);
     } catch (e) {
       alert("Export ไม่สำเร็จ: " + e.message);
+    } finally {
+      setExporting(false);
     }
   };
 
+  /* ── Export Loading Overlay ── */
+  const ExportOverlay = exporting ? (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: dark ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.82)",
+      backdropFilter: "blur(6px)",
+      WebkitBackdropFilter: "blur(6px)",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      gap: 20,
+    }}>
+      {/* PDF icon */}
+      <div style={{ fontSize: 40, lineHeight: 1 }}>📄</div>
+
+      {/* Spinner */}
+      <div style={{
+        width: 58, height: 58, borderRadius: "50%",
+        border: `3.5px solid ${dark ? "#2a0d1a" : "#f0d0dc"}`,
+        borderTopColor: "#D4357A",
+        animation: "nbspin 0.85s linear infinite",
+      }} />
+
+      {/* Text */}
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: dark ? "#fff" : "#111", marginBottom: 6 }}>
+          {lang === "th" ? "กำลัง Export PDF" : "Exporting PDF"}
+        </div>
+        <div style={{ fontSize: 13, color: dark ? "#888" : "#888" }}>
+          {lang === "th" ? "กรุณารอสักครู่..." : "Please wait..."}
+        </div>
+      </div>
+
+      {/* Count badge */}
+      <div style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        background: dark ? "#2D0F1A" : "#FBE8F1",
+        border: "0.5px solid #D4357A55",
+        borderRadius: 8, padding: "6px 16px",
+        fontSize: 12, fontWeight: 600, color: "#D4357A",
+      }}>
+        <svg width={13} height={13} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <path d="M12 2L3 7l9 5 9-5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5" stroke="#D4357A" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {lang === "th" ? `รวม ${selectedBRs.size} ใบ` : `${selectedBRs.size} files`}
+      </div>
+
+      {/* Keyframes via style tag injected once */}
+      <style>{`@keyframes nbspin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  ) : null;
+
   return (
     <>
+      {ExportOverlay}
       <BottomSheet open={!!customer} onClose={onClose} height="92%" dark={dark}>
         {customer && (
           <>
