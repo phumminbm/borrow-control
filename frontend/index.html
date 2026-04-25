@@ -29,7 +29,19 @@
     <title>Neo BR System</title>
 
     <style>
-      * { font-family: "IBM Plex Sans Thai", "IBM Plex Sans", -apple-system, sans-serif; }
+      * {
+        font-family: "IBM Plex Sans Thai", "IBM Plex Sans", -apple-system, sans-serif;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      html, body {
+        margin: 0; padding: 0;
+        overscroll-behavior: none;
+        -webkit-text-size-adjust: 100%;
+      }
+      /* ── Hide native scrollbars (still scrollable via touch / wheel) ── */
+      ::-webkit-scrollbar { display: none; }
+      * { scrollbar-width: none; -ms-overflow-style: none; }
     </style>
   </head>
   <body>
