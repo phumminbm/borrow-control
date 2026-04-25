@@ -483,8 +483,15 @@ def analytics_summary(db: Session = Depends(get_db)):
             GROUP BY c.sale
         """)).fetchall()
 
+        block_count   = sum(r.block_count  for r in sale_rank)
+        warning_count = sum(r.warn_count   for r in sale_rank)
+        normal_count  = sum(r.normal_count for r in sale_rank)
+
         return {
-            "total_value": float(total_value),
+            "total_value":    float(total_value),
+            "block_count":    block_count,
+            "warning_count":  warning_count,
+            "normal_count":   normal_count,
             "top5": [dict(r._mapping) for r in top5],
             "sale_ranking": [dict(r._mapping) for r in sale_rank],
             "sale_value": {r.sale: float(r.total_value) for r in sale_value},
