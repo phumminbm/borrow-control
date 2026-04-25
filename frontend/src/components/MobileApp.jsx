@@ -128,7 +128,7 @@ function SalePicker({ onSelect, dark, setDark, lang, setLang }) {
           <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -1, marginBottom: 6 }}>
             <span style={{ color: "#D4357A" }}>Neo</span><span style={{ color: text }}>Biotech</span>
           </div>
-          <div style={{ fontSize: 12, color: "#D4357A", fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>BORROW SYSTEM</div>
+          <div style={{ display: "inline-block", fontSize: 10, color: "#D4357A", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", border: "1.5px solid #D4357A", borderRadius: 6, padding: "4px 12px", marginBottom: 8 }}>BORROW SYSTEM</div>
           <div style={{ marginBottom: 20 }}>
             <span style={{ fontSize: 9, fontWeight: 600, color: "#555", background: "#1a1a1a", border: "0.5px solid #2a2a2a", borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>v 1.1</span>
           </div>
