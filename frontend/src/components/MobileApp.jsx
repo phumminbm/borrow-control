@@ -867,6 +867,72 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   );
 }
 
+// ── SPLASH SCREEN ─────────────────────────────────────────────────────
+function SplashScreen({ visible }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "#0a0a0a",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      opacity: visible ? 1 : 0,
+      transition: "opacity 0.45s ease",
+      pointerEvents: visible ? "auto" : "none",
+    }}>
+      {/* Center logo */}
+      <div style={{
+        width: 88, height: 88, borderRadius: 24,
+        background: "linear-gradient(145deg, #D4357A, #9B1D4E)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 10px 40px rgba(212,53,122,0.45)",
+        animation: "splashPop 0.5s cubic-bezier(.34,1.56,.64,1) both",
+      }}>
+        <span style={{
+          fontSize: 44, fontWeight: 800, color: "#fff",
+          fontFamily: '"IBM Plex Sans Thai","Inter",-apple-system,sans-serif',
+          letterSpacing: -2, lineHeight: 1,
+        }}>N</span>
+      </div>
+
+      {/* Bottom: from NeoBiotech */}
+      <div style={{
+        position: "absolute", bottom: 52, left: 0, right: 0,
+        textAlign: "center",
+        animation: "splashFadeUp 0.5s ease 0.15s both",
+      }}>
+        <div style={{ fontSize: 13, color: "#444", marginBottom: 6,
+          fontFamily: '"IBM Plex Sans Thai","Inter",-apple-system,sans-serif' }}>
+          from
+        </div>
+        <div style={{
+          fontSize: 16, fontWeight: 700, letterSpacing: -0.4,
+          fontFamily: '"IBM Plex Sans Thai","Inter",-apple-system,sans-serif',
+        }}>
+          <span style={{ color: "#D4357A" }}>Neo</span>
+          <span style={{ color: "#555" }}>Biotech</span>
+        </div>
+      </div>
+
+      {/* Home bar */}
+      <div style={{
+        position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+        width: 120, height: 4, borderRadius: 99, background: "#222",
+      }} />
+
+      <style>{`
+        @keyframes splashPop {
+          from { opacity: 0; transform: scale(0.72); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes splashFadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ── MOBILE APP (main export) ───────────────────────────────────────────
 export default function MobileApp() {
   const [tab, setTab] = useState("home");
@@ -880,6 +946,7 @@ export default function MobileApp() {
   const [dark, setDark] = useState(() => localStorage.getItem("mobile-theme") === "dark");
   const [lang, setLang] = useState(() => localStorage.getItem("lang") || "th");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [splashVisible, setSplashVisible] = useState(true);
 
   useEffect(() => { localStorage.setItem("mobile-theme", dark ? "dark" : "light"); }, [dark]);
 
@@ -899,7 +966,28 @@ export default function MobileApp() {
     }).catch(() => {}).finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
 
-  useEffect(() => { load(); const iv = setInterval(() => load(), 5 * 60 * 1000); return () => clearInterval(iv); }, []);
+  useEffect(() => {
+    // โหลดข้อมูล + แสดง splash อย่างน้อย 1.8 วินาที
+    const minDelay = new Promise(res => setTimeout(res, 1800));
+    const dataLoad = new Promise(res => {
+      Promise.all([
+        fetch(`${API_BASE}/customers`).then(r => r.json()),
+        fetch(`${API_BASE}/sync-logs`).then(r => r.json()),
+        fetch(`${API_BASE}/analytics/summary`).then(r => r.json()).catch(() => ({})),
+        fetch(`${API_BASE}/analytics/customer-value`).then(r => r.json()).catch(() => ({})),
+      ]).then(([custs, logs, anal, cv]) => {
+        const cs = Array.isArray(custs) ? custs.map(c => ({ ...c, team: getTeam(c.sale) })) : [];
+        setCustomers(cs);
+        setSyncLogs(Array.isArray(logs) ? logs : []);
+        setAnalytics(anal?.error ? null : anal);
+        setCustValues(cv?.error ? {} : cv);
+        res();
+      }).catch(() => res()).finally(() => setLoading(false));
+    });
+    Promise.all([minDelay, dataLoad]).then(() => setSplashVisible(false));
+    const iv = setInterval(() => load(), 5 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   const myCusts = selectedSale ? customers.filter(c => c.sale === selectedSale) : [];
 
@@ -918,6 +1006,7 @@ export default function MobileApp() {
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: phoneBg, fontFamily: '"Inter", "IBM Plex Sans Thai", -apple-system, sans-serif', WebkitTapHighlightColor: "transparent", overscrollBehavior: "none" }}>
+      <SplashScreen visible={splashVisible} />
       {/* ── Navbar ── */}
       {selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderBottom: `0.5px solid ${navBdr}`, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
