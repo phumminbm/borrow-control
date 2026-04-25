@@ -150,6 +150,7 @@ function DesktopApp() {
             <span style={{ color:"#D4357A" }}>Neo</span>Biotech
           </span>
           <span style={{ fontSize:10, fontWeight:500, color:"#D4357A", background:dark?"#2D0F1A":"#FBE8F1", border:`0.5px solid ${dark?"#7A2040":"#F0A0C0"}`, borderRadius:4, padding:"2px 8px", letterSpacing:"0.5px" }}>BORROW SYSTEM</span>
+          <span style={{ fontSize:9, fontWeight:600, color:"#555", background:dark?"#1a1a1a":"#f0f0ec", border:`0.5px solid ${dark?"#2a2a2a":"#ddd"}`, borderRadius:4, padding:"2px 8px", letterSpacing:"1px" }}>v 1.1</span>
         </div>
 
         <div style={{ display:"flex" }}>
