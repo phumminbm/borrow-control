@@ -123,6 +123,8 @@ function CustomerModal({ customer, onClose, dark, t }) {
   const [loading, setLoading]       = useState(true);
   const [selectedBr, setSelectedBr] = useState(null);
   const [brSearch, setBrSearch]     = useState("");
+  const [brFilter, setBrFilter]     = useState("");
+  const [brFilterOpen, setBrFilterOpen] = useState(false);
   const [selected, setSelected]     = useState(new Set());
   const [exporting, setExporting]   = useState(false);
   const S   = getS(dark);
@@ -132,7 +134,7 @@ function CustomerModal({ customer, onClose, dark, t }) {
 
   useEffect(() => {
     if (!customer) return;
-    setLoading(true); setBrSearch(""); setSelected(new Set());
+    setLoading(true); setBrSearch(""); setBrFilter(""); setBrFilterOpen(false); setSelected(new Set());
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json())
       .then(d => setBrs(Array.isArray(d) ? d : []))
@@ -143,7 +145,8 @@ function CustomerModal({ customer, onClose, dark, t }) {
   if (!customer) return null;
 
   const filteredBrs = brs.filter(br =>
-    !brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase())
+    (!brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase())) &&
+    (!brFilter || br.borrow_alert === brFilter)
   );
 
   const toggleOne = (bno) => setSelected(prev => {
@@ -262,18 +265,68 @@ function CustomerModal({ customer, onClose, dark, t }) {
                 </div>
                 เลือกทั้งหมด
               </label>
-              {selected.size > 0 && (
-                <>
-                  <span style={{fontSize:11,color:"#888"}}>{selected.size} ใบเลือกแล้ว</span>
+              {selected.size > 0 && <span style={{fontSize:11,color:"#888"}}>{selected.size} ใบเลือกแล้ว</span>}
+              <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+                {selected.size > 0 && (
                   <button
                     onClick={handleBulkExport}
-                    style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:"none",background:"#D4357A",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:"none",background:"#D4357A",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}
                   >
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
                     Export ({selected.size})
                   </button>
-                </>
-              )}
+                )}
+                {/* ── BR Status Filter Dropdown ── */}
+                <div style={{position:"relative"}}>
+                  <button
+                    onClick={() => setBrFilterOpen(o => !o)}
+                    style={{
+                      display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:600,
+                      border:`0.5px solid ${brFilter==="BLOCK"?"#E24B4A":brFilter==="WARNING"?"#EF9F27":brFilter==="NORMAL"?"#639922":dark?"#333":"rgba(0,0,0,0.15)"}`,
+                      background:brFilter==="BLOCK"?(dark?"#2D0A0A":"#FFF0F0"):brFilter==="WARNING"?(dark?"#2D1E00":"#FFF8E8"):brFilter==="NORMAL"?(dark?"#0A2D0A":"#F0FAE8"):(dark?"#1a1a1a":"#f5f5f3"),
+                      color:brFilter==="BLOCK"?"#E24B4A":brFilter==="WARNING"?"#EF9F27":brFilter==="NORMAL"?"#639922":(dark?"#aaa":"#555"),
+                    }}
+                  >
+                    <span style={{width:6,height:6,borderRadius:"50%",background:brFilter==="BLOCK"?"#E24B4A":brFilter==="WARNING"?"#EF9F27":brFilter==="NORMAL"?"#639922":(dark?"#444":"#bbb"),flexShrink:0}}/>
+                    {brFilter||"ทั้งหมด"}
+                    <svg width={10} height={10} viewBox="0 0 24 24" style={{transform:brFilterOpen?"rotate(180deg)":"none",transition:"transform .15s"}}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                  {brFilterOpen && (
+                    <>
+                      <div style={{position:"fixed",inset:0,zIndex:199}} onClick={()=>setBrFilterOpen(false)}/>
+                      <div style={{
+                        position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:200,
+                        background:dark?"#1a1a1a":"#fff",
+                        border:`0.5px solid ${dark?"#333":"rgba(0,0,0,0.12)"}`,
+                        borderRadius:9,boxShadow:"0 4px 16px rgba(0,0,0,0.18)",
+                        minWidth:150,padding:"4px 0",overflow:"hidden",
+                      }}>
+                        {[
+                          {value:"",label:"ทั้งหมด",dot:dark?"#555":"#bbb",col:dark?"#ccc":"#444"},
+                          {value:"BLOCK",label:"BLOCK",dot:"#E24B4A",col:"#E24B4A"},
+                          {value:"WARNING",label:"WARNING",dot:"#EF9F27",col:"#EF9F27"},
+                          {value:"NORMAL",label:"NORMAL",dot:"#639922",col:"#639922"},
+                        ].map(opt => {
+                          const count = opt.value ? brs.filter(b=>b.borrow_alert===opt.value).length : brs.length;
+                          const active = brFilter === opt.value;
+                          return (
+                            <div key={opt.value} onClick={()=>{setBrFilter(opt.value);setBrFilterOpen(false);}}
+                              style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",cursor:"pointer",
+                                background:active?(dark?"#2a2a2a":"#f5f5f3"):"transparent",
+                                fontSize:12,fontWeight:active?600:400,color:opt.col}}
+                            >
+                              <span style={{width:7,height:7,borderRadius:"50%",background:opt.dot,flexShrink:0}}/>
+                              <span style={{flex:1}}>{opt.label}</span>
+                              <span style={{fontSize:10,color:dark?"#555":"#bbb"}}>{count}</span>
+                              {active && <svg width={10} height={8} viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke={opt.dot} strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -295,9 +348,10 @@ function CustomerModal({ customer, onClose, dark, t }) {
                   }}
                 />
               </div>
-              {brSearch && (
+              {(brSearch || brFilter) && (
                 <div style={{fontSize:10,color:"#555",marginTop:4}}>
-                  พบ <span style={{color:"#D4357A",fontWeight:600}}>{filteredBrs.length}</span> รายการ จาก {brs.length} BR
+                  แสดง <span style={{color:"#D4357A",fontWeight:600}}>{filteredBrs.length}</span> รายการ จาก {brs.length} BR
+                  {brFilter && <span> · กรอง: <span style={{color:brFilter==="BLOCK"?"#E24B4A":brFilter==="WARNING"?"#EF9F27":"#639922",fontWeight:600}}>{brFilter}</span></span>}
                 </div>
               )}
             </div>
@@ -308,7 +362,7 @@ function CustomerModal({ customer, onClose, dark, t }) {
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.brLoading}</div>
             ) : filteredBrs.length === 0 ? (
               <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>
-                {brSearch ? "ไม่พบ BR ที่ค้นหา" : t.noBR}
+                {brSearch || brFilter ? "ไม่พบ BR ที่ตรงกัน" : t.noBR}
               </div>
             ) : filteredBrs.map(br => {
               const items = br.items || [];

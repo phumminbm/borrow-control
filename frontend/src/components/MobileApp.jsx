@@ -583,6 +583,8 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   const [brs, setBrs] = useState([]);
   const [loadingBrs, setLoadingBrs] = useState(false);
   const [brSearch, setBrSearch] = useState("");
+  const [brFilter, setBrFilter] = useState("");
+  const [brFilterOpen, setBrFilterOpen] = useState(false);
   const [selectedBR, setSelectedBR] = useState(null);
   const [selectedBRs, setSelectedBRs] = useState(new Set());
   const [exporting, setExporting] = useState(false);
@@ -593,12 +595,15 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
 
   useEffect(() => {
     if (!customer) return;
-    setLoadingBrs(true); setBrs([]); setBrSearch(""); setSelectedBRs(new Set());
+    setLoadingBrs(true); setBrs([]); setBrSearch(""); setBrFilter(""); setBrFilterOpen(false); setSelectedBRs(new Set());
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json()).then(d => setBrs(Array.isArray(d) ? d : [])).catch(() => setBrs([])).finally(() => setLoadingBrs(false));
   }, [customer]);
 
-  const filteredBRs = brs.filter(br => !brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase()));
+  const filteredBRs = brs.filter(br =>
+    (!brSearch || br.borrow_no.toLowerCase().includes(brSearch.toLowerCase())) &&
+    (!brFilter || br.borrow_alert === brFilter)
+  );
   const val = custValues[customer?.cust_code];
 
   const allSelected  = filteredBRs.length > 0 && filteredBRs.every(br => selectedBRs.has(br.borrow_no));
@@ -739,8 +744,62 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
 
             {/* BR search + select toolbar */}
             <div style={{ padding: "10px 20px 6px" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>BR List <span style={{ color: sub, fontWeight: 500, fontSize: 11 }}>({brs.length})</span></span>
+              <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: 1 }}>BR List <span style={{ color: sub, fontWeight: 500, fontSize: 11 }}>({brs.length})</span></span>
+                {/* ── BR Status Filter Dropdown ── */}
+                {brs.length > 0 && (
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setBrFilterOpen(o => !o)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4, padding: "4px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 600,
+                        border: `0.5px solid ${brFilter === "BLOCK" ? "#E24B4A" : brFilter === "WARNING" ? "#EF9F27" : brFilter === "NORMAL" ? "#639922" : dark ? "#333" : "rgba(0,0,0,0.15)"}`,
+                        background: brFilter === "BLOCK" ? (dark ? "#2D0A0A" : "#FFF0F0") : brFilter === "WARNING" ? (dark ? "#2D1E00" : "#FFF8E8") : brFilter === "NORMAL" ? (dark ? "#0A2D0A" : "#F0FAE8") : (dark ? "#1a1a1a" : "#f5f5f3"),
+                        color: brFilter === "BLOCK" ? "#E24B4A" : brFilter === "WARNING" ? "#EF9F27" : brFilter === "NORMAL" ? "#639922" : (dark ? "#aaa" : "#666"),
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: brFilter === "BLOCK" ? "#E24B4A" : brFilter === "WARNING" ? "#EF9F27" : brFilter === "NORMAL" ? "#639922" : (dark ? "#444" : "#bbb"), flexShrink: 0 }} />
+                      {brFilter || "ทั้งหมด"}
+                      <svg width={10} height={10} viewBox="0 0 24 24" style={{ transform: brFilterOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                    {brFilterOpen && (
+                      <>
+                        <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setBrFilterOpen(false)} />
+                        <div style={{
+                          position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 200,
+                          background: dark ? "#1a1a1a" : "#fff",
+                          border: `0.5px solid ${dark ? "#333" : "rgba(0,0,0,0.12)"}`,
+                          borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+                          minWidth: 155, padding: "4px 0", overflow: "hidden",
+                        }}>
+                          {[
+                            { value: "", label: "ทั้งหมด", dot: dark ? "#555" : "#bbb", col: dark ? "#ccc" : "#444" },
+                            { value: "BLOCK", label: "BLOCK", dot: "#E24B4A", col: "#E24B4A" },
+                            { value: "WARNING", label: "WARNING", dot: "#EF9F27", col: "#EF9F27" },
+                            { value: "NORMAL", label: "NORMAL", dot: "#639922", col: "#639922" },
+                          ].map(opt => {
+                            const count = opt.value ? brs.filter(b => b.borrow_alert === opt.value).length : brs.length;
+                            const active = brFilter === opt.value;
+                            return (
+                              <div key={opt.value} onClick={() => { setBrFilter(opt.value); setBrFilterOpen(false); }}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", cursor: "pointer",
+                                  background: active ? (dark ? "#2a2a2a" : "#f5f5f3") : "transparent",
+                                  fontSize: 13, fontWeight: active ? 600 : 400, color: opt.col,
+                                }}
+                              >
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: opt.dot, flexShrink: 0 }} />
+                                <span style={{ flex: 1 }}>{opt.label}</span>
+                                <span style={{ fontSize: 11, color: dark ? "#555" : "#bbb" }}>{count}</span>
+                                {active && <svg width={11} height={9} viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke={opt.dot} strokeWidth="1.5" strokeLinecap="round" /></svg>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 {selectedBRs.size > 0 && (
                   <button onClick={handleBulkExport} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 7, border: "none", background: "#D4357A", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
@@ -764,13 +823,13 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                   <input value={brSearch} onChange={e => setBrSearch(e.target.value)} placeholder={lang === "th" ? "ค้นหาเลข BR..." : "Search BR..."} style={{ flex: 1, border: "none", background: "transparent", outline: "none", padding: "8px", fontSize: 12, color: text }} />
                 </div>
               )}
-              {brSearch && <div style={{ fontSize: 10, color: sub, marginTop: 4 }}>พบ <span style={{ color: "#D4357A", fontWeight: 600 }}>{filteredBRs.length}</span> รายการ จาก {brs.length} BR</div>}
+              {(brSearch || brFilter) && <div style={{ fontSize: 10, color: sub, marginTop: 4 }}>แสดง <span style={{ color: "#D4357A", fontWeight: 600 }}>{filteredBRs.length}</span> รายการ จาก {brs.length} BR{brFilter && <span> · กรอง: <span style={{ color: brFilter === "BLOCK" ? "#E24B4A" : brFilter === "WARNING" ? "#EF9F27" : "#639922", fontWeight: 600 }}>{brFilter}</span></span>}</div>}
             </div>
 
             {/* BR list */}
             <div style={{ padding: "0 20px 20px" }}>
               {loadingBrs ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{lang === "th" ? "กำลังโหลด BR..." : "Loading BR..."}</div>
-                : filteredBRs.length === 0 ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{brSearch ? (lang === "th" ? "ไม่พบ BR ที่ค้นหา" : "No BR found") : (lang === "th" ? "ยังไม่มี BR" : "No BR data")}</div>
+                : filteredBRs.length === 0 ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{brSearch || brFilter ? (lang === "th" ? "ไม่พบ BR ที่ตรงกัน" : "No matching BR") : (lang === "th" ? "ยังไม่มี BR" : "No BR data")}</div>
                   : filteredBRs.map(br => {
                     const total      = br.items.reduce((s, i) => s + i.price * i.quantity, 0);
                     const daysCol    = br.days_borrowed > 180 ? (dark ? "#F09595" : "#A32D2D") : br.days_borrowed > 90 ? (dark ? "#FAC775" : "#854F0B") : text;
