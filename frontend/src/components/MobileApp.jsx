@@ -104,7 +104,7 @@ function BottomSheet({ open, onClose, children, title, height = "85%", dark = tr
             <button onClick={onClose} style={{ border: "none", background: "transparent", color: closeCol, fontSize: 14, cursor: "pointer", padding: 4 }}>✕</button>
           </div>
         )}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>{children}</div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>{children}</div>
       </div>
     </>
   );
@@ -708,8 +708,8 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
       {ExportOverlay}
       <BottomSheet open={!!customer} onClose={onClose} height="92%" dark={dark}>
         {customer && (
-          <>
-            <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+            <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
               {/* Close button row */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: sub }}>{lang === "th" ? "ข้อมูลลูกค้า" : "Customer Detail"}</div>
@@ -743,7 +743,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
             </div>
 
             {/* BR search + select toolbar */}
-            <div style={{ padding: "10px 20px 6px" }}>
+            <div style={{ padding: "10px 20px 6px", flexShrink: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ flex: 1 }}>BR List <span style={{ color: sub, fontWeight: 500, fontSize: 11 }}>({brs.length})</span></span>
                 {/* ── BR Status Filter Dropdown ── */}
@@ -827,7 +827,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
             </div>
 
             {/* BR list */}
-            <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ padding: "0 20px 20px", flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
               {loadingBrs ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{lang === "th" ? "กำลังโหลด BR..." : "Loading BR..."}</div>
                 : filteredBRs.length === 0 ? <div style={{ padding: "32px", textAlign: "center", fontSize: 12, color: sub }}>{brSearch || brFilter ? (lang === "th" ? "ไม่พบ BR ที่ตรงกัน" : "No matching BR") : (lang === "th" ? "ยังไม่มี BR" : "No BR data")}</div>
                   : filteredBRs.map(br => {
@@ -859,7 +859,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                     );
                   })}
             </div>
-          </>
+          </div>
         )}
       </BottomSheet>
 
@@ -868,8 +868,8 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
         {selectedBR && (() => {
           const total = selectedBR.items.reduce((s, i) => s + i.price * i.quantity, 0);
           return (
-            <>
-              <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+              <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
                 {/* Header row with back + close */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <button onClick={() => setSelectedBR(null)} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "#D4357A", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>
@@ -888,7 +888,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                   <StatusPill status={selectedBR.borrow_alert} size="sm" />
                 </div>
               </div>
-              <div style={{ padding: "12px 20px 20px" }}>
+              <div style={{ padding: "12px 20px 20px", flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
                 <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{selectedBR.items.length} {lang === "th" ? "รายการสินค้า" : "Items"}</div>
                 {selectedBR.items.map((item, i) => (
                   <div key={i} style={{ padding: "12px 0", borderBottom: i < selectedBR.items.length - 1 ? `0.5px solid ${bdr}` : "none", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -921,7 +921,7 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                   Export PDF
                 </button>
               </div>
-            </>
+            </div>
           );
         })()}
       </BottomSheet>
