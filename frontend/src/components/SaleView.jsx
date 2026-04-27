@@ -239,6 +239,14 @@ function CustomerModal({ customer, onClose, dark, t }) {
           <div style={S.mhead}>
             <div>
               <div style={{fontSize:14,fontWeight:600,color:txt}}>{customer.customer_name}</div>
+              {customer.address && (
+                <div style={{display:"flex",alignItems:"flex-start",gap:5,marginTop:3,marginBottom:4}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={dark?"#eee":"#111"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:2}}>
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span style={{fontSize:11,color:dark?"#eee":"#111",fontWeight:400,lineHeight:1.5}}>{customer.address}</span>
+                </div>
+              )}
               <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                 <span style={{background:dark?"#222":"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:dark?"#aaa":"#555"}}>{customer.cust_code}</span>
                 <span>·</span><span style={{color:"#888"}}>Sale: {customer.sale}</span><span>·</span>

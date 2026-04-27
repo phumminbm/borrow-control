@@ -723,6 +723,14 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: text, letterSpacing: -0.3 }}>{customer.customer_name}</div>
+                  {customer.address && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 5, marginTop: 3, marginBottom: 4 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={dark ? "#eee" : "#111"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                      </svg>
+                      <span style={{ fontSize: 11, color: dark ? "#eee" : "#111", fontWeight: 400, lineHeight: 1.5 }}>{customer.address}</span>
+                    </div>
+                  )}
                   <div style={{ fontSize: 10, color: sub, marginTop: 3, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={{ fontFamily: "ui-monospace,monospace", background: dark ? "#1a1a1a" : "#f1f0eb", padding: "1px 6px", borderRadius: 4 }}>{customer.cust_code}</span>
                     <TeamPill team={customer.team} size="xs" />

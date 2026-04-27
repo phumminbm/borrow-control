@@ -34,6 +34,7 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS customers (
             cust_code TEXT PRIMARY KEY,
             customer_name TEXT, istock_id TEXT, erp_id TEXT, sale TEXT,
+            address TEXT DEFAULT '',
             status TEXT DEFAULT 'NORMAL', max_days INTEGER DEFAULT 0,
             active_br_count INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW()
         )
@@ -85,7 +86,8 @@ def ensure_tables(db):
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS customers_staging (
             cust_code TEXT PRIMARY KEY,
-            customer_name TEXT, istock_id TEXT, erp_id TEXT, sale TEXT
+            customer_name TEXT, istock_id TEXT, erp_id TEXT, sale TEXT,
+            address TEXT DEFAULT ''
         )
     """))
     db.commit()
@@ -128,6 +130,9 @@ def recalc_all_customers(db):
     # migration: เพิ่ม remark column ถ้า DB เก่ายังไม่มี
     db.execute(text("ALTER TABLE borrows ADD COLUMN IF NOT EXISTS remark TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE borrows_staging ADD COLUMN IF NOT EXISTS remark TEXT DEFAULT ''"))
+    # migration: เพิ่ม address column ถ้า DB เก่ายังไม่มี
+    db.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
+    db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.commit()
 
 def swap_staging_to_main(db):
@@ -139,14 +144,16 @@ def swap_staging_to_main(db):
 
     # 1. Upsert customers จาก staging → main
     db.execute(text("""
-        INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale,
+        INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale, address,
             status, max_days, active_br_count, updated_at)
-        SELECT cust_code, customer_name, istock_id, erp_id, sale,
+        SELECT cust_code, customer_name, istock_id, erp_id, sale, address,
             'NORMAL', 0, 0, :now
         FROM customers_staging
         ON CONFLICT (cust_code) DO UPDATE SET
             customer_name = EXCLUDED.customer_name,
             sale          = EXCLUDED.sale,
+            address       = CASE WHEN EXCLUDED.address != '' THEN EXCLUDED.address
+                                 ELSE customers.address END,
             updated_at    = EXCLUDED.updated_at
     """), {"now": now})
 
@@ -213,6 +220,7 @@ class SyncRow(BaseModel):
     istock_id: str = ""
     erp_id: str = ""
     sale: str = ""
+    address: str = ""
     borrow_date: str = ""
     status: str = ""
     days_borrowed: int = 0
@@ -310,7 +318,8 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
             if row.cust_code:
                 cust_params.append({
                     "cc": row.cust_code, "name": row.customer_name,
-                    "istock": row.istock_id, "erp": row.erp_id, "sale": row.sale
+                    "istock": row.istock_id, "erp": row.erp_id, "sale": row.sale,
+                    "address": row.address
                 })
 
             borrow_params.append({
@@ -329,11 +338,13 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
         if cust_params:
             db.execute(text("""
-                INSERT INTO customers_staging (cust_code, customer_name, istock_id, erp_id, sale)
-                VALUES (:cc, :name, :istock, :erp, :sale)
+                INSERT INTO customers_staging (cust_code, customer_name, istock_id, erp_id, sale, address)
+                VALUES (:cc, :name, :istock, :erp, :sale, :address)
                 ON CONFLICT (cust_code) DO UPDATE SET
                     customer_name = EXCLUDED.customer_name,
-                    sale          = EXCLUDED.sale
+                    sale          = EXCLUDED.sale,
+                    address       = CASE WHEN EXCLUDED.address != '' THEN EXCLUDED.address
+                                         ELSE customers_staging.address END
             """), cust_params)
 
         if borrow_params:
