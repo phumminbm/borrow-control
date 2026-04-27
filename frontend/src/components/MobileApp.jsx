@@ -1127,8 +1127,8 @@ export default function MobileApp() {
       {selectedSale && (
         <div style={{ background: tabBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, display: "flex", flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
           {tabs.map(([key, icon, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "10px 0 4px", border: "none", background: "transparent", cursor: "pointer", fontSize: 10, fontWeight: 600, color: tab === key ? "#D4357A" : (dark ? "#555" : "#aaa"), transition: "color 0.15s" }}>
-              <Icon name={icon} size={22} color={tab === key ? "#D4357A" : (dark ? "#555" : "#aaa")} />
+            <button key={key} onClick={() => setTab(key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "10px 0 4px", border: "none", background: "transparent", cursor: "pointer", fontSize: 10, fontWeight: 600, color: tab === key ? "#D4357A" : (dark ? "#fff" : "#111"), transition: "color 0.15s" }}>
+              <Icon name={icon} size={22} color={tab === key ? "#D4357A" : (dark ? "#fff" : "#111")} />
               <span>{label}</span>
             </button>
           ))}
