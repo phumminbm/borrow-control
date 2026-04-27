@@ -90,6 +90,10 @@ def ensure_tables(db):
             address TEXT DEFAULT ''
         )
     """))
+
+    # ── Migrations: เพิ่ม column ใหม่ให้ตารางที่มีอยู่แล้ว (safe for existing DB) ──
+    db.execute(text("ALTER TABLE customers         ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
+    db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.commit()
 
 def recalc_all_customers(db):
@@ -422,6 +426,51 @@ def recalc(db: Session = Depends(get_db)):
         w = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='WARNING'")).fetchone()[0]
         n = db.execute(text("SELECT COUNT(*) FROM customers WHERE status='NORMAL'")).fetchone()[0]
         return {"success": True, "BLOCK": c, "WARNING": w, "NORMAL": n}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/staging-status")
+def staging_status(db: Session = Depends(get_db)):
+    """ดูว่า staging มีข้อมูลเข้ามาเท่าไหร่แล้ว ใช้เช็คระหว่าง sync"""
+    try:
+        bs  = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
+        cs  = db.execute(text("SELECT COUNT(*) FROM customers_staging")).fetchone()[0]
+        bis = db.execute(text("SELECT COUNT(*) FROM borrow_items_staging")).fetchone()[0]
+        b   = db.execute(text("SELECT COUNT(*) FROM borrows")).fetchone()[0]
+        c   = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
+        return {
+            "staging": {
+                "borrows":       bs,
+                "customers":     cs,
+                "borrow_items":  bis,
+            },
+            "main": {
+                "borrows":   b,
+                "customers": c,
+            },
+            "sync_in_progress": bs > 0
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/swap")
+def manual_swap(db: Session = Depends(get_db)):
+    """Manual trigger: swap staging → main (ใช้เมื่อ sync ค้างหรือต้องการ force swap)"""
+    try:
+        bs = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
+        cs = db.execute(text("SELECT COUNT(*) FROM customers_staging")).fetchone()[0]
+        if bs == 0 and cs == 0:
+            return {"success": False, "reason": "staging_empty", "message": "Staging ว่างเปล่า — ยังไม่มีข้อมูลรอ swap"}
+        swap_staging_to_main(db)
+        clear_staging(db)
+        recalc_all_customers(db)
+        b_new = db.execute(text("SELECT COUNT(*) FROM borrows")).fetchone()[0]
+        c_new = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
+        return {
+            "success": True,
+            "message": f"Swap เสร็จแล้ว — จาก staging ({bs} borrows, {cs} customers) → main",
+            "main": {"borrows": b_new, "customers": c_new}
+        }
     except Exception as e:
         return {"error": str(e)}
 
