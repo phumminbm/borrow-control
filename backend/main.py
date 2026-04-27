@@ -638,6 +638,23 @@ def _ss(c, col): c.setStrokeColorRGB(*col)
 def _hl(c, x1, x2, y, col=(0.75,0.75,0.75), w=0.4):
     _ss(c, col); c.setLineWidth(w); c.line(x1, y, x2, y)
 
+def _wrap_addr(text, font_name, font_size, max_width):
+    """แบ่งข้อความที่อยู่เป็นบรรทัด ไม่เกิน max_width"""
+    words = text.split(' ')
+    lines = []
+    current = ''
+    for word in words:
+        test = (current + ' ' + word).strip() if current else word
+        if pdfmetrics.stringWidth(test, font_name, font_size) <= max_width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines if lines else [text]
+
 def _logo_setup():
     """Returns (logo_src, tmp_name_or_None)."""
     logo_file = Path(__file__).parent / "images" / "neobiotech_logo.png"
@@ -750,13 +767,33 @@ def generate_br_pdf(br: dict, items: list, customer: dict,
                  "NO.", br.get("borrow_no",""), y); y -= ROW_H
         info_row("Customer Name", customer.get("customer_name",""),
                  "DATE", br.get("borrow_date",""), y); y -= ROW_H
-        _sf(c, WHITE); c.rect(ML, y - ROW_H, CW, ROW_H, fill=1, stroke=0)
-        _hl(c, ML, ML+CW, y - ROW_H, LGRAY, 0.3)
-        _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
-        c.drawString(DIV_X + 2*mm, y - ROW_H + 2.5*mm, "Sale Representative Name")
-        _sf(c, BLACK); c.setFont("TH", 8)
-        c.drawRightString(ML + CW - 2*mm, y - ROW_H + 2.5*mm, customer.get("sale",""))
-        y -= ROW_H + 2*mm
+        address = customer.get("address", "")
+        if address:
+            addr_text_x = ML + CW*0.17 + 2*mm
+            addr_max_w  = DIV_X - addr_text_x - 4*mm
+            addr_lines  = _wrap_addr(address, "TH", 8, addr_max_w)
+            LINE_H      = 4*mm
+            addr_row_h  = max(ROW_H, len(addr_lines) * LINE_H + 3*mm)
+            _sf(c, WHITE); c.rect(ML, y - addr_row_h, CW, addr_row_h, fill=1, stroke=0)
+            _hl(c, ML, ML+CW, y - addr_row_h, LGRAY, 0.3)
+            _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
+            c.drawString(ML + 2*mm, y - ROW_H + 2.5*mm, "Address")
+            _sf(c, BLACK); c.setFont("TH", 8)
+            for li, line in enumerate(addr_lines):
+                c.drawString(addr_text_x, y - (li + 1) * LINE_H + 1.5*mm, line)
+            _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
+            c.drawString(DIV_X + 2*mm, y - ROW_H + 2.5*mm, "Sale Representative Name")
+            _sf(c, BLACK); c.setFont("TH", 8)
+            c.drawRightString(ML + CW - 2*mm, y - ROW_H + 2.5*mm, customer.get("sale",""))
+            y -= addr_row_h + 2*mm
+        else:
+            _sf(c, WHITE); c.rect(ML, y - ROW_H, CW, ROW_H, fill=1, stroke=0)
+            _hl(c, ML, ML+CW, y - ROW_H, LGRAY, 0.3)
+            _sf(c, (0.4,0.4,0.4)); c.setFont("THB", 8)
+            c.drawString(DIV_X + 2*mm, y - ROW_H + 2.5*mm, "Sale Representative Name")
+            _sf(c, BLACK); c.setFont("TH", 8)
+            c.drawRightString(ML + CW - 2*mm, y - ROW_H + 2.5*mm, customer.get("sale",""))
+            y -= ROW_H + 2*mm
 
         # Table header (every page)
         _sf(c, LGRAY); c.rect(ML, y - TH_H, CW, TH_H, fill=1, stroke=0)
@@ -897,7 +934,7 @@ def export_br_pdf(borrow_no: str, db: Session = Depends(get_db)):
         raise HTTPException(404, f"BR {borrow_no} not found")
 
     cust_row = db.execute(text("""
-        SELECT cust_code, customer_name, sale FROM customers WHERE cust_code = :cc
+        SELECT cust_code, customer_name, sale, address FROM customers WHERE cust_code = :cc
     """), {"cc": br_row.cust_code}).fetchone()
 
     items = db.execute(text("""
@@ -906,7 +943,7 @@ def export_br_pdf(borrow_no: str, db: Session = Depends(get_db)):
     """), {"bno": borrow_no}).fetchall()
 
     br = dict(br_row._mapping)
-    customer = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": ""}
+    customer = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": "", "address": ""}
     items_list = [dict(r._mapping) for r in items]
 
     pdf_bytes = generate_br_pdf(br, items_list, customer)
@@ -949,7 +986,7 @@ def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
             continue
 
         cust_row = db.execute(text("""
-            SELECT cust_code, customer_name, sale FROM customers WHERE cust_code = :cc
+            SELECT cust_code, customer_name, sale, address FROM customers WHERE cust_code = :cc
         """), {"cc": br_row.cust_code}).fetchone()
 
         items = db.execute(text("""
@@ -958,7 +995,7 @@ def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
         """), {"bno": bno}).fetchall()
 
         br_dict       = dict(br_row._mapping)
-        customer_dict = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": ""}
+        customer_dict = dict(cust_row._mapping) if cust_row else {"cust_code": br_row.cust_code, "customer_name": "", "sale": "", "address": ""}
         items_list    = [dict(r._mapping) for r in items]
         brs_data.append((br_dict, items_list, customer_dict))
 
