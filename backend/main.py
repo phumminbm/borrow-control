@@ -1,11 +1,18 @@
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import Optional
 from datetime import datetime, timezone
 import os
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("borrow_control")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/borrow_control")
 engine = create_engine(DATABASE_URL)
@@ -141,74 +148,88 @@ def recalc_all_customers(db):
 
 def swap_staging_to_main(db):
     """
-    SWAP staging → main tables ทีเดียว
+    SWAP staging → main tables ทีเดียว (Atomic Transaction)
     Sale จะเห็นข้อมูลใหม่ครบพร้อมกัน ไม่เห็นข้อมูลครึ่งๆ ระหว่าง sync
+    ถ้า step ใด fail → rollback ทุก step อัตโนมัติ ข้อมูลไม่หาย
     """
     now = datetime.now(timezone.utc)
+    logger.info("swap_staging_to_main: starting atomic swap")
 
-    # 1. Upsert customers จาก staging → main
-    db.execute(text("""
-        INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale, address,
-            status, max_days, active_br_count, updated_at)
-        SELECT cust_code, customer_name, istock_id, erp_id, sale, address,
-            'NORMAL', 0, 0, :now
-        FROM customers_staging
-        ON CONFLICT (cust_code) DO UPDATE SET
-            customer_name = EXCLUDED.customer_name,
-            sale          = EXCLUDED.sale,
-            address       = CASE WHEN EXCLUDED.address != '' THEN EXCLUDED.address
-                                 ELSE customers.address END,
-            updated_at    = EXCLUDED.updated_at
-    """), {"now": now})
+    try:
+        # 1. Upsert customers จาก staging → main
+        db.execute(text("""
+            INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale, address,
+                status, max_days, active_br_count, updated_at)
+            SELECT cust_code, customer_name, istock_id, erp_id, sale, address,
+                'NORMAL', 0, 0, :now
+            FROM customers_staging
+            ON CONFLICT (cust_code) DO UPDATE SET
+                customer_name = EXCLUDED.customer_name,
+                sale          = EXCLUDED.sale,
+                address       = CASE WHEN EXCLUDED.address != '' THEN EXCLUDED.address
+                                     ELSE customers.address END,
+                updated_at    = EXCLUDED.updated_at
+        """), {"now": now})
+        logger.info("swap step 1/5: customers upserted")
 
-    # 2. Mark borrows ที่ไม่อยู่ใน staging แล้วว่า closed
-    db.execute(text("""
-        UPDATE borrows SET sheet_status='closed', closed_at=:now
-        WHERE sheet_status='active'
-          AND borrow_no NOT IN (SELECT borrow_no FROM borrows_staging)
-    """), {"now": now})
+        # 2. Mark borrows ที่ไม่อยู่ใน staging แล้วว่า closed
+        db.execute(text("""
+            UPDATE borrows SET sheet_status='closed', closed_at=:now
+            WHERE sheet_status='active'
+              AND borrow_no NOT IN (SELECT borrow_no FROM borrows_staging)
+        """), {"now": now})
+        logger.info("swap step 2/5: old borrows marked closed")
 
-    # 3. Upsert borrows จาก staging → main
-    db.execute(text("""
-        INSERT INTO borrows (borrow_no, cust_code, borrow_date, status,
-            days_borrowed, borrow_alert, remark, sheet_status, first_seen_at, last_seen_at)
-        SELECT borrow_no, cust_code, borrow_date, status,
-            days_borrowed, borrow_alert, remark, 'active', :now, :now
-        FROM borrows_staging
-        ON CONFLICT (borrow_no) DO UPDATE SET
-            cust_code     = EXCLUDED.cust_code,
-            days_borrowed = EXCLUDED.days_borrowed,
-            borrow_alert  = EXCLUDED.borrow_alert,
-            remark        = EXCLUDED.remark,
-            status        = EXCLUDED.status,
-            sheet_status  = 'active',
-            last_seen_at  = EXCLUDED.last_seen_at
-    """), {"now": now})
+        # 3. Upsert borrows จาก staging → main
+        db.execute(text("""
+            INSERT INTO borrows (borrow_no, cust_code, borrow_date, status,
+                days_borrowed, borrow_alert, remark, sheet_status, first_seen_at, last_seen_at)
+            SELECT borrow_no, cust_code, borrow_date, status,
+                days_borrowed, borrow_alert, remark, 'active', :now, :now
+            FROM borrows_staging
+            ON CONFLICT (borrow_no) DO UPDATE SET
+                cust_code     = EXCLUDED.cust_code,
+                days_borrowed = EXCLUDED.days_borrowed,
+                borrow_alert  = EXCLUDED.borrow_alert,
+                remark        = EXCLUDED.remark,
+                status        = EXCLUDED.status,
+                sheet_status  = 'active',
+                last_seen_at  = EXCLUDED.last_seen_at
+        """), {"now": now})
+        logger.info("swap step 3/5: borrows upserted")
 
-    # 4. Upsert borrow_items จาก staging → main
-    db.execute(text("""
-        INSERT INTO borrow_items
-            (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-        SELECT borrow_no, product_code, product_name, price, quantity, total_price, :now
-        FROM borrow_items_staging
-        ON CONFLICT (borrow_no, product_code) DO UPDATE SET
-            product_name = EXCLUDED.product_name,
-            price        = EXCLUDED.price,
-            quantity     = EXCLUDED.quantity,
-            total_price  = EXCLUDED.total_price,
-            updated_at   = EXCLUDED.updated_at
-    """), {"now": now})
+        # 4. Upsert borrow_items จาก staging → main
+        db.execute(text("""
+            INSERT INTO borrow_items
+                (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
+            SELECT borrow_no, product_code, product_name, price, quantity, total_price, :now
+            FROM borrow_items_staging
+            ON CONFLICT (borrow_no, product_code) DO UPDATE SET
+                product_name = EXCLUDED.product_name,
+                price        = EXCLUDED.price,
+                quantity     = EXCLUDED.quantity,
+                total_price  = EXCLUDED.total_price,
+                updated_at   = EXCLUDED.updated_at
+        """), {"now": now})
+        logger.info("swap step 4/5: borrow_items upserted")
 
-    # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
-    db.execute(text("""
-        DELETE FROM borrow_items
-        WHERE (borrow_no, product_code) NOT IN (
-            SELECT borrow_no, product_code FROM borrow_items_staging
-        )
-        AND borrow_no IN (SELECT borrow_no FROM borrows_staging)
-    """))
+        # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
+        db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE (borrow_no, product_code) NOT IN (
+                SELECT borrow_no, product_code FROM borrow_items_staging
+            )
+            AND borrow_no IN (SELECT borrow_no FROM borrows_staging)
+        """))
+        logger.info("swap step 5/5: orphan items deleted")
 
-    db.commit()
+        db.commit()
+        logger.info("swap_staging_to_main: committed successfully")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"swap_staging_to_main FAILED — rolled back: {e}", exc_info=True)
+        raise
 
 def clear_staging(db):
     """ล้าง staging tables พร้อมรับ sync รอบใหม่"""
@@ -253,7 +274,7 @@ def get_customers(
     db: Session = Depends(get_db),
 ):
     try: ensure_tables(db)
-    except: pass
+    except Exception as e: logger.warning(f"ensure_tables in /customers: {e}")
     q = "SELECT * FROM customers WHERE 1=1"
     params = {}
     if sale:   q += " AND sale=:sale";     params["sale"] = sale
@@ -308,7 +329,7 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     start = datetime.now(timezone.utc)
     stats = {"inserted": 0, "updated": 0, "closed": 0, "errors": 0}
     try: ensure_tables(db)
-    except: pass
+    except Exception as e: logger.warning(f"ensure_tables in /sync: {e}")
 
     try:
         # ── INSERT เข้า staging ทุก batch (ไม่แตะ borrows จริงเลย) ──────
@@ -381,8 +402,9 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
     except Exception as e:
         stats["errors"] += 1
+        logger.error(f"sync batch error: {e}", exc_info=True)
         try: db.rollback()
-        except: pass
+        except Exception as re: logger.warning(f"rollback failed: {re}")
 
     # ── batch สุดท้าย → SWAP staging → main → recalc ─────────────────
     if payload.is_final_batch:

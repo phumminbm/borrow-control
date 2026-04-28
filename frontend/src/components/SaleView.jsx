@@ -514,10 +514,10 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
           <thead>
             <tr style={{position:"sticky",top:0,zIndex:10,background:dark?"#1a1a1a":"#f9f9f7"}}>
-              {["#",t.custCode,t.custName,"Sale",t.br,t.daysOverdue,t.value,t.status,""].map((h,i)=>(
+              {["#",t.custCode,t.custName,t.address,"Sale",t.br,t.daysOverdue,t.value,t.status,""].map((h,i)=>(
                 <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
                   borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,
-                  width:i===0?"28px":i===1?"75px":i===3?"65px":i===4?"38px":i===5?"85px":i===6?"95px":i===7?"80px":i===8?"85px":"auto"}}>{h}</th>
+                  width:i===0?"28px":i===1?"75px":i===2?"180px":i===4?"65px":i===5?"38px":i===6?"85px":i===7?"95px":i===8?"80px":i===9?"85px":"auto"}}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -529,6 +529,11 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
                 <td style={{padding:"9px 10px",fontSize:11,color:"#ddd"}}>{i+1}</td>
                 <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
                 <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
+                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#111",maxWidth:0}}>
+                  {c.address ? (
+                    <div style={{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",lineHeight:1.5}}>{c.address}</div>
+                  ) : <span style={{color:dark?"#333":"#ccc"}}>—</span>}
+                </td>
                 <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
                 <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.active_br_count}</td>
                 <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
