@@ -429,7 +429,8 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
   const filtered = customers.filter(c =>
     (!search ||
       c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.cust_code.toLowerCase().includes(search.toLowerCase())
+      c.cust_code.toLowerCase().includes(search.toLowerCase()) ||
+      (c.address || "").toLowerCase().includes(search.toLowerCase())
     ) &&
     (!saleFilter || c.sale === saleFilter) &&
     (!statusFilter || c.status === statusFilter)
