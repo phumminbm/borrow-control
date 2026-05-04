@@ -466,44 +466,44 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
         )}
 
         {/* KPI */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>{t.totalCustomers}</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:dark?"#ddd":"#888",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.totalCustomers}</div>
+            <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
           </div>
-          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
+          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
+            <div style={{fontSize:20,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
           </div>
-          <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:11,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
+          <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
+            <div style={{fontSize:20,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
           </div>
-          <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:11,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
+          <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
+            <div style={{fontSize:20,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
           </div>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 14px"}}>
-            <div style={{fontSize:11,color:dark?"#ddd":"#888",marginBottom:3}}>{t.brActive}</div>
-            <div style={{fontSize:22,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:dark?"#ddd":"#888",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.brActive}</div>
+            <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
           </div>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 14px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
             <div>
-              <div style={{fontSize:11,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>{t.totalValue}</div>
-              <div style={{fontSize:22,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
+              <div style={{fontSize:10,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.totalValue}</div>
+              <div style={{fontSize:18,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
             </div>
-            {myTeam && <span style={{fontSize:10,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"2px 8px",alignSelf:"flex-start",marginTop:4}}>ทีม {myTeam}</span>}
+            {myTeam && <span style={{fontSize:9,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"1px 6px",alignSelf:"flex-start",marginTop:3}}>ทีม {myTeam}</span>}
           </div>
         </div>
 
         {/* Filters */}
-        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{...inp,flex:1,minWidth:120}}/>
-          <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
+        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{...inp,flex:1,minWidth:120,outline:"none"}}/>
+          <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,width:130,flexShrink:0}}>
             <option value="">{t.allSale}</option>
             {allSales.map(s=><option key={s}>{s}</option>)}
           </select>
-          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,flex:1,minWidth:100}}>
+          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,width:120,flexShrink:0}}>
             <option value="">{t.allStatus}</option>
             <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
           </select>

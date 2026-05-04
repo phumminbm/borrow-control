@@ -196,12 +196,12 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
               }}>{tm}</button>
             ))}
           </div>
-          <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
-            <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={inp}>
+          <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
+            <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,width:130}}>
               <option value="">ทุก Sale</option>
               {[...new Set(allSales)].map(s=><option key={s}>{s}</option>)}
             </select>
-            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={inp}>
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,width:120}}>
               <option value="">ทุกสถานะ</option>
               <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
             </select>
@@ -211,7 +211,7 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         </div>
 
         {/* KPI */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
           {[
             [t.totalCustomers, filtered.length.toLocaleString(), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#2a2a2a":"var(--color-border-secondary)", dark?"#eee":"var(--color-text-primary)", dark?"#ddd":"#888"],
             ["BLOCK", filteredBl, dark?"#2D1010":"#FCEBEB", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D"],
@@ -220,9 +220,9 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
             [t.brActive, filteredBR.toLocaleString(), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#2a2a2a":"var(--color-border-secondary)", dark?"#eee":"var(--color-text-primary)", dark?"#ddd":"#888"],
             [t.totalValue, fmtVal(filteredValue), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D"],
           ].map(([label,val,bg,bd,vc,lc],i)=>(
-            <div key={i} style={{background:bg,border:`1.5px solid ${bd}`,borderRadius:10,padding:"10px 14px"}}>
-              <div style={{fontSize:11,color:lc,marginBottom:2,fontWeight:i>0&&i<4?500:400}}>{label}</div>
-              <div style={{fontSize:i===5?18:20,fontWeight:600,color:vc}}>{val}</div>
+            <div key={i} style={{background:bg,border:`1.5px solid ${bd}`,borderRadius:10,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:lc,marginBottom:2,fontWeight:i>0&&i<4?500:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
+              <div style={{fontSize:i===5?17:19,fontWeight:600,color:vc}}>{val}</div>
             </div>
           ))}
         </div>
