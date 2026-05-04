@@ -498,7 +498,7 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
 
         {/* Filters */}
         <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{...inp,flex:1,minWidth:120,outline:"none"}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{...inp,width:"calc(100% / 6 * 2)",maxWidth:320,minWidth:160,outline:"none"}}/>
           <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,width:130,flexShrink:0}}>
             <option value="">{t.allSale}</option>
             {allSales.map(s=><option key={s}>{s}</option>)}
