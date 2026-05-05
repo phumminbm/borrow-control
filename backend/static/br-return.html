@@ -1402,6 +1402,36 @@ var ITEMS = {
 // ── Initial RECENT data ──
 var RECENT = [];
 
+function loadReturnRequests(){
+  return fetch(brReturnApi('/return-requests'))
+    .then(function(r){ if(!r.ok) throw new Error('return-requests '+r.status); return r.json(); })
+    .then(function(rows){
+      RECENT = Array.isArray(rows) ? rows : [];
+      renderSalePills();
+      if(ACTIVE_TAB === 'sale') renderContent();
+      else renderAdminContent();
+    })
+    .catch(function(err){
+      console.warn('[BR Return] Could not load return request history:', err);
+      showToast('Could not load return history', 'warn');
+    });
+}
+
+function saveReturnRequest(req){
+  if(!req || !req.id) return Promise.resolve();
+  return fetch(brReturnApi('/return-requests'), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(req)
+  }).then(function(r){
+    if(!r.ok) throw new Error('return-requests save '+r.status);
+    return r.json();
+  }).catch(function(err){
+    console.warn('[BR Return] Could not save return request:', err);
+    showToast('History save failed', 'warn');
+  });
+}
+
 function normalizeSale(s){
   return (s || '').toString().trim().toUpperCase();
 }
@@ -2479,24 +2509,32 @@ function doSubmit(){
   var dateSort = (now.getFullYear()+543)*10000+(now.getMonth()+1)*100+now.getDate();
 
   if(ST.editId){
+    var editedRequest = null;
     for(var k=0;k<RECENT.length;k++){
       if(RECENT[k].id===ST.editId){
         RECENT[k].status='pending'; RECENT[k].adminNote=null; RECENT[k].rejectedItems=[];
         RECENT[k].submittedItems=submitted; RECENT[k].remark=remark; RECENT[k].items=submitted.length;
+        RECENT[k].sheetSync = 'none';
+        RECENT[k].sheetSyncAt = '';
+        RECENT[k].sheetSyncError = '';
+        editedRequest = RECENT[k];
         break;
       }
     }
     el('ok-id').innerHTML = ST.editId;
+    saveReturnRequest(editedRequest);
     showToast('แก้ไขและส่งใหม่แล้ว','success');
   } else {
     var newId = genId();
-    RECENT.unshift({
+    var newRequest = {
       id:newId,cust:ST.custName,custCode:ST.custCode,br:ST.br,
       items:submitted.length,sale:ST.sale,status:'pending',
       date:thDate,dateSort:dateSort,remark:remark,adminNote:'',rejectedItems:[],
-      submittedItems:submitted
-    });
+      submittedItems:submitted,sheetSync:'none',sheetSyncAt:'',sheetSyncError:''
+    };
+    RECENT.unshift(newRequest);
     el('ok-id').innerHTML = newId;
+    saveReturnRequest(newRequest);
     showToast('ส่งคำขอสำเร็จ','success');
   }
 
@@ -2584,7 +2622,9 @@ function openDetail(rid){
 }
 
 function cancelRequest(rid){
-  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){RECENT[i].status='cancelled';break;}
+  var changed = null;
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){RECENT[i].status='cancelled';changed=RECENT[i];break;}
+  saveReturnRequest(changed);
   closeAll(); renderSalePills(); renderContent();
   showToast('ยกเลิกคำขอแล้ว','warn');
 }
@@ -2807,6 +2847,7 @@ function adminApprove(){
       break;
     }
   }
+  saveReturnRequest(r);
   closeAll();
   renderSalePills();
   renderAdminContent();
@@ -2822,6 +2863,7 @@ function adminApprove(){
             RECENT[j].sheetSync = 'synced';
             RECENT[j].sheetSyncAt = new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
             RECENT[j].sheetSyncError = '';
+            saveReturnRequest(RECENT[j]);
             break;
           }
         }
@@ -2833,6 +2875,7 @@ function adminApprove(){
           if(RECENT[j].id===rid){
             RECENT[j].sheetSync = 'failed';
             RECENT[j].sheetSyncError = err;
+            saveReturnRequest(RECENT[j]);
             break;
           }
         }
@@ -2849,6 +2892,7 @@ function retrySheetSync(rid){
   if(!r) return;
   r.sheetSync = 'pending';
   r.sheetSyncError = '';
+  saveReturnRequest(r);
   renderAdminContent();
   showToast('กำลัง Retry Sync Sheet...','warn');
   updateSheetStatus(
@@ -2857,12 +2901,14 @@ function retrySheetSync(rid){
       r.sheetSync = 'synced';
       r.sheetSyncAt = new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
       r.sheetSyncError = '';
+      saveReturnRequest(r);
       renderAdminContent();
       showToast('Retry Sync Sheet สำเร็จ ✓','success');
     },
     function(err){
       r.sheetSync = 'failed';
       r.sheetSyncError = err;
+      saveReturnRequest(r);
       renderAdminContent();
       showToast('Retry ล้มเหลว: '+err,'error');
     }
@@ -2886,14 +2932,17 @@ function adminSendBack(){
     var c = codeList[i];
     failedItems.push({code:c, reason:ADMIN_REVIEW.reasons[c]||'ไม่ระบุเหตุผล'});
   }
+  var changed = null;
   for(var j=0;j<RECENT.length;j++){
     if(RECENT[j].id===rid){
       RECENT[j].status='rejected';
       RECENT[j].adminNote=ADMIN_REVIEW.note;
       RECENT[j].rejectedItems=failedItems;
+      changed = RECENT[j];
       break;
     }
   }
+  saveReturnRequest(changed);
   closeAll();
   renderSalePills();
   renderAdminContent();
@@ -3082,6 +3131,7 @@ renderSalePills();
 renderContent();
 
 // Close overlay on backdrop click (ยกเว้น login)
+loadReturnRequests();
 loadBorrowMasterData();
 
 document.querySelectorAll('.overlay').forEach(function(ov){

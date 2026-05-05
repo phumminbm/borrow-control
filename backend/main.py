@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import os
 import logging
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -92,6 +93,28 @@ def ensure_tables(db):
             br_inserted INTEGER DEFAULT 0, br_updated INTEGER DEFAULT 0,
             br_closed INTEGER DEFAULT 0, errors INTEGER DEFAULT 0,
             duration_ms INTEGER DEFAULT 0, error_msg TEXT
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS return_requests (
+            id TEXT PRIMARY KEY,
+            cust TEXT DEFAULT '',
+            cust_code TEXT DEFAULT '',
+            br TEXT DEFAULT '',
+            sale TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',
+            request_date TEXT DEFAULT '',
+            date_sort INTEGER DEFAULT 0,
+            remark TEXT DEFAULT '',
+            admin_note TEXT DEFAULT '',
+            items_count INTEGER DEFAULT 0,
+            submitted_items JSONB DEFAULT '[]'::jsonb,
+            rejected_items JSONB DEFAULT '[]'::jsonb,
+            sheet_sync TEXT DEFAULT 'none',
+            sheet_sync_at TEXT DEFAULT '',
+            sheet_sync_error TEXT DEFAULT '',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
 
@@ -282,6 +305,24 @@ class SyncPayload(BaseModel):
     rows: list[SyncRow]
     is_final_batch: bool = False
 
+class ReturnRequestPayload(BaseModel):
+    id: str
+    cust: str = ""
+    custCode: str = ""
+    br: str = ""
+    sale: str = ""
+    status: str = "pending"
+    date: str = ""
+    dateSort: int = 0
+    remark: str = ""
+    adminNote: str = ""
+    items: int = 0
+    submittedItems: list[dict] = Field(default_factory=list)
+    rejectedItems: list[dict] = Field(default_factory=list)
+    sheetSync: str = "none"
+    sheetSyncAt: str = ""
+    sheetSyncError: str = ""
+
 # ── Endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -327,6 +368,90 @@ def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
         """), {"bno": br.borrow_no}).fetchall()
         result.append({**dict(br._mapping), "items": [dict(i._mapping) for i in items]})
     return result
+
+def _return_request_from_row(row):
+    data = dict(row._mapping)
+    return {
+        "id": data.get("id", ""),
+        "cust": data.get("cust", ""),
+        "custCode": data.get("cust_code", ""),
+        "br": data.get("br", ""),
+        "sale": data.get("sale", ""),
+        "status": data.get("status", "pending"),
+        "date": data.get("request_date", ""),
+        "dateSort": data.get("date_sort", 0) or 0,
+        "remark": data.get("remark", ""),
+        "adminNote": data.get("admin_note", ""),
+        "items": data.get("items_count", 0) or 0,
+        "submittedItems": data.get("submitted_items") or [],
+        "rejectedItems": data.get("rejected_items") or [],
+        "sheetSync": data.get("sheet_sync", "none"),
+        "sheetSyncAt": data.get("sheet_sync_at", ""),
+        "sheetSyncError": data.get("sheet_sync_error", ""),
+    }
+
+@app.get("/return-requests")
+def get_return_requests(limit: int = 500, db: Session = Depends(get_db)):
+    ensure_tables(db)
+    rows = db.execute(text("""
+        SELECT * FROM return_requests
+        ORDER BY date_sort DESC, updated_at DESC
+        LIMIT :limit
+    """), {"limit": limit}).fetchall()
+    return [_return_request_from_row(r) for r in rows]
+
+@app.post("/return-requests")
+def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(get_db)):
+    ensure_tables(db)
+    params = {
+        "id": payload.id,
+        "cust": payload.cust,
+        "cust_code": payload.custCode,
+        "br": payload.br,
+        "sale": payload.sale,
+        "status": payload.status,
+        "request_date": payload.date,
+        "date_sort": payload.dateSort,
+        "remark": payload.remark,
+        "admin_note": payload.adminNote or "",
+        "items_count": payload.items,
+        "submitted_items": json.dumps(payload.submittedItems, ensure_ascii=False),
+        "rejected_items": json.dumps(payload.rejectedItems, ensure_ascii=False),
+        "sheet_sync": payload.sheetSync or "none",
+        "sheet_sync_at": payload.sheetSyncAt or "",
+        "sheet_sync_error": payload.sheetSyncError or "",
+    }
+    row = db.execute(text("""
+        INSERT INTO return_requests (
+            id, cust, cust_code, br, sale, status, request_date, date_sort,
+            remark, admin_note, items_count, submitted_items, rejected_items,
+            sheet_sync, sheet_sync_at, sheet_sync_error
+        ) VALUES (
+            :id, :cust, :cust_code, :br, :sale, :status, :request_date, :date_sort,
+            :remark, :admin_note, :items_count, CAST(:submitted_items AS jsonb), CAST(:rejected_items AS jsonb),
+            :sheet_sync, :sheet_sync_at, :sheet_sync_error
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            cust = EXCLUDED.cust,
+            cust_code = EXCLUDED.cust_code,
+            br = EXCLUDED.br,
+            sale = EXCLUDED.sale,
+            status = EXCLUDED.status,
+            request_date = EXCLUDED.request_date,
+            date_sort = EXCLUDED.date_sort,
+            remark = EXCLUDED.remark,
+            admin_note = EXCLUDED.admin_note,
+            items_count = EXCLUDED.items_count,
+            submitted_items = EXCLUDED.submitted_items,
+            rejected_items = EXCLUDED.rejected_items,
+            sheet_sync = EXCLUDED.sheet_sync,
+            sheet_sync_at = EXCLUDED.sheet_sync_at,
+            sheet_sync_error = EXCLUDED.sheet_sync_error,
+            updated_at = NOW()
+        RETURNING *
+    """), params).fetchone()
+    db.commit()
+    return {"success": True, "request": _return_request_from_row(row)}
 
 @app.get("/alerts")
 def get_alerts(sale: Optional[str] = Query(None), db: Session = Depends(get_db)):
