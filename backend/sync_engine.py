@@ -17,6 +17,10 @@ SHEET_RANGE      = "Sheet1!A:O"
 DATABASE_URL     = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost/borrow_control")
 CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS", "credentials.json")
 
+# Fix for Render: handle postgres:// → postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # Column index (0-based) — ปรับถ้า header จริงต่างกัน
 C = {
     "DATE": 0, "STATUS": 1, "BORROW_NO": 2, "ISTOCK_ID": 3, "ERP_ID": 4,
@@ -31,7 +35,20 @@ logging.basicConfig(
     handlers=[logging.FileHandler("sync.log"), logging.StreamHandler()],
 )
 log = logging.getLogger(__name__)
-engine  = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10,
+    connect_args={
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    },
+)
 Session = sessionmaker(bind=engine)
 
 

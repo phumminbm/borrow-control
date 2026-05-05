@@ -15,7 +15,25 @@ logging.basicConfig(
 logger = logging.getLogger("borrow_control")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/borrow_control")
-engine = create_engine(DATABASE_URL)
+
+# Fix for Render: handle postgres:// → postgresql:// (Render ให้ prefix เก่า)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,       # ตรวจสอบ connection ก่อนใช้ทุกครั้ง
+    pool_recycle=300,          # recycle หลัง 5 นาที (ก่อน Render ตัด)
+    pool_size=5,
+    max_overflow=10,
+    connect_args={
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    },
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 app = FastAPI(title="Borrow Control API", version="1.0.0")
