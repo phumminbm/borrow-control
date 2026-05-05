@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel, Field, validator
 from typing import Optional
 from datetime import datetime, timezone
+from pathlib import Path
 import os
 import logging
 
@@ -37,6 +39,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 app = FastAPI(title="Borrow Control API", version="1.0.0")
+BR_RETURN_HTML = Path(os.getenv("BR_RETURN_HTML", Path(__file__).resolve().parent / "static" / "br-return.html"))
 
 app.add_middleware(
     CORSMiddleware,
@@ -284,6 +287,13 @@ class SyncPayload(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/br-return")
+@app.get("/br-return.html")
+def br_return_page():
+    if not BR_RETURN_HTML.exists():
+        raise HTTPException(404, "BR Return page not found")
+    return FileResponse(str(BR_RETURN_HTML), media_type="text/html")
 
 @app.get("/customers")
 def get_customers(

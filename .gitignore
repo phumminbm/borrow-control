@@ -1,0 +1,14 @@
+.claude/
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+
+backend/.venv/
+backend/.uv-cache/
+backend/__pycache__/
+backend/uvicorn.*.log
+
+frontend/node_modules/
+frontend/dist/
