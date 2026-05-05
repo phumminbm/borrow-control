@@ -1401,8 +1401,24 @@ var ITEMS = {
 
 // ── Initial RECENT data ──
 var RECENT = [];
+var RETURN_HISTORY_LOADING = false;
+var RETURN_HISTORY_POLL_MS = 5000;
 
-function loadReturnRequests(){
+function hasOpenWorkflowOverlay(){
+  var ids = ['ov1','ov2','ov3','ov-confirm','ov-detail','ov-admin-review','ov-admin-login'];
+  for(var i=0;i<ids.length;i++){
+    var node = document.getElementById(ids[i]);
+    if(node && node.classList.contains('show')) return true;
+  }
+  return false;
+}
+
+function loadReturnRequests(opts){
+  opts = opts || {};
+  if(RETURN_HISTORY_LOADING) return Promise.resolve();
+  if(opts.silent && document.hidden) return Promise.resolve();
+  if(opts.silent && hasOpenWorkflowOverlay()) return Promise.resolve();
+  RETURN_HISTORY_LOADING = true;
   return fetch(brReturnApi('/return-requests'))
     .then(function(r){ if(!r.ok) throw new Error('return-requests '+r.status); return r.json(); })
     .then(function(rows){
@@ -1413,8 +1429,20 @@ function loadReturnRequests(){
     })
     .catch(function(err){
       console.warn('[BR Return] Could not load return request history:', err);
-      showToast('Could not load return history', 'warn');
+      if(!opts.silent) showToast('Could not load return history', 'warn');
+    })
+    .finally(function(){
+      RETURN_HISTORY_LOADING = false;
     });
+}
+
+function startReturnHistoryPolling(){
+  setInterval(function(){
+    loadReturnRequests({silent:true});
+  }, RETURN_HISTORY_POLL_MS);
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) loadReturnRequests({silent:true});
+  });
 }
 
 function saveReturnRequest(req){
@@ -3133,6 +3161,7 @@ renderContent();
 // Close overlay on backdrop click (ยกเว้น login)
 loadReturnRequests();
 loadBorrowMasterData();
+startReturnHistoryPolling();
 
 document.querySelectorAll('.overlay').forEach(function(ov){
   if(ov.id==='ov-admin-login') return;
