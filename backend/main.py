@@ -243,6 +243,19 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
+        # Keep real duplicate product-code lines, but remove exact repeated
+        # staging rows caused by a retried/overlapping sync batch.
+        db.execute(text("""
+            DELETE FROM borrow_items_staging a
+            USING borrow_items_staging b
+            WHERE a.id > b.id
+              AND a.borrow_no = b.borrow_no
+              AND COALESCE(a.product_code, '') = COALESCE(b.product_code, '')
+              AND COALESCE(a.product_name, '') = COALESCE(b.product_name, '')
+              AND COALESCE(a.price, 0) = COALESCE(b.price, 0)
+              AND COALESCE(a.quantity, 0) = COALESCE(b.quantity, 0)
+              AND COALESCE(a.total_price, 0) = COALESCE(b.total_price, 0)
+        """))
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
