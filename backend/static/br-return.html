@@ -2090,7 +2090,7 @@ function buildCalMonth(y,m,fromDs,toDs,todayDs){
 }
 
 function rebuildTable(){
-  var rows = RECENT.filter(function(r){
+  var baseRows = RECENT.filter(function(r){
     if(MSALE && r.sale!==MSALE) return false;
     if(FILTERS.status!=='all' && r.status!==FILTERS.status) return false;
     if(FILTERS.search){
@@ -2099,9 +2099,13 @@ function rebuildTable(){
     }
     if(FILTERS.dateFrom && r.dateSort < FILTERS.dateFrom) return false;
     if(FILTERS.dateTo   && r.dateSort > FILTERS.dateTo)   return false;
-    if(!passColFilters(r,'sale')) return false;
     return true;
   });
+  var rows = baseRows.filter(function(r){ return passColFilters(r,'sale'); });
+  if(rows.length===0 && baseRows.length>0 && hasActiveColFilters('sale')){
+    COL_FILTERS.sale = {};
+    rows = baseRows;
+  }
 
   rows.sort(function(a,b){ return b.dateSort-a.dateSort||(a.id<b.id?1:-1); });
 
@@ -2190,14 +2194,18 @@ function kpiAdminCard(status, cls, label, val){
 }
 
 function rebuildAdminTable(){
-  var rows = RECENT.filter(function(r){
+  var baseRows = RECENT.filter(function(r){
     if(ADMIN_FILTERS.status!=='all' && r.status!==ADMIN_FILTERS.status) return false;
     if(ADMIN_FILTERS.sale!=='all' && r.sale!==ADMIN_FILTERS.sale) return false;
     if(ADMIN_FILTERS.dateFrom && r.dateSort < ADMIN_FILTERS.dateFrom) return false;
     if(ADMIN_FILTERS.dateTo   && r.dateSort > ADMIN_FILTERS.dateTo)   return false;
-    if(!passColFilters(r,'admin')) return false;
     return true;
   });
+  var rows = baseRows.filter(function(r){ return passColFilters(r,'admin'); });
+  if(rows.length===0 && baseRows.length>0 && hasActiveColFilters('admin')){
+    COL_FILTERS.admin = {};
+    rows = baseRows;
+  }
   rows.sort(function(a,b){ return b.dateSort-a.dateSort; });
 
   var countEl = el('admin-count');
@@ -3123,6 +3131,14 @@ function passColFilters(r, target){
     if(!cf[field][getFieldVal(r,field)]) return false;
   }
   return true;
+}
+
+function hasActiveColFilters(target){
+  var cf = COL_FILTERS[target] || {};
+  for(var field in cf){
+    if(cf[field]) return true;
+  }
+  return false;
 }
 
 // ═══════════════════════════════════════════════════════════════
