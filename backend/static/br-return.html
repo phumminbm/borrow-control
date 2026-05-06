@@ -1494,9 +1494,47 @@ function mapBorrow(row){
   };
 }
 
-function mapItem(row){
+function buildItemKey(code, itemId, lineNo, idx){
+  if(lineNo!==undefined && lineNo!==null && Number(lineNo)>0) return 'line:'+String(lineNo)+'|code:'+String(code||'');
+  if(itemId!==undefined && itemId!==null && String(itemId)!=='') return 'item:'+String(itemId);
+  return 'idx:'+String((idx||0)+1)+'|code:'+String(code||'');
+}
+
+function itemKey(p, idx){
+  if(!p) return '';
+  return p.lineKey || buildItemKey(p.code, p.itemId, p.lineNo, idx);
+}
+
+function requestItemKey(si, idx){
+  if(!si) return '';
+  return si.lineKey || buildItemKey(si.code, si.itemId, si.lineNo, idx);
+}
+
+function safeDomId(v){
+  return String(v||'').replace(/[^a-zA-Z0-9]/g,'_');
+}
+
+function findProductByKey(key){
+  var prods = ITEMS[ST.br]||[];
+  for(var i=0;i<prods.length;i++) if(itemKey(prods[i], i)===key) return prods[i];
+  for(var j=0;j<prods.length;j++) if(prods[j].code===key) return prods[j];
+  return null;
+}
+
+function productLineLabel(p){
+  if(!p || !p.lineNo) return '';
+  return ' <span style="font-size:10px;color:var(--sub2)">#'+p.lineNo+'</span>';
+}
+
+function mapItem(row, idx){
+  var code = row.product_code || row.code || '';
+  var itemId = row.item_id || row.itemId || '';
+  var lineNo = Number(row.line_no || row.lineNo || 0);
   return {
-    code: row.product_code || row.code || '',
+    itemId: itemId,
+    lineNo: lineNo,
+    lineKey: buildItemKey(code, itemId, lineNo, idx),
+    code: code,
     name: row.product_name || row.name || '',
     qty: Number(row.quantity || row.qty || 0),
     price: Number(row.price || 0),
@@ -1564,7 +1602,7 @@ function loadCustomerBorrowData(custCode){
       for(var i=0;i<rows.length;i++){
         var brNo = rows[i].borrow_no || rows[i].br;
         if(!brNo) continue;
-        ITEMS[brNo] = (Array.isArray(rows[i].items) ? rows[i].items : []).map(mapItem).filter(function(p){ return p.code && p.qty > 0; });
+        ITEMS[brNo] = (Array.isArray(rows[i].items) ? rows[i].items : []).map(function(row, idx){ return mapItem(row, idx); }).filter(function(p){ return p.code && p.qty > 0; });
       }
       return BRS[custCode];
     }).catch(function(err){
@@ -1671,6 +1709,17 @@ function getItemTypes(si){
   if((si.saleQty||0)>0) types.push({key:'SALE',   badge:'SALE',  qty:si.saleQty||0});
   if((si.freeQty||0)>0) types.push({key:'FREE',   badge:'FREE',  qty:si.freeQty||0});
   return types;
+}
+
+function fallbackSubmittedItems(br){
+  return (ITEMS[br]||[]).map(function(p, idx){
+    var k = itemKey(p, idx);
+    return {itemId:p.itemId||'',lineNo:p.lineNo||0,lineKey:k,code:p.code,name:p.name,retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};
+  });
+}
+
+function reviewItemKey(it, idx){
+  return requestItemKey(it, idx);
 }
 
 function getItemType(si){
@@ -2363,16 +2412,17 @@ function renderProductList(){
 
   for(var i=0;i<prods.length;i++){
     var p = prods[i];
-    var checked = ST.items[p.code]===true;
-    var rv=ST.retQtys[p.code]||0, cv=ST.clmQtys[p.code]||0, sv=ST.saleQtys[p.code]||0, fv=ST.freeQtys[p.code]||0;
+    var k = itemKey(p, i);
+    var checked = ST.items[k]===true;
+    var rv=ST.retQtys[k]||0, cv=ST.clmQtys[k]||0, sv=ST.saleQtys[k]||0, fv=ST.freeQtys[k]||0;
     var rem = p.qty - rv - cv - sv - fv;
-    var sc = p.code.replace(/[^a-zA-Z0-9]/g,'_');
+    var sc = safeDomId(k);
 
-    h += '<tr class="prod-row'+(checked?' row-checked':'')+'" id="pi-'+sc+'" onclick="rowToggle(event,\''+p.code+'\')">';
+    h += '<tr class="prod-row'+(checked?' row-checked':'')+'" id="pi-'+sc+'" onclick="rowToggle(event,\''+k+'\')">';
     // checkbox
-    h += '<td><input type="checkbox" class="product-cb" id="cb-'+sc+'" onclick="event.stopPropagation()" onchange="toggleItem(\''+p.code+'\',this.checked)"'+(checked?' checked':'')+'/></td>';
+    h += '<td><input type="checkbox" class="product-cb" id="cb-'+sc+'" onclick="event.stopPropagation()" onchange="toggleItem(\''+k+'\',this.checked)"'+(checked?' checked':'')+'/></td>';
     // code
-    h += '<td><span class="product-code">'+p.code+'</span></td>';
+    h += '<td><span class="product-code">'+p.code+'</span>'+productLineLabel(p)+'</td>';
     // name
     h += '<td><span class="product-name">'+p.name+'</span></td>';
     // stock
@@ -2390,9 +2440,9 @@ function renderProductList(){
       h += '<td>';
       if(checked){
         h += '<div class="spinner">'
-          +'<button class="sp-btn" onclick="spinQty(\''+tp.key+'\',\''+p.code+'\',-1,'+p.qty+')">−</button>'
-          +'<input class="sp-val" type="number" min="0" max="'+p.qty+'" value="'+tp.val+'" style="color:'+tp.col+'" onchange="updateQty(\''+tp.key+'\',\''+p.code+'\',this.value,'+p.qty+')">'
-          +'<button class="sp-btn"'+(rem<=0?' disabled style="opacity:.25;pointer-events:none"':'')+' onclick="spinQty(\''+tp.key+'\',\''+p.code+'\',1,'+p.qty+')">+</button>'
+          +'<button class="sp-btn" onclick="spinQty(\''+tp.key+'\',\''+k+'\',-1,'+p.qty+')">−</button>'
+          +'<input class="sp-val" type="number" min="0" max="'+p.qty+'" value="'+tp.val+'" style="color:'+tp.col+'" onchange="updateQty(\''+tp.key+'\',\''+k+'\',this.value,'+p.qty+')">'
+          +'<button class="sp-btn"'+(rem<=0?' disabled style="opacity:.25;pointer-events:none"':'')+' onclick="spinQty(\''+tp.key+'\',\''+k+'\',1,'+p.qty+')">+</button>'
           +'</div>';
       } else {
         h += '<div class="spinner dis">'
@@ -2487,9 +2537,8 @@ function updateSummary(){
 // CONFIRM POPUP
 // ═══════════════════════════════════════════════════════════════
 function showConfirm(){
-  var codes = Object.keys(ST.items).filter(function(c){return ST.items[c];});
-  if(codes.length===0) return;
-  var prods = ITEMS[ST.br]||[];
+  var keys = Object.keys(ST.items).filter(function(c){return ST.items[c];});
+  if(keys.length===0) return;
 
   var h = '';
   // Info bar
@@ -2510,13 +2559,14 @@ function showConfirm(){
   h += '<th class="th-c" style="color:var(--purple);width:72px">🎁 FREE</th>';
   h += '</tr></thead><tbody>';
 
-  for(var i=0;i<codes.length;i++){
-    var c = codes[i];
-    var pname = '';
-    for(var j=0;j<prods.length;j++) if(prods[j].code===c){pname=prods[j].name;break;}
-    var rv=ST.retQtys[c]||0, cv=ST.clmQtys[c]||0, sv=ST.saleQtys[c]||0, fv=ST.freeQtys[c]||0;
+  for(var i=0;i<keys.length;i++){
+    var k = keys[i];
+    var p = findProductByKey(k) || {};
+    var c = p.code || k;
+    var pname = p.name || '';
+    var rv=ST.retQtys[k]||0, cv=ST.clmQtys[k]||0, sv=ST.saleQtys[k]||0, fv=ST.freeQtys[k]||0;
     h += '<tr class="prod-row">';
-    h += '<td><span class="product-code">'+c+'</span></td>';
+    h += '<td><span class="product-code">'+c+'</span>'+productLineLabel(p)+'</td>';
     h += '<td><span class="product-name">'+pname+'</span></td>';
     h += '<td style="text-align:center;font-family:var(--mono);font-size:13px;color:'+(rv>0?'var(--green)':'var(--sub2)')+'">'+rv+'</td>';
     h += '<td style="text-align:center;font-family:var(--mono);font-size:13px;color:'+(cv>0?'var(--yellow)':'var(--sub2)')+'">'+cv+'</td>';
@@ -2543,16 +2593,24 @@ function showConfirm(){
 // SUBMIT
 // ═══════════════════════════════════════════════════════════════
 function doSubmit(){
-  var codes = Object.keys(ST.items).filter(function(c){return ST.items[c];});
-  if(codes.length===0) return;
+  var keys = Object.keys(ST.items).filter(function(c){return ST.items[c];});
+  if(keys.length===0) return;
 
   var submitted = [];
-  for(var i=0;i<codes.length;i++){
-    var c = codes[i];
-    var prods = ITEMS[ST.br]||[];
-    var pname = '';
-    for(var j=0;j<prods.length;j++) if(prods[j].code===c) pname = prods[j].name;
-    submitted.push({code:c,name:pname,retQty:ST.retQtys[c]||0,clmQty:ST.clmQtys[c]||0,saleQty:ST.saleQtys[c]||0,freeQty:ST.freeQtys[c]||0});
+  for(var i=0;i<keys.length;i++){
+    var k = keys[i];
+    var p = findProductByKey(k) || {};
+    submitted.push({
+      itemId:p.itemId||'',
+      lineNo:p.lineNo||0,
+      lineKey:k,
+      code:p.code||k,
+      name:p.name||'',
+      retQty:ST.retQtys[k]||0,
+      clmQty:ST.clmQtys[k]||0,
+      saleQty:ST.saleQtys[k]||0,
+      freeQty:ST.freeQtys[k]||0
+    });
   }
 
   var remark = el('ov3-remark').value||'';
@@ -2637,22 +2695,19 @@ function openDetail(rid){
   h += '<div class="detail-section-title">รายการสินค้า ('+r.items+' รายการ)</div>';
   var items = r.submittedItems && r.submittedItems.length>0 ? r.submittedItems : [];
   if(items.length===0){
-    var fallbackItems = ITEMS[r.br]||[];
-    var types = ['WAIT','CLAIM','SALE','FREE'];
-    for(var fi=0;fi<fallbackItems.length;fi++){
-      items.push({code:fallbackItems[fi].code,name:fallbackItems[fi].name,retQty:fallbackItems[fi].qty,clmQty:0,saleQty:0,freeQty:0});
-    }
+    items = fallbackSubmittedItems(r.br);
   }
 
   // Check which items are rejected
-  var rejCodes = {};
-  if(r.rejectedItems) for(var ri2=0;ri2<r.rejectedItems.length;ri2++) rejCodes[r.rejectedItems[ri2].code]=r.rejectedItems[ri2].reason;
+  var rejItems = {};
+  if(r.rejectedItems) for(var ri2=0;ri2<r.rejectedItems.length;ri2++) rejItems[requestItemKey(r.rejectedItems[ri2], ri2)]=r.rejectedItems[ri2].reason;
 
   for(var ii=0;ii<items.length;ii++){
     var it = items[ii];
-    var isRej = !!rejCodes[it.code];
+    var rk = reviewItemKey(it, ii);
+    var isRej = !!rejItems[rk];
     h += '<div class="prod-detail-row'+(isRej?' rejected-row':'')+'">';
-    h += '<div style="flex:1"><div class="prod-detail-name">'+it.name+'</div><div class="prod-detail-code">'+it.code+(isRej?' <span style="color:var(--red);font-size:10px">✕ '+rejCodes[it.code]+'</span>':'')+'</div></div>';
+    h += '<div style="flex:1"><div class="prod-detail-name">'+it.name+'</div><div class="prod-detail-code">'+it.code+productLineLabel(it)+(isRej?' <span style="color:var(--red);font-size:10px">✕ '+rejItems[rk]+'</span>':'')+'</div></div>';
     h += itemAllTypesHTML(it);
     h += '</div>';
   }
@@ -2693,11 +2748,12 @@ function editRequest(rid){
   if(r.submittedItems){
     for(var i=0;i<r.submittedItems.length;i++){
       var si = r.submittedItems[i];
-      ST.items[si.code] = true;
-      ST.retQtys[si.code] = si.retQty||0;
-      ST.clmQtys[si.code] = si.clmQty||0;
-      ST.saleQtys[si.code] = si.saleQty||0;
-      ST.freeQtys[si.code] = si.freeQty||0;
+      var k = requestItemKey(si, i);
+      ST.items[k] = true;
+      ST.retQtys[k] = si.retQty||0;
+      ST.clmQtys[k] = si.clmQty||0;
+      ST.saleQtys[k] = si.saleQty||0;
+      ST.freeQtys[k] = si.freeQty||0;
     }
   }
 
@@ -2730,32 +2786,33 @@ function openAdminReview(rid){
   if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>หมายเหตุจาก Sale</label><span>'+r.remark+'</span></div>';
   h += '</div><hr class="sep"/>';
 
-  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : (ITEMS[r.br]||[]).map(function(p){return {code:p.code,name:p.name,retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};});
+  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : fallbackSubmittedItems(r.br);
 
   h += '<div style="margin-bottom:8px;font-size:10px;font-weight:600;letter-spacing:1px;color:var(--sub2);text-transform:uppercase">ตรวจสอบรายการสินค้า</div>';
   for(var i=0;i<items.length;i++){
     var it = items[i];
-    var sid = 'ri-'+it.code.replace(/[^a-zA-Z0-9]/g,'_');
+    var ik = reviewItemKey(it, i);
+    var sid = 'ri-'+safeDomId(ik);
     var itTypes = getItemTypes(it);
     h += '<div class="review-item" id="'+sid+'">';
     h += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px">';
     h += '<div><div style="font-size:12px;font-weight:500;color:var(--text)">'+it.name+'</div>';
-    h += '<div style="font-size:10px;color:var(--sub);margin-top:2px;font-family:var(--mono)">'+it.code+'</div></div>';
-    h += '<button class="btn-pass" style="flex-shrink:0;font-size:10px;padding:3px 9px" onclick="passAllItem(\''+it.code+'\')">✓ Pass All</button>';
+    h += '<div style="font-size:10px;color:var(--sub);margin-top:2px;font-family:var(--mono)">'+it.code+productLineLabel(it)+'</div></div>';
+    h += '<button class="btn-pass" style="flex-shrink:0;font-size:10px;padding:3px 9px" onclick="passAllItem(\''+ik+'\')">✓ Pass All</button>';
     h += '</div>';
     // Per-type rows
     for(var j=0;j<itTypes.length;j++){
       var tp = itTypes[j];
-      var tkey = it.code+'||'+tp.key;
-      var tid = 'rtr-'+tkey.replace(/[^a-zA-Z0-9]/g,'_');
+      var tkey = ik+'||'+tp.key;
+      var tid = 'rtr-'+safeDomId(tkey);
       h += '<div class="review-type-row" id="'+tid+'">';
       h += '<div style="flex:1;display:flex;align-items:center;gap:6px">'+typeBadge(tp.badge)+'<span style="font-size:11px;color:var(--sub)">× '+tp.qty+'</span></div>';
       h += '<div class="review-actions">';
-      h += '<button class="btn-pass" id="pass-'+tid+'" onclick="setReviewType(\''+it.code+'\',\''+tp.key+'\',\'pass\')">✓ PASS</button>';
-      h += '<button class="btn-fail" id="fail-'+tid+'" onclick="setReviewType(\''+it.code+'\',\''+tp.key+'\',\'fail\')">✕ FAIL</button>';
+      h += '<button class="btn-pass" id="pass-'+tid+'" onclick="setReviewType(\''+ik+'\',\''+tp.key+'\',\'pass\')">✓ PASS</button>';
+      h += '<button class="btn-fail" id="fail-'+tid+'" onclick="setReviewType(\''+ik+'\',\''+tp.key+'\',\'fail\')">✕ FAIL</button>';
       h += '</div></div>';
     }
-    h += '<textarea class="fail-reason" id="reason-'+sid+'" placeholder="ระบุเหตุผล..." style="display:none;margin-top:6px" oninput="ADMIN_REVIEW.reasons[\''+it.code+'\']=this.value"></textarea>';
+    h += '<textarea class="fail-reason" id="reason-'+sid+'" placeholder="ระบุเหตุผล..." style="display:none;margin-top:6px" oninput="ADMIN_REVIEW.reasons[\''+ik+'\']=this.value"></textarea>';
     h += '</div>';
   }
 
@@ -2771,12 +2828,12 @@ function openAdminReview(rid){
   show('ov-admin-review');
 }
 
-function setReviewType(code, typeKey, val){
-  var rKey = code+'||'+typeKey;
+function setReviewType(itemKeyVal, typeKey, val){
+  var rKey = itemKeyVal+'||'+typeKey;
   ADMIN_REVIEW.items[rKey] = val;
 
   // update type-row style
-  var tid = 'rtr-'+rKey.replace(/[^a-zA-Z0-9]/g,'_');
+  var tid = 'rtr-'+safeDomId(rKey);
   var rowEl = el(tid);
   if(rowEl){
     rowEl.className = 'review-type-row '+(val==='pass'?'pass':'fail');
@@ -2785,7 +2842,7 @@ function setReviewType(code, typeKey, val){
   }
 
   // update parent review-item style based on all its types
-  var sid = 'ri-'+code.replace(/[^a-zA-Z0-9]/g,'_');
+  var sid = 'ri-'+safeDomId(itemKeyVal);
   var parentEl = el(sid);
   if(parentEl){
     var r2 = null;
@@ -2793,12 +2850,12 @@ function setReviewType(code, typeKey, val){
     if(r2){
       var rit = null;
       var sitems = r2.submittedItems||[];
-      for(var j=0;j<sitems.length;j++) if(sitems[j].code===code){rit=sitems[j];break;}
+      for(var j=0;j<sitems.length;j++) if(reviewItemKey(sitems[j], j)===itemKeyVal || sitems[j].code===itemKeyVal){rit=sitems[j];break;}
       if(rit){
         var tps = getItemTypes(rit);
         var hasFl=false, hasPnd=false;
         for(var k=0;k<tps.length;k++){
-          var v2 = ADMIN_REVIEW.items[code+'||'+tps[k].key];
+          var v2 = ADMIN_REVIEW.items[itemKeyVal+'||'+tps[k].key];
           if(v2==='fail') hasFl=true;
           else if(!v2||v2==='pending') hasPnd=true;
         }
@@ -2812,7 +2869,7 @@ function setReviewType(code, typeKey, val){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===ADMIN_REVIEW.id){r=RECENT[i];break;}
   if(!r) return;
-  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : (ITEMS[r.br]||[]).map(function(p){return {code:p.code,name:p.name,retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};});
+  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : fallbackSubmittedItems(r.br);
   updateReviewSummary(items);
   updateReviewButtons(items);
 }
@@ -2821,7 +2878,8 @@ function _getAllTypeKeys(items){
   var keys = [];
   for(var i=0;i<items.length;i++){
     var tps = getItemTypes(items[i]);
-    for(var j=0;j<tps.length;j++) keys.push(items[i].code+'||'+tps[j].key);
+    var ik = reviewItemKey(items[i], i);
+    for(var j=0;j<tps.length;j++) keys.push(ik+'||'+tps[j].key);
   }
   return keys;
 }
@@ -2865,23 +2923,26 @@ function approveAll(){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===ADMIN_REVIEW.id){r=RECENT[i];break;}
   if(!r) return;
-  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : (ITEMS[r.br]||[]).map(function(p){return {code:p.code,name:p.name,retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};});
+  var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : fallbackSubmittedItems(r.br);
   for(var i=0;i<items.length;i++){
     var tps = getItemTypes(items[i]);
-    for(var j=0;j<tps.length;j++) setReviewType(items[i].code, tps[j].key, 'pass');
+    var ik = reviewItemKey(items[i], i);
+    for(var j=0;j<tps.length;j++) setReviewType(ik, tps[j].key, 'pass');
   }
 }
 
-function passAllItem(code){
+function passAllItem(itemKeyVal){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===ADMIN_REVIEW.id){r=RECENT[i];break;}
   if(!r) return;
   var items = r.submittedItems||[];
   var it = null;
-  for(var i=0;i<items.length;i++) if(items[i].code===code){it=items[i];break;}
+  var idx = -1;
+  for(var i=0;i<items.length;i++) if(reviewItemKey(items[i], i)===itemKeyVal || items[i].code===itemKeyVal){it=items[i];idx=i;break;}
   if(!it) return;
   var tps = getItemTypes(it);
-  for(var j=0;j<tps.length;j++) setReviewType(code, tps[j].key, 'pass');
+  var ik = reviewItemKey(it, idx);
+  for(var j=0;j<tps.length;j++) setReviewType(ik, tps[j].key, 'pass');
 }
 
 function adminApprove(){
@@ -2970,19 +3031,31 @@ function retrySheetSync(rid){
 function adminSendBack(){
   var rid = ADMIN_REVIEW.id;
   var failedItems = [];
-  // รวบ item code ที่มี type ใดก็ตาม fail
-  var failedCodes = {};
+  var failedKeys = {};
   var keys = Object.keys(ADMIN_REVIEW.items);
   for(var i=0;i<keys.length;i++){
     if(ADMIN_REVIEW.items[keys[i]]==='fail'){
-      var code = keys[i].split('||')[0];
-      failedCodes[code] = true;
+      var itemKeyVal = keys[i].split('||')[0];
+      failedKeys[itemKeyVal] = true;
     }
   }
-  var codeList = Object.keys(failedCodes);
-  for(var i=0;i<codeList.length;i++){
-    var c = codeList[i];
-    failedItems.push({code:c, reason:ADMIN_REVIEW.reasons[c]||'ไม่ระบุเหตุผล'});
+  var r = null;
+  for(var ri=0;ri<RECENT.length;ri++) if(RECENT[ri].id===rid){r=RECENT[ri];break;}
+  var sourceItems = r && r.submittedItems ? r.submittedItems : [];
+  var keyList = Object.keys(failedKeys);
+  for(var i=0;i<keyList.length;i++){
+    var ikey = keyList[i];
+    var src = null;
+    for(var si=0;si<sourceItems.length;si++){
+      if(reviewItemKey(sourceItems[si], si)===ikey || sourceItems[si].code===ikey){src=sourceItems[si];break;}
+    }
+    failedItems.push({
+      itemId:src&&src.itemId||'',
+      lineNo:src&&src.lineNo||0,
+      lineKey:ikey,
+      code:src&&src.code||ikey,
+      reason:ADMIN_REVIEW.reasons[ikey]||'ไม่ระบุเหตุผล'
+    });
   }
   var changed = null;
   for(var j=0;j<RECENT.length;j++){

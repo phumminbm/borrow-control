@@ -361,7 +361,10 @@ def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
     result = []
     for br in brs:
         items = db.execute(text("""
-            SELECT product_code, product_name, price, quantity, total_price
+            SELECT
+                id AS item_id,
+                ROW_NUMBER() OVER (ORDER BY id) AS line_no,
+                product_code, product_name, price, quantity, total_price
             FROM borrow_items WHERE borrow_no=:bno
             ORDER BY id
         """), {"bno": br.borrow_no}).fetchall()
