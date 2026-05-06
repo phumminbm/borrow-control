@@ -1419,10 +1419,11 @@ function loadReturnRequests(opts){
   if(opts.silent && document.hidden) return Promise.resolve();
   if(opts.silent && hasOpenWorkflowOverlay()) return Promise.resolve();
   RETURN_HISTORY_LOADING = true;
-  return fetch(brReturnApi('/return-requests'))
+  return fetch(brReturnApi('/return-requests?limit=5000'))
     .then(function(r){ if(!r.ok) throw new Error('return-requests '+r.status); return r.json(); })
     .then(function(rows){
       RECENT = Array.isArray(rows) ? rows : [];
+      mergeHistorySales();
       renderSalePills();
       if(ACTIVE_TAB === 'sale') renderContent();
       else renderAdminContent();
@@ -1503,11 +1504,26 @@ function mapItem(row){
   };
 }
 
+function mergeHistorySales(){
+  var seen = {};
+  var merged = [];
+  function addSale(s){
+    s = normalizeSale(s);
+    if(!s || seen[s]) return;
+    seen[s] = true;
+    merged.push(s);
+  }
+  for(var i=0;i<SALES.length;i++) addSale(SALES[i]);
+  for(var j=0;j<RECENT.length;j++) addSale(RECENT[j].sale);
+  SALES = merged.sort();
+}
+
 function applyBorrowMasterData(customers, sales, brsByCustomer, itemsByBr){
   if(Array.isArray(customers) && customers.length) CUSTS = customers;
   if(Array.isArray(sales) && sales.length) SALES = sales;
   BRS = brsByCustomer || BRS || {};
   ITEMS = itemsByBr || ITEMS || {};
+  mergeHistorySales();
   MASTER_SOURCE = 'api';
   renderSalePills();
   if(ACTIVE_TAB === 'sale') renderContent();
