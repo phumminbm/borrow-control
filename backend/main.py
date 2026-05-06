@@ -82,8 +82,7 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW(),
-            UNIQUE(borrow_no, product_code)
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
     db.execute(text("""
@@ -130,8 +129,7 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items_staging (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2),
-            UNIQUE(borrow_no, product_code)
+            total_price NUMERIC(14,2)
         )
     """))
     db.execute(text("""
@@ -145,6 +143,8 @@ def ensure_tables(db):
     # ── Migrations: เพิ่ม column ใหม่ให้ตารางที่มีอยู่แล้ว (safe for existing DB) ──
     db.execute(text("ALTER TABLE customers         ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
+    db.execute(text("ALTER TABLE borrow_items DROP CONSTRAINT IF EXISTS borrow_items_borrow_no_product_code_key"))
+    db.execute(text("ALTER TABLE borrow_items_staging DROP CONSTRAINT IF EXISTS borrow_items_staging_borrow_no_product_code_key"))
     db.commit()
 
 def recalc_all_customers(db):
@@ -244,16 +244,15 @@ def swap_staging_to_main(db):
 
         # 4. Upsert borrow_items จาก staging → main
         db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
+        """))
+        db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
             SELECT borrow_no, product_code, product_name, price, quantity, total_price, :now
             FROM borrow_items_staging
-            ON CONFLICT (borrow_no, product_code) DO UPDATE SET
-                product_name = EXCLUDED.product_name,
-                price        = EXCLUDED.price,
-                quantity     = EXCLUDED.quantity,
-                total_price  = EXCLUDED.total_price,
-                updated_at   = EXCLUDED.updated_at
+            ORDER BY id
         """), {"now": now})
         logger.info("swap step 4/5: borrow_items upserted")
 
@@ -364,7 +363,7 @@ def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
         items = db.execute(text("""
             SELECT product_code, product_name, price, quantity, total_price
             FROM borrow_items WHERE borrow_no=:bno
-            ORDER BY product_code
+            ORDER BY id
         """), {"bno": br.borrow_no}).fetchall()
         result.append({**dict(br._mapping), "items": [dict(i._mapping) for i in items]})
     return result
@@ -544,11 +543,6 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                 INSERT INTO borrow_items_staging
                     (borrow_no, product_code, product_name, price, quantity, total_price)
                 VALUES (:bno, :code, :name, :price, :qty, :total)
-                ON CONFLICT (borrow_no, product_code) DO UPDATE SET
-                    product_name = EXCLUDED.product_name,
-                    price        = EXCLUDED.price,
-                    quantity     = EXCLUDED.quantity,
-                    total_price  = EXCLUDED.total_price
             """), item_params)
 
         db.commit()

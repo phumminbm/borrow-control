@@ -115,6 +115,8 @@ def ensure_tables():
             "CREATE INDEX IF NOT EXISTS idx_i_bno   ON borrow_items(borrow_no)",
         ]:
             conn.execute(text(idx))
+        conn.execute(text("ALTER TABLE IF EXISTS borrow_items DROP CONSTRAINT IF EXISTS borrow_items_borrow_no_product_code_key"))
+        conn.execute(text("ALTER TABLE IF EXISTS borrow_items_staging DROP CONSTRAINT IF EXISTS borrow_items_staging_borrow_no_product_code_key"))
         conn.commit()
     log.info("Tables ready")
 
