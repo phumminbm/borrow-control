@@ -620,6 +620,11 @@ tbody tr:last-child td{border-bottom:none;}
   padding:12px 20px;border-top:1px solid var(--border);
   display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;
 }
+.step-sticky{
+  position:sticky;top:-16px;z-index:5;
+  background:var(--bg2);padding:16px 0 12px;margin:-16px 0 12px;
+  border-bottom:1px solid var(--border);
+}
 
 /* Step bar */
 .step-bar{display:flex;align-items:center;gap:0;margin-bottom:16px;}
@@ -1068,10 +1073,12 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="btn-close" onclick="closeAll()">✕</button>
     </div>
     <div class="popup-body">
-      <div id="ov1-stepbar"></div>
-      <div class="search-wrap">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-        <input type="text" id="ov1-search" placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." oninput="renderCustList()"/>
+      <div class="step-sticky">
+        <div id="ov1-stepbar"></div>
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="text" id="ov1-search" placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." oninput="renderCustList()"/>
+        </div>
       </div>
       <div class="cust-list" id="ov1-list"></div>
     </div>
@@ -1093,10 +1100,12 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="btn-close" onclick="closeAll()">✕</button>
     </div>
     <div class="popup-body">
-      <div id="ov2-stepbar"></div>
-      <div class="search-wrap">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-        <input id="ov2-search" type="text" placeholder="ค้นหาเลขใบยืม เช่น BR2022..." oninput="renderBRList()"/>
+      <div class="step-sticky">
+        <div id="ov2-stepbar"></div>
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input id="ov2-search" type="text" placeholder="ค้นหาเลขใบยืม เช่น BR2022..." oninput="renderBRList()"/>
+        </div>
       </div>
       <div class="br-list" id="ov2-list"></div>
     </div>
