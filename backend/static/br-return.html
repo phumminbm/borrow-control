@@ -618,7 +618,7 @@ tbody tr:last-child td{border-bottom:none;}
 .popup-body{flex:1;overflow-y:auto;padding:16px 20px;}
 .popup-foot{
   padding:12px 20px;border-top:1px solid var(--border);
-  display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0;flex-wrap:wrap;
 }
 .step-sticky{
   position:sticky;top:-16px;z-index:5;
@@ -771,6 +771,28 @@ tbody tr:last-child td{border-bottom:none;}
 .sv-claim{color:var(--yellow);}
 .sv-sale{color:var(--pink);}
 .sv-free{color:var(--purple);}
+
+.bulk-actions{
+  margin-right:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;
+}
+.bulk-label{font-size:11px;color:var(--sub2);margin-right:2px;white-space:nowrap;}
+.bulk-btn{
+  display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;
+  border-radius:8px;border:1px solid var(--border2);background:var(--bg3);
+  color:var(--sub);font-size:11px;font-weight:700;cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s,transform .12s;
+  white-space:nowrap;
+}
+.bulk-btn:hover{transform:translateY(-1px);}
+.bulk-btn.bulk-ret{color:var(--green);border-color:rgba(78,205,160,0.35);background:rgba(78,205,160,0.08);}
+.bulk-btn.bulk-ret:hover{background:rgba(78,205,160,0.16);border-color:var(--green);}
+.bulk-btn.bulk-clm{color:var(--yellow);border-color:rgba(240,180,41,0.35);background:rgba(240,180,41,0.08);}
+.bulk-btn.bulk-clm:hover{background:rgba(240,180,41,0.16);border-color:var(--yellow);}
+.bulk-btn.bulk-sale{color:var(--pink);border-color:rgba(212,53,122,0.35);background:rgba(212,53,122,0.08);}
+.bulk-btn.bulk-sale:hover{background:rgba(212,53,122,0.16);border-color:var(--pink);}
+.bulk-btn.bulk-free{color:var(--purple);border-color:rgba(151,120,255,0.35);background:rgba(151,120,255,0.08);}
+.bulk-btn.bulk-free:hover{background:rgba(151,120,255,0.16);border-color:var(--purple);}
+.foot-nav{display:flex;align-items:center;gap:8px;}
 
 /* Remark */
 .remark-wrap{margin-top:12px;}
@@ -1142,8 +1164,17 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div class="popup-foot">
-      <button class="btn btn-ghost" onclick="closeAll(); show('ov2');">← ย้อนกลับ</button>
-      <button class="btn btn-primary-green" id="ov3-submit" disabled onclick="showConfirm()">ตรวจสอบ & ส่ง →</button>
+      <div class="bulk-actions" aria-label="เลือกจำนวนทั้งหมด">
+        <span class="bulk-label">เลือกทั้งหมด:</span>
+        <button class="bulk-btn bulk-ret" onclick="applyBulkType('ret')">↩ คืน</button>
+        <button class="bulk-btn bulk-clm" onclick="applyBulkType('clm')">⚠ เคลม</button>
+        <button class="bulk-btn bulk-sale" onclick="applyBulkType('sale')">💰 ขาย</button>
+        <button class="bulk-btn bulk-free" onclick="applyBulkType('free')">🎁 ฟรี</button>
+      </div>
+      <div class="foot-nav">
+        <button class="btn btn-ghost" onclick="closeAll(); show('ov2');">← ย้อนกลับ</button>
+        <button class="btn btn-primary-green" id="ov3-submit" disabled onclick="showConfirm()">ตรวจสอบ & ส่ง →</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2543,6 +2574,31 @@ function spinQty(type, code, delta, max){
     }
   }
   updateQty(type, code, cur+delta, max);
+}
+
+function applyBulkType(type){
+  var prods = ITEMS[ST.br] || [];
+  if(!prods.length){
+    showToast('ไม่มีรายการสินค้าในใบยืมนี้','warn');
+    return;
+  }
+  ST.items = {};
+  ST.retQtys = {};
+  ST.clmQtys = {};
+  ST.saleQtys = {};
+  ST.freeQtys = {};
+  for(var i=0;i<prods.length;i++){
+    var p = prods[i];
+    var k = itemKey(p, i);
+    var qty = Math.max(0, Number(p.qty || 0));
+    if(!k || qty<=0) continue;
+    ST.items[k] = true;
+    if(type==='ret') ST.retQtys[k] = qty;
+    else if(type==='clm') ST.clmQtys[k] = qty;
+    else if(type==='sale') ST.saleQtys[k] = qty;
+    else if(type==='free') ST.freeQtys[k] = qty;
+  }
+  renderProductList();
 }
 
 function updateSummary(){
