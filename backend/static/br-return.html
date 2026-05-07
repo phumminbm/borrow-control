@@ -1646,6 +1646,23 @@ function closeAll(){
 }
 function el(id){ return document.getElementById(id); }
 
+function jsArg(v){
+  return String(v||'')
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/\r?\n/g,' ');
+}
+
+function markSelectedRow(listId, node){
+  if(!node) return false;
+  var wrap = el(listId);
+  if(!wrap) return false;
+  var selected = wrap.querySelectorAll('.selected');
+  for(var i=0;i<selected.length;i++) selected[i].classList.remove('selected');
+  node.classList.add('selected');
+  return true;
+}
+
 function showToast(msg,type){
   var div = document.createElement('div');
   div.className = 'toast toast-'+type;
@@ -2333,7 +2350,7 @@ function renderCustList(){
     var daysCls = c.status==='BLOCK'?'days-block':c.status==='WARNING'?'days-warning':'days-normal';
     var initials = c.name.slice(0,2);
     var cls = 'cust-item'+(stCls?' '+stCls:'')+(sel?' selected':'');
-    h += '<div class="'+cls+'" onclick="selectCust(\''+c.code+'\',\''+c.name.replace(/'/g,"\\'")+'\')">';
+    h += '<div class="'+cls+'" onclick="selectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)" ondblclick="quickSelectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)">';
     h += '<div class="cust-info"><div class="cust-name">'+c.name+' '+custBadge(c.status)+'</div>';
     h += '<div class="cust-meta">'+c.code+' · '+c.addr.slice(0,40)+'...</div></div>';
     h += '<div class="cust-right"><div class="cust-days '+daysCls+'">'+c.days+'<span style="font-size:9px;font-weight:400;margin-left:2px">วัน</span></div><div class="cust-days-label">ค้างสูงสุด</div></div>';
@@ -2343,10 +2360,15 @@ function renderCustList(){
   el('ov1-list').innerHTML = h;
 }
 
-function selectCust(code, name){
+function selectCust(code, name, node){
   ST.cust = code; ST.custName = name; ST.custCode = code;
   el('ov1-next').disabled = false;
-  renderCustList();
+  if(!markSelectedRow('ov1-list', node)) renderCustList();
+}
+
+function quickSelectCust(code, name, node){
+  selectCust(code, name, node);
+  goStep2();
 }
 
 function goStep2(){
@@ -2380,7 +2402,7 @@ function renderBRList(){
     var brStCls = b.status==='BLOCK'?'br-block':b.status==='WARNING'?'br-warning':'';
     var brDaysCls = b.status==='BLOCK'?'days-block':b.status==='WARNING'?'days-warning':'days-normal';
     var brCls = 'br-item'+(brStCls?' '+brStCls:'')+(sel?' selected':'');
-    h += '<div class="'+brCls+'" onclick="selectBR(\''+b.br+'\')">';
+    h += '<div class="'+brCls+'" onclick="selectBR(\''+jsArg(b.br)+'\',this)" ondblclick="quickSelectBR(\''+jsArg(b.br)+'\',this)">';
     h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' วัน</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
     h += '<div class="br-val">'+fmtFullBaht(b.value)+'</div>';
     h += '</div>';
@@ -2392,10 +2414,15 @@ function renderBRList(){
   el('ov2-list').innerHTML = h;
 }
 
-function selectBR(br){
+function selectBR(br, node){
   ST.br = br;
   el('ov2-next').disabled = false;
-  renderBRList();
+  if(!markSelectedRow('ov2-list', node)) renderBRList();
+}
+
+function quickSelectBR(br, node){
+  selectBR(br, node);
+  goStep3();
 }
 
 function goStep3(){
