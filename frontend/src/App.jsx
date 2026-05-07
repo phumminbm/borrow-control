@@ -4,6 +4,35 @@ import AdminView from "./components/AdminView";
 import MobileApp from "./components/MobileApp";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const DESKTOP_DATA_CACHE = "borrow-control:last-good-desktop-data";
+
+function readDataCache(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null") || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDataCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...data, savedAt: Date.now() }));
+  } catch {}
+}
+
+async function fetchJson(path, retries = 1) {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 700));
+      return fetchJson(path, retries - 1);
+    }
+    throw err;
+  }
+}
 
 export const TEAMS = {
   Bangkok:      ["TANG","OPAL","PAT","GAM","SHIRLEY","NAMPHUENG","CHOMPOO","RUNG"],
@@ -103,12 +132,13 @@ function useIsMobile() {
 
 // ── Desktop App ────────────────────────────────────────────────────────
 function DesktopApp() {
+  const cachedData = readDataCache(DESKTOP_DATA_CACHE);
   const [view, setView]           = useState("sale");
-  const [customers, setCustomers] = useState([]);
-  const [syncLogs, setSyncLogs]   = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [custValues, setCustValues] = useState({});
-  const [loading, setLoading]     = useState(true);
+  const [customers, setCustomers] = useState(() => Array.isArray(cachedData.customers) ? cachedData.customers : []);
+  const [syncLogs, setSyncLogs]   = useState(() => Array.isArray(cachedData.syncLogs) ? cachedData.syncLogs : []);
+  const [analytics, setAnalytics] = useState(() => cachedData.analytics || null);
+  const [custValues, setCustValues] = useState(() => cachedData.custValues || {});
+  const [loading, setLoading]     = useState(() => !(Array.isArray(cachedData.customers) && cachedData.customers.length > 0));
   const [dark, setDark]           = useState(() => localStorage.getItem("theme") === "dark");
   const [lang, setLang]           = useState(() => localStorage.getItem("lang") || "th");
 
@@ -116,17 +146,36 @@ function DesktopApp() {
 
   useEffect(() => {
     const load = () => {
-      Promise.all([
-        fetch(`${API_BASE}/customers`).then(r => r.json()),
-        fetch(`${API_BASE}/sync-logs`).then(r => r.json()),
-        fetch(`${API_BASE}/analytics/summary`).then(r => r.json()),
-        fetch(`${API_BASE}/analytics/customer-value`).then(r => r.json()),
-      ]).then(([custs, logs, anal, cv]) => {
-        setCustomers(Array.isArray(custs) ? custs : []);
-        setSyncLogs(Array.isArray(logs) ? logs : []);
-        setAnalytics(anal?.error ? null : anal);
-        setCustValues(cv?.error ? {} : cv);
-      }).catch(() => {}).finally(() => setLoading(false));
+      Promise.allSettled([
+        fetchJson("/customers", 2),
+        fetchJson("/sync-logs", 1),
+        fetchJson("/analytics/summary", 1),
+        fetchJson("/analytics/customer-value", 1),
+      ]).then(results => {
+        const custs = results[0].status === "fulfilled" ? results[0].value : null;
+        const logs  = results[1].status === "fulfilled" ? results[1].value : null;
+        const anal  = results[2].status === "fulfilled" ? results[2].value : null;
+        const cv    = results[3].status === "fulfilled" ? results[3].value : null;
+
+        let nextCache = readDataCache(DESKTOP_DATA_CACHE);
+        if (Array.isArray(custs) && custs.length > 0) {
+          setCustomers(custs);
+          nextCache.customers = custs;
+        }
+        if (Array.isArray(logs)) {
+          setSyncLogs(logs);
+          nextCache.syncLogs = logs;
+        }
+        if (anal && !anal.error) {
+          setAnalytics(anal);
+          nextCache.analytics = anal;
+        }
+        if (cv && !cv.error) {
+          setCustValues(cv);
+          nextCache.custValues = cv;
+        }
+        writeDataCache(DESKTOP_DATA_CACHE, nextCache);
+      }).finally(() => setLoading(false));
     };
     load();
     const interval = setInterval(load, 5 * 60 * 1000);

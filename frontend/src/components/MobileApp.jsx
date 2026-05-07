@@ -2,6 +2,35 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { TEAMS, TEAM_COLORS } from "../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const MOBILE_DATA_CACHE = "borrow-control:last-good-mobile-data";
+
+function readDataCache(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null") || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDataCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...data, savedAt: Date.now() }));
+  } catch {}
+}
+
+async function fetchJson(path, retries = 1) {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 700));
+      return fetchJson(path, retries - 1);
+    }
+    throw err;
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 function getTeam(sale) {
@@ -1005,13 +1034,14 @@ function SplashScreen({ visible }) {
 
 // ── MOBILE APP (main export) ───────────────────────────────────────────
 export default function MobileApp() {
+  const cachedData = readDataCache(MOBILE_DATA_CACHE);
   const [tab, setTab] = useState("home");
   const [selectedSale, setSelectedSale] = useState(null);
-  const [customers, setCustomers] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-  const [custValues, setCustValues] = useState({});
-  const [syncLogs, setSyncLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState(() => Array.isArray(cachedData.customers) ? cachedData.customers : []);
+  const [analytics, setAnalytics] = useState(() => cachedData.analytics || null);
+  const [custValues, setCustValues] = useState(() => cachedData.custValues || {});
+  const [syncLogs, setSyncLogs] = useState(() => Array.isArray(cachedData.syncLogs) ? cachedData.syncLogs : []);
+  const [loading, setLoading] = useState(() => !(Array.isArray(cachedData.customers) && cachedData.customers.length > 0));
   const [refreshing, setRefreshing] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem("mobile-theme") === "dark");
   const [lang, setLang] = useState(() => localStorage.getItem("lang") || "th");
@@ -1022,37 +1052,45 @@ export default function MobileApp() {
 
   const load = useCallback((isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
-    Promise.all([
-      fetch(`${API_BASE}/customers`).then(r => r.json()),
-      fetch(`${API_BASE}/sync-logs`).then(r => r.json()),
-      fetch(`${API_BASE}/analytics/summary`).then(r => r.json()).catch(() => ({})),
-      fetch(`${API_BASE}/analytics/customer-value`).then(r => r.json()).catch(() => ({})),
-    ]).then(([custs, logs, anal, cv]) => {
-      const cs = Array.isArray(custs) ? custs.map(c => ({ ...c, team: getTeam(c.sale) })) : [];
-      setCustomers(cs);
-      setSyncLogs(Array.isArray(logs) ? logs : []);
-      setAnalytics(anal?.error ? null : anal);
-      setCustValues(cv?.error ? {} : cv);
-    }).catch(() => {}).finally(() => { setLoading(false); setRefreshing(false); });
+    Promise.allSettled([
+      fetchJson("/customers", 2),
+      fetchJson("/sync-logs", 1),
+      fetchJson("/analytics/summary", 1),
+      fetchJson("/analytics/customer-value", 1),
+    ]).then(results => {
+      const custs = results[0].status === "fulfilled" ? results[0].value : null;
+      const logs  = results[1].status === "fulfilled" ? results[1].value : null;
+      const anal  = results[2].status === "fulfilled" ? results[2].value : null;
+      const cv    = results[3].status === "fulfilled" ? results[3].value : null;
+
+      let nextCache = readDataCache(MOBILE_DATA_CACHE);
+      if (Array.isArray(custs) && custs.length > 0) {
+        const cs = custs.map(c => ({ ...c, team: getTeam(c.sale) }));
+        setCustomers(cs);
+        nextCache.customers = cs;
+      }
+      if (Array.isArray(logs)) {
+        setSyncLogs(logs);
+        nextCache.syncLogs = logs;
+      }
+      if (anal && !anal.error) {
+        setAnalytics(anal);
+        nextCache.analytics = anal;
+      }
+      if (cv && !cv.error) {
+        setCustValues(cv);
+        nextCache.custValues = cv;
+      }
+      writeDataCache(MOBILE_DATA_CACHE, nextCache);
+    }).finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
 
   useEffect(() => {
     // โหลดข้อมูล + แสดง splash อย่างน้อย 1.8 วินาที
     const minDelay = new Promise(res => setTimeout(res, 1800));
     const dataLoad = new Promise(res => {
-      Promise.all([
-        fetch(`${API_BASE}/customers`).then(r => r.json()),
-        fetch(`${API_BASE}/sync-logs`).then(r => r.json()),
-        fetch(`${API_BASE}/analytics/summary`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE}/analytics/customer-value`).then(r => r.json()).catch(() => ({})),
-      ]).then(([custs, logs, anal, cv]) => {
-        const cs = Array.isArray(custs) ? custs.map(c => ({ ...c, team: getTeam(c.sale) })) : [];
-        setCustomers(cs);
-        setSyncLogs(Array.isArray(logs) ? logs : []);
-        setAnalytics(anal?.error ? null : anal);
-        setCustValues(cv?.error ? {} : cv);
-        res();
-      }).catch(() => res()).finally(() => setLoading(false));
+      load(false);
+      res();
     });
     Promise.all([minDelay, dataLoad]).then(() => setSplashVisible(false));
     const iv = setInterval(() => load(), 5 * 60 * 1000);
