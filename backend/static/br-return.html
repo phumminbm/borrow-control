@@ -1793,6 +1793,12 @@ function fmtVal(v){
   return '฿'+Math.round(v).toLocaleString();
 }
 
+function fmtFullBaht(v){
+  v = Number(v) || 0;
+  if(!v) return '—';
+  return '฿'+Math.round(v).toLocaleString();
+}
+
 function countKPI(sale, isAdmin){
   var list = isAdmin ? RECENT : RECENT.filter(function(r){ return !sale||r.sale===sale; });
   var counts = {pending:0,approved:0,rejected:0,cancelled:0};
@@ -2376,7 +2382,7 @@ function renderBRList(){
     var brCls = 'br-item'+(brStCls?' '+brStCls:'')+(sel?' selected':'');
     h += '<div class="'+brCls+'" onclick="selectBR(\''+b.br+'\')">';
     h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' วัน</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
-    h += '<div class="br-val">'+fmtVal(b.value)+'</div>';
+    h += '<div class="br-val">'+fmtFullBaht(b.value)+'</div>';
     h += '</div>';
   }
   if(h===''){
