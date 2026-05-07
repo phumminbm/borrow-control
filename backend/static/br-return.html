@@ -2593,6 +2593,16 @@ function applyBulkType(type){
     showToast('ไม่มีรายการสินค้าในใบยืมนี้','warn');
     return;
   }
+  if(ST.bulkType === type){
+    ST.items = {};
+    ST.retQtys = {};
+    ST.clmQtys = {};
+    ST.saleQtys = {};
+    ST.freeQtys = {};
+    ST.bulkType = null;
+    renderProductList();
+    return;
+  }
   ST.items = {};
   ST.retQtys = {};
   ST.clmQtys = {};
