@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel, Field, validator
 from typing import Optional
@@ -504,9 +504,11 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         cust_params = []
         borrow_params = []
         item_params = []
+        batch_borrow_nos = []
 
         for row in payload.rows:
             if not row.borrow_no: continue
+            batch_borrow_nos.append(row.borrow_no)
 
             if row.cust_code:
                 cust_params.append({
@@ -553,6 +555,16 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
                     remark        = EXCLUDED.remark
             """), borrow_params)
             stats["updated"] = len(borrow_params)
+
+        if batch_borrow_nos:
+            # Each sync batch is the current sheet view for the BRs it contains.
+            # Replace item staging for those BRs so stale rows from earlier syncs
+            # cannot be appended beside the current rows.
+            db.execute(
+                text("DELETE FROM borrow_items_staging WHERE borrow_no IN :bnos")
+                .bindparams(bindparam("bnos", expanding=True)),
+                {"bnos": sorted(set(batch_borrow_nos))}
+            )
 
         if item_params:
             db.execute(text("""
