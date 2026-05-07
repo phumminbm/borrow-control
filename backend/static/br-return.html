@@ -792,6 +792,15 @@ tbody tr:last-child td{border-bottom:none;}
 .bulk-btn.bulk-sale:hover{background:rgba(212,53,122,0.16);border-color:var(--pink);}
 .bulk-btn.bulk-free{color:var(--purple);border-color:rgba(151,120,255,0.35);background:rgba(151,120,255,0.08);}
 .bulk-btn.bulk-free:hover{background:rgba(151,120,255,0.16);border-color:var(--purple);}
+.bulk-actions.has-selection .bulk-btn:not(.active){
+  opacity:.38;filter:saturate(.5);background:var(--bg3);border-color:var(--border2);color:var(--sub2);
+}
+.bulk-actions.has-selection .bulk-btn:not(.active):hover{opacity:.62;filter:saturate(.75);}
+.bulk-btn.active{opacity:1;box-shadow:0 0 0 3px rgba(255,255,255,0.04);transform:translateY(-1px);}
+.bulk-btn.bulk-ret.active{background:rgba(78,205,160,0.18);border-color:var(--green);}
+.bulk-btn.bulk-clm.active{background:rgba(240,180,41,0.18);border-color:var(--yellow);}
+.bulk-btn.bulk-sale.active{background:rgba(212,53,122,0.18);border-color:var(--pink);}
+.bulk-btn.bulk-free.active{background:rgba(151,120,255,0.18);border-color:var(--purple);}
 .foot-nav{display:flex;align-items:center;gap:8px;}
 
 /* Remark */
@@ -1164,12 +1173,12 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div class="popup-foot">
-      <div class="bulk-actions" aria-label="เลือกจำนวนทั้งหมด">
+      <div class="bulk-actions" id="bulk-actions" aria-label="เลือกจำนวนทั้งหมด">
         <span class="bulk-label">เลือกทั้งหมด:</span>
-        <button class="bulk-btn bulk-ret" onclick="applyBulkType('ret')">↩ คืน</button>
-        <button class="bulk-btn bulk-clm" onclick="applyBulkType('clm')">⚠ เคลม</button>
-        <button class="bulk-btn bulk-sale" onclick="applyBulkType('sale')">💰 ขาย</button>
-        <button class="bulk-btn bulk-free" onclick="applyBulkType('free')">🎁 ฟรี</button>
+        <button class="bulk-btn bulk-ret" data-bulk-type="ret" onclick="applyBulkType('ret')">↩ คืน</button>
+        <button class="bulk-btn bulk-clm" data-bulk-type="clm" onclick="applyBulkType('clm')">⚠ เคลม</button>
+        <button class="bulk-btn bulk-sale" data-bulk-type="sale" onclick="applyBulkType('sale')">💰 ขาย</button>
+        <button class="bulk-btn bulk-free" data-bulk-type="free" onclick="applyBulkType('free')">🎁 ฟรี</button>
       </div>
       <div class="foot-nav">
         <button class="btn btn-ghost" onclick="closeAll(); show('ov2');">← ย้อนกลับ</button>
@@ -1661,7 +1670,7 @@ var ACTIVE_TAB = 'sale';
 var FILTERS = {status:'all', search:'', dateFrom:null, dateTo:null};
 var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
 var CAL = {open:false, target:null, step:0, from:null, to:null, viewY:2026, viewM:4};
-var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},editId:null};
+var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null};
 var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:''};
 var RUN_NUMBER = 1;
 var RUN_DATE   = '';
@@ -2356,7 +2365,7 @@ function rebuildAdminTable(){
 function openStep1(){
   if(MASTER_LOADING){ showToast('Loading Borrow Control data...', 'warn'); return; }
   if(!MSALE){ showToast('กรุณาเลือก Sale ก่อน','warn'); return; }
-  ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},editId:null};
+  ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null};
   el('ov1-sale-label').innerHTML = 'Sale: <strong>'+MSALE+'</strong>';
   el('ov1-stepbar').innerHTML = makeStepBar(1);
   el('ov1-search').value = '';
@@ -2460,7 +2469,7 @@ function goStep3(){
   if(!ST.br) return;
   el('ov3-br-label').innerHTML = 'ใบยืม: <span class="br-tag">'+ST.br+'</span>';
   el('ov3-stepbar').innerHTML = makeStepBar(3);
-  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {};
+  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null;
   renderProductList();
   hide('ov2'); show('ov3');
 }
@@ -2547,12 +2556,14 @@ function rowToggle(e, code){
   toggleItem(code, !ST.items[code]);
 }
 function toggleItem(code, checked){
+  ST.bulkType = null;
   ST.items[code] = checked;
   if(!checked){ delete ST.retQtys[code]; delete ST.clmQtys[code]; delete ST.saleQtys[code]; delete ST.freeQtys[code]; }
   renderProductList();
 }
 
 function updateQty(type, code, val, max){
+  ST.bulkType = null;
   val = Math.max(0, Math.min(parseInt(val)||0, max));
   if(type==='ret') ST.retQtys[code]=val;
   else if(type==='clm') ST.clmQtys[code]=val;
@@ -2587,6 +2598,7 @@ function applyBulkType(type){
   ST.clmQtys = {};
   ST.saleQtys = {};
   ST.freeQtys = {};
+  ST.bulkType = type;
   for(var i=0;i<prods.length;i++){
     var p = prods[i];
     var k = itemKey(p, i);
@@ -2599,6 +2611,17 @@ function applyBulkType(type){
     else if(type==='free') ST.freeQtys[k] = qty;
   }
   renderProductList();
+}
+
+function updateBulkButtons(){
+  var wrap = el('bulk-actions');
+  if(!wrap) return;
+  var type = ST.bulkType || '';
+  wrap.classList.toggle('has-selection', !!type);
+  var buttons = wrap.querySelectorAll('.bulk-btn');
+  for(var i=0;i<buttons.length;i++){
+    buttons[i].classList.toggle('active', buttons[i].getAttribute('data-bulk-type')===type);
+  }
 }
 
 function updateSummary(){
@@ -2629,6 +2652,7 @@ function updateSummary(){
   } else {
     sumEl.style.display = 'none';
   }
+  updateBulkButtons();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2841,7 +2865,7 @@ function editRequest(rid){
 
   ST.sale = r.sale; ST.custName = r.cust; ST.custCode = r.custCode; ST.cust = r.custCode;
   ST.br = r.br; ST.editId = rid;
-  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {};
+  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null;
 
   if(r.submittedItems){
     for(var i=0;i<r.submittedItems.length;i++){
