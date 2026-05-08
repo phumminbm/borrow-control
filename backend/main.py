@@ -106,6 +106,7 @@ def ensure_tables(db):
             date_sort INTEGER DEFAULT 0,
             remark TEXT DEFAULT '',
             admin_note TEXT DEFAULT '',
+            cancel_reason TEXT DEFAULT '',
             items_count INTEGER DEFAULT 0,
             submitted_items JSONB DEFAULT '[]'::jsonb,
             rejected_items JSONB DEFAULT '[]'::jsonb,
@@ -188,6 +189,7 @@ def recalc_all_customers(db):
     # migration: เพิ่ม address column ถ้า DB เก่ายังไม่มี
     db.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
+    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAULT ''"))
     db.commit()
 
 def swap_staging_to_main(db):
@@ -328,6 +330,7 @@ class ReturnRequestPayload(BaseModel):
     dateSort: int = 0
     remark: str = ""
     adminNote: str = ""
+    cancelReason: str = ""
     items: int = 0
     submittedItems: list[dict] = Field(default_factory=list)
     rejectedItems: list[dict] = Field(default_factory=list)
@@ -397,6 +400,7 @@ def _return_request_from_row(row):
         "dateSort": data.get("date_sort", 0) or 0,
         "remark": data.get("remark", ""),
         "adminNote": data.get("admin_note", ""),
+        "cancelReason": data.get("cancel_reason", ""),
         "items": data.get("items_count", 0) or 0,
         "submittedItems": data.get("submitted_items") or [],
         "rejectedItems": data.get("rejected_items") or [],
@@ -429,6 +433,7 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         "date_sort": payload.dateSort,
         "remark": payload.remark,
         "admin_note": payload.adminNote or "",
+        "cancel_reason": payload.cancelReason or "",
         "items_count": payload.items,
         "submitted_items": json.dumps(payload.submittedItems, ensure_ascii=False),
         "rejected_items": json.dumps(payload.rejectedItems, ensure_ascii=False),
@@ -440,11 +445,11 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         INSERT INTO return_requests (
             id, cust, cust_code, br, sale, status, request_date, date_sort,
             remark, admin_note, items_count, submitted_items, rejected_items,
-            sheet_sync, sheet_sync_at, sheet_sync_error
+            sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason
         ) VALUES (
             :id, :cust, :cust_code, :br, :sale, :status, :request_date, :date_sort,
             :remark, :admin_note, :items_count, CAST(:submitted_items AS jsonb), CAST(:rejected_items AS jsonb),
-            :sheet_sync, :sheet_sync_at, :sheet_sync_error
+            :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason
         )
         ON CONFLICT (id) DO UPDATE SET
             cust = EXCLUDED.cust,
@@ -462,6 +467,7 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
             sheet_sync = EXCLUDED.sheet_sync,
             sheet_sync_at = EXCLUDED.sheet_sync_at,
             sheet_sync_error = EXCLUDED.sheet_sync_error,
+            cancel_reason = EXCLUDED.cancel_reason,
             updated_at = NOW()
         RETURNING *
     """), params).fetchone()

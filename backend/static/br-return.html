@@ -1245,6 +1245,29 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- Cancel request popup -->
+<div class="overlay" id="ov-cancel" style="z-index:180">
+  <div class="popup" style="max-width:520px">
+    <div class="popup-head">
+      <div>
+        <div class="popup-title">ยกเลิกคำขอคืนสินค้า</div>
+        <div class="popup-sub" id="cancel-sub"></div>
+      </div>
+      <button class="btn-close" onclick="hide('ov-cancel')">✕</button>
+    </div>
+    <div class="popup-body">
+      <div class="remark-wrap" style="margin-top:0">
+        <label>Remark / เหตุผลที่ยกเลิก</label>
+        <textarea id="cancel-reason" placeholder="ระบุเหตุผลที่ยกเลิกคำขอนี้..." style="min-height:92px"></textarea>
+      </div>
+    </div>
+    <div class="popup-foot">
+      <button class="btn btn-ghost" onclick="hide('ov-cancel')">กลับ</button>
+      <button class="btn btn-danger" onclick="confirmCancelRequest()">ยืนยันยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Admin login overlay -->
 <div class="overlay" id="ov-admin-login" style="background:rgba(0,0,0,0.96);z-index:200;align-items:center;justify-content:center">
   <div style="width:100%;max-width:400px;background:var(--bg1);border:1px solid var(--border2);border-radius:20px;padding:40px 36px">
@@ -1454,7 +1477,7 @@ var RETURN_HISTORY_LOADING = false;
 var RETURN_HISTORY_POLL_MS = 5000;
 
 function hasOpenWorkflowOverlay(){
-  var ids = ['ov1','ov2','ov3','ov-confirm','ov-detail','ov-admin-review','ov-admin-login'];
+  var ids = ['ov1','ov2','ov3','ov-confirm','ov-detail','ov-cancel','ov-admin-review','ov-admin-login'];
   for(var i=0;i<ids.length;i++){
     var node = document.getElementById(ids[i]);
     if(node && node.classList.contains('show')) return true;
@@ -1690,6 +1713,7 @@ var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
 var CAL = {open:false, target:null, step:0, from:null, to:null, viewY:2026, viewM:4};
 var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
 var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:''};
+var CANCEL_TARGET = {id:null, from:''};
 var RUN_NUMBER = 1;
 var RUN_DATE   = '';
 
@@ -1699,7 +1723,7 @@ var RUN_DATE   = '';
 function show(id){ document.getElementById(id).classList.add('show'); }
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function closeAll(){
-  var ids = ['ov1','ov2','ov3','ov-ok','ov-detail','ov-admin-review'];
+  var ids = ['ov1','ov2','ov3','ov-ok','ov-detail','ov-cancel','ov-admin-review'];
   for(var i=0;i<ids.length;i++) hide(ids[i]);
 }
 function el(id){ return document.getElementById(id); }
@@ -2112,6 +2136,7 @@ function renderSalePills(){
     h += '</div>';
     h += '</div>';
   }
+
   h += '</div></div>';
 
   el('pills-wrap').innerHTML = h;
@@ -2901,6 +2926,7 @@ function doSubmit(){
       if(RECENT[k].id===ST.editId){
         RECENT[k].status='pending'; RECENT[k].adminNote=null; RECENT[k].rejectedItems=[];
         RECENT[k].submittedItems=submitted; RECENT[k].remark=remark; RECENT[k].items=submitted.length;
+        RECENT[k].cancelReason = '';
         RECENT[k].sheetSync = 'none';
         RECENT[k].sheetSyncAt = '';
         RECENT[k].sheetSyncError = '';
@@ -2917,7 +2943,7 @@ function doSubmit(){
       id:newId,cust:ST.custName,custCode:ST.custCode,br:ST.br,
       items:submitted.length,sale:ST.sale,status:'pending',
       date:thDate,dateSort:dateSort,remark:remark,adminNote:'',rejectedItems:[],
-      submittedItems:submitted,sheetSync:'none',sheetSyncAt:'',sheetSyncError:''
+      submittedItems:submitted,cancelReason:'',sheetSync:'none',sheetSyncAt:'',sheetSyncError:''
     };
     RECENT.unshift(newRequest);
     el('ok-id').innerHTML = newId;
@@ -2955,6 +2981,13 @@ function openDetail(rid){
     h += '</div>';
   }
 
+  if(r.status==='cancelled' && r.cancelReason){
+    h += '<div class="feedback-box" style="background:rgba(85,85,85,0.10);border-color:rgba(85,85,85,0.28)">';
+    h += '<div class="feedback-title" style="color:var(--sub)">ยกเลิกคำขอ</div>';
+    h += '<div class="feedback-note">'+r.cancelReason+'</div>';
+    h += '</div>';
+  }
+
   // Info
   h += '<div class="detail-section">';
   h += '<div class="detail-section-title">ข้อมูลคำขอ</div>';
@@ -2965,6 +2998,7 @@ function openDetail(rid){
   h += '<div class="detail-field mono"><label>รหัสลูกค้า</label><span>'+r.custCode+'</span></div>';
   h += '<div class="detail-field mono"><label>เลขใบยืม</label><span><span class="br-tag">'+r.br+'</span></span></div>';
   if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>หมายเหตุ</label><span>'+r.remark+'</span></div>';
+  if(r.cancelReason) h += '<div class="detail-field" style="grid-column:span 2"><label>เหตุผลที่ยกเลิก</label><span>'+r.cancelReason+'</span></div>';
   h += '</div></div>';
 
   // Items
@@ -2995,10 +3029,15 @@ function openDetail(rid){
 
   // Footer buttons
   var foot = '';
-  if(r.status==='pending'){
-    foot += '<button class="btn btn-danger" onclick="cancelRequest(\''+r.id+'\')">✕ ยกเลิกคำขอ</button>';
+  if(ACTIVE_TAB==='admin'){
+    if(r.status==='pending' || r.status==='rejected'){
+      foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>';
+    }
+  } else if(r.status==='pending'){
+    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ ยกเลิกคำขอ</button>';
     foot += '<button class="btn btn-ghost" onclick="editRequest(\''+r.id+'\')">✏ แก้ไขคำขอ</button>';
   } else if(r.status==='rejected'){
+    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ ยกเลิกคำขอ</button>';
     foot += '<button class="btn btn-primary-green" onclick="editRequest(\''+r.id+'\')">↩ แก้ไขและส่งใหม่</button>';
   }
   el('detail-foot').innerHTML = foot;
@@ -3006,11 +3045,42 @@ function openDetail(rid){
   show('ov-detail');
 }
 
-function cancelRequest(rid){
+function openCancelRequest(rid, from){
+  var r = null;
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
+  if(!r) return;
+  CANCEL_TARGET = {id:rid, from:from||ACTIVE_TAB};
+  el('cancel-sub').innerHTML = '<span class="mono">'+rid+'</span> · <span class="br-tag">'+r.br+'</span>';
+  el('cancel-reason').value = r.cancelReason || '';
+  show('ov-cancel');
+  setTimeout(function(){ el('cancel-reason').focus(); }, 50);
+}
+
+function confirmCancelRequest(){
+  var rid = CANCEL_TARGET.id;
+  var reason = (el('cancel-reason').value||'').trim();
+  if(!rid) return;
+  if(!reason){
+    showToast('กรุณาระบุเหตุผลที่ยกเลิก','warn');
+    el('cancel-reason').focus();
+    return;
+  }
   var changed = null;
-  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){RECENT[i].status='cancelled';changed=RECENT[i];break;}
+  for(var i=0;i<RECENT.length;i++){
+    if(RECENT[i].id===rid){
+      RECENT[i].status='cancelled';
+      RECENT[i].cancelReason=reason;
+      RECENT[i].sheetSync = RECENT[i].sheetSync || 'none';
+      RECENT[i].sheetSyncError = '';
+      changed=RECENT[i];
+      break;
+    }
+  }
   saveReturnRequest(changed);
-  closeAll(); renderSalePills(); renderContent();
+  closeAll();
+  renderSalePills();
+  if(ACTIVE_TAB==='admin') renderAdminContent();
+  else renderContent();
   showToast('ยกเลิกคำขอแล้ว','warn');
 }
 
@@ -3204,6 +3274,7 @@ function updateReviewButtons(items){
 
   el('ar-foot').innerHTML = ''
     +'<button class="btn btn-ghost" onclick="closeAll()">ยกเลิก</button>'
+    +'<button class="btn btn-danger" onclick="openCancelRequest(\''+ADMIN_REVIEW.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>'
     +((!allPass&&!hasFail)||pend>0?'<button class="btn btn-ghost" style="color:var(--green);border-color:rgba(78,205,160,0.3)" onclick="approveAll()">✓✓ อนุมัติทั้งหมด</button>':'')
     +'<button class="btn btn-danger" id="ar-sendback" onclick="adminSendBack()"'+(hasFail&&pend===0?'':' disabled')+'>'+sendBackLabel+'</button>'
     +'<button class="btn btn-primary-green" id="ar-approve" onclick="adminApprove()"'+(allPass?'':' disabled')+'>✓ อนุมัติคำขอ</button>';
