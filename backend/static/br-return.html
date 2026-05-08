@@ -1784,6 +1784,49 @@ function fallbackSubmittedItems(br){
   });
 }
 
+function submittedItemToProduct(si, idx){
+  var qty = Number(si.qty || si.quantity || si.maxQty || si.originalQty || 0);
+  var requestedQty = Number(si.retQty || 0) + Number(si.clmQty || 0) + Number(si.saleQty || 0) + Number(si.freeQty || 0);
+  qty = Math.max(qty, requestedQty);
+  return {
+    itemId: si.itemId || si.item_id || '',
+    lineNo: Number(si.lineNo || si.line_no || 0),
+    lineKey: requestItemKey(si, idx),
+    code: si.code || si.product_code || '',
+    name: si.name || si.product_name || '',
+    qty: qty,
+    price: Number(si.price || 0),
+    total: Number(si.total || si.total_price || 0)
+  };
+}
+
+function ensureEditableProducts(r){
+  function mergeSubmittedItems(){
+    var current = ITEMS[r.br] || [];
+    var seen = {};
+    for(var i=0;i<current.length;i++){
+      seen[itemKey(current[i], i)] = true;
+    }
+    var submitted = r.submittedItems || [];
+    for(var j=0;j<submitted.length;j++){
+      var p = submittedItemToProduct(submitted[j], j);
+      var k = itemKey(p, current.length);
+      if(!k || seen[k]) continue;
+      current.push(p);
+      seen[k] = true;
+    }
+    ITEMS[r.br] = current;
+  }
+
+  var needsLoad = (!ITEMS[r.br] || !ITEMS[r.br].length) && r.custCode;
+  var load = needsLoad ? loadCustomerBorrowData(r.custCode) : Promise.resolve();
+  return load.catch(function(err){
+    console.warn('[BR Return] Could not load BR items for edit, using submitted items:', err);
+  }).then(function(){
+    mergeSubmittedItems();
+  });
+}
+
 function reviewItemKey(it, idx){
   return requestItemKey(it, idx);
 }
@@ -2893,8 +2936,13 @@ function editRequest(rid){
   el('ov3-br-label').innerHTML = 'ใบยืม: <span class="br-tag">'+ST.br+'</span>';
   el('ov3-stepbar').innerHTML = makeStepBar(3);
   el('ov3-remark').value = r.remark||'';
-  renderProductList();
   show('ov3');
+  el('ov3-list').innerHTML = '<div class="empty-state"><div class="empty-icon">...</div><div class="empty-text">Loading BR items</div></div>';
+  el('ov3-summary').style.display = 'none';
+  el('ov3-submit').disabled = true;
+  ensureEditableProducts(r).then(function(){
+    renderProductList();
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
