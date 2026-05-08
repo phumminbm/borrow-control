@@ -1570,6 +1570,24 @@ function findProductByKey(key){
   return null;
 }
 
+function stepProducts(){
+  var source = ITEMS[ST.br] || [];
+  if(!ST.editOnlyKeys) return source;
+  var filtered = [];
+  for(var i=0;i<source.length;i++){
+    var k = itemKey(source[i], i);
+    if(ST.editOnlyKeys[k] || ST.editOnlyKeys[source[i].code]){
+      var item = source[i];
+      if(ST.editQtyByKey && ST.editQtyByKey[k]!==undefined){
+        item = Object.assign({}, source[i], {qty: ST.editQtyByKey[k]});
+      }
+      item._sourceIdx = i;
+      filtered.push(item);
+    }
+  }
+  return filtered;
+}
+
 function productLineLabel(p){
   if(!p || !p.lineNo) return '';
   return ' <span style="font-size:10px;color:var(--sub2)">#'+p.lineNo+'</span>';
@@ -1670,7 +1688,7 @@ var ACTIVE_TAB = 'sale';
 var FILTERS = {status:'all', search:'', dateFrom:null, dateTo:null};
 var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
 var CAL = {open:false, target:null, step:0, from:null, to:null, viewY:2026, viewM:4};
-var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null};
+var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
 var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:''};
 var RUN_NUMBER = 1;
 var RUN_DATE   = '';
@@ -1777,6 +1795,88 @@ function getItemTypes(si){
   return types;
 }
 
+function qtyFieldForType(typeKey){
+  if(typeKey==='RETURN') return 'retQty';
+  if(typeKey==='CLAIM') return 'clmQty';
+  if(typeKey==='SALE') return 'saleQty';
+  if(typeKey==='FREE') return 'freeQty';
+  return '';
+}
+
+function blankRequestItem(si, idx){
+  return {
+    itemId: si.itemId || si.item_id || '',
+    lineNo: Number(si.lineNo || si.line_no || 0),
+    lineKey: requestItemKey(si, idx),
+    code: si.code || si.product_code || '',
+    name: si.name || si.product_name || '',
+    price: Number(si.price || 0),
+    total: Number(si.total || si.total_price || 0),
+    retQty: 0,
+    clmQty: 0,
+    saleQty: 0,
+    freeQty: 0
+  };
+}
+
+function hasRequestQty(si){
+  return (Number(si.retQty||0)+Number(si.clmQty||0)+Number(si.saleQty||0)+Number(si.freeQty||0)) > 0;
+}
+
+function splitReviewItems(items){
+  var approved = [];
+  var failed = [];
+  for(var i=0;i<items.length;i++){
+    var src = items[i];
+    var ik = reviewItemKey(src, i);
+    var tps = getItemTypes(src);
+    var passItem = blankRequestItem(src, i);
+    var failItem = blankRequestItem(src, i);
+    for(var j=0;j<tps.length;j++){
+      var tp = tps[j];
+      var field = qtyFieldForType(tp.key);
+      if(!field) continue;
+      if(ADMIN_REVIEW.items[ik+'||'+tp.key] === 'fail') failItem[field] = tp.qty;
+      else passItem[field] = tp.qty;
+    }
+    if(hasRequestQty(passItem)) approved.push(passItem);
+    if(hasRequestQty(failItem)){
+      failItem.reason = ADMIN_REVIEW.reasons[ik] || 'ไม่ระบุเหตุผล';
+      failed.push(failItem);
+    }
+  }
+  return {approved: approved, failed: failed};
+}
+
+function approvedItemsFromRejected(r){
+  var rejected = r.rejectedItems || [];
+  var rejectedMap = {};
+  for(var i=0;i<rejected.length;i++){
+    var rk = requestItemKey(rejected[i], i);
+    rejectedMap[rk] = rejected[i];
+  }
+  var source = r.submittedItems || [];
+  var approved = [];
+  for(var j=0;j<source.length;j++){
+    var src = source[j];
+    var key = requestItemKey(src, j);
+    var item = blankRequestItem(src, j);
+    item.retQty = Math.max(0, Number(src.retQty||0) - Number(rejectedMap[key]&&rejectedMap[key].retQty||0));
+    item.clmQty = Math.max(0, Number(src.clmQty||0) - Number(rejectedMap[key]&&rejectedMap[key].clmQty||0));
+    item.saleQty = Math.max(0, Number(src.saleQty||0) - Number(rejectedMap[key]&&rejectedMap[key].saleQty||0));
+    item.freeQty = Math.max(0, Number(src.freeQty||0) - Number(rejectedMap[key]&&rejectedMap[key].freeQty||0));
+    if(hasRequestQty(item)) approved.push(item);
+  }
+  return approved;
+}
+
+function sheetSyncItemsForRequest(r){
+  if(r.status==='rejected' && r.rejectedItems && r.rejectedItems.length>0){
+    return approvedItemsFromRejected(r);
+  }
+  return r.submittedItems || [];
+}
+
 function fallbackSubmittedItems(br){
   return (ITEMS[br]||[]).map(function(p, idx){
     var k = itemKey(p, idx);
@@ -1800,14 +1900,14 @@ function submittedItemToProduct(si, idx){
   };
 }
 
-function ensureEditableProducts(r){
+function ensureEditableProducts(r, editItems){
   function mergeSubmittedItems(){
     var current = ITEMS[r.br] || [];
     var seen = {};
     for(var i=0;i<current.length;i++){
       seen[itemKey(current[i], i)] = true;
     }
-    var submitted = r.submittedItems || [];
+    var submitted = editItems || r.submittedItems || [];
     for(var j=0;j<submitted.length;j++){
       var p = submittedItemToProduct(submitted[j], j);
       var k = itemKey(p, current.length);
@@ -2408,7 +2508,7 @@ function rebuildAdminTable(){
 function openStep1(){
   if(MASTER_LOADING){ showToast('Loading Borrow Control data...', 'warn'); return; }
   if(!MSALE){ showToast('กรุณาเลือก Sale ก่อน','warn'); return; }
-  ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null};
+  ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
   el('ov1-sale-label').innerHTML = 'Sale: <strong>'+MSALE+'</strong>';
   el('ov1-stepbar').innerHTML = makeStepBar(1);
   el('ov1-search').value = '';
@@ -2512,7 +2612,7 @@ function goStep3(){
   if(!ST.br) return;
   el('ov3-br-label').innerHTML = 'ใบยืม: <span class="br-tag">'+ST.br+'</span>';
   el('ov3-stepbar').innerHTML = makeStepBar(3);
-  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null;
+  ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null; ST.editOnlyKeys = null; ST.editQtyByKey = null;
   renderProductList();
   hide('ov2'); show('ov3');
 }
@@ -2521,7 +2621,7 @@ function goStep3(){
 // STEP 3: สินค้า & จำนวน
 // ═══════════════════════════════════════════════════════════════
 function renderProductList(){
-  var prods = ITEMS[ST.br]||[];
+  var prods = stepProducts();
   var h = '<table class="prod-table">';
   // header
   h += '<thead class="prod-thead"><tr>';
@@ -2537,7 +2637,8 @@ function renderProductList(){
 
   for(var i=0;i<prods.length;i++){
     var p = prods[i];
-    var k = itemKey(p, i);
+    var sourceIdx = (p._sourceIdx!==undefined && p._sourceIdx!==null) ? p._sourceIdx : i;
+    var k = itemKey(p, sourceIdx);
     var checked = ST.items[k]===true;
     var rv=ST.retQtys[k]||0, cv=ST.clmQtys[k]||0, sv=ST.saleQtys[k]||0, fv=ST.freeQtys[k]||0;
     var rem = p.qty - rv - cv - sv - fv;
@@ -2631,7 +2732,7 @@ function spinQty(type, code, delta, max){
 }
 
 function applyBulkType(type){
-  var prods = ITEMS[ST.br] || [];
+  var prods = stepProducts();
   if(!prods.length){
     showToast('ไม่มีรายการสินค้าในใบยืมนี้','warn');
     return;
@@ -2654,7 +2755,8 @@ function applyBulkType(type){
   ST.bulkType = type;
   for(var i=0;i<prods.length;i++){
     var p = prods[i];
-    var k = itemKey(p, i);
+    var sourceIdx = (p._sourceIdx!==undefined && p._sourceIdx!==null) ? p._sourceIdx : i;
+    var k = itemKey(p, sourceIdx);
     var qty = Math.max(0, Number(p.qty || 0));
     if(!k || qty<=0) continue;
     ST.items[k] = true;
@@ -2867,8 +2969,9 @@ function openDetail(rid){
 
   // Items
   h += '<div class="detail-section">';
-  h += '<div class="detail-section-title">รายการสินค้า ('+r.items+' รายการ)</div>';
-  var items = r.submittedItems && r.submittedItems.length>0 ? r.submittedItems : [];
+  var showRejectedOnly = (r.status==='rejected' && r.rejectedItems && r.rejectedItems.length>0);
+  h += '<div class="detail-section-title">'+(showRejectedOnly?'รายการที่ต้องแก้ไข':'รายการสินค้า')+' ('+r.items+' รายการ)</div>';
+  var items = showRejectedOnly ? r.rejectedItems : (r.submittedItems && r.submittedItems.length>0 ? r.submittedItems : []);
   if(items.length===0){
     items = fallbackSubmittedItems(r.br);
   }
@@ -2919,11 +3022,17 @@ function editRequest(rid){
   ST.sale = r.sale; ST.custName = r.cust; ST.custCode = r.custCode; ST.cust = r.custCode;
   ST.br = r.br; ST.editId = rid;
   ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null;
+  var editRejectedOnly = (r.status==='rejected' && r.rejectedItems && r.rejectedItems.length>0);
+  var editItems = editRejectedOnly ? r.rejectedItems : (r.submittedItems || []);
+  ST.editOnlyKeys = editRejectedOnly ? {} : null;
+  ST.editQtyByKey = editRejectedOnly ? {} : null;
 
-  if(r.submittedItems){
-    for(var i=0;i<r.submittedItems.length;i++){
-      var si = r.submittedItems[i];
+  if(editItems){
+    for(var i=0;i<editItems.length;i++){
+      var si = editItems[i];
       var k = requestItemKey(si, i);
+      if(ST.editOnlyKeys) ST.editOnlyKeys[k] = true;
+      if(ST.editQtyByKey) ST.editQtyByKey[k] = Number(si.retQty||0)+Number(si.clmQty||0)+Number(si.saleQty||0)+Number(si.freeQty||0);
       ST.items[k] = true;
       ST.retQtys[k] = si.retQty||0;
       ST.clmQtys[k] = si.clmQty||0;
@@ -2940,7 +3049,7 @@ function editRequest(rid){
   el('ov3-list').innerHTML = '<div class="empty-state"><div class="empty-icon">...</div><div class="empty-text">Loading BR items</div></div>';
   el('ov3-summary').style.display = 'none';
   el('ov3-submit').disabled = true;
-  ensureEditableProducts(r).then(function(){
+  ensureEditableProducts(r, editItems).then(function(){
     renderProductList();
   });
 }
@@ -3091,11 +3200,12 @@ function updateReviewButtons(items){
   }
   var allPass = (pass===keys.length);
   var hasFail = (fail>0);
+  var sendBackLabel = pass>0 ? '✓ อนุมัติที่ผ่าน / ↩ ส่งกลับที่ไม่ผ่าน' : '↩ ส่งกลับแก้ไข';
 
   el('ar-foot').innerHTML = ''
     +'<button class="btn btn-ghost" onclick="closeAll()">ยกเลิก</button>'
     +((!allPass&&!hasFail)||pend>0?'<button class="btn btn-ghost" style="color:var(--green);border-color:rgba(78,205,160,0.3)" onclick="approveAll()">✓✓ อนุมัติทั้งหมด</button>':'')
-    +'<button class="btn btn-danger" id="ar-sendback" onclick="adminSendBack()"'+(hasFail&&pend===0?'':' disabled')+'>↩ ส่งกลับแก้ไข</button>'
+    +'<button class="btn btn-danger" id="ar-sendback" onclick="adminSendBack()"'+(hasFail&&pend===0?'':' disabled')+'>'+sendBackLabel+'</button>'
     +'<button class="btn btn-primary-green" id="ar-approve" onclick="adminApprove()"'+(allPass?'':' disabled')+'>✓ อนุมัติคำขอ</button>';
 }
 
@@ -3183,13 +3293,18 @@ function retrySheetSync(rid){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
   if(!r) return;
+  var syncItems = sheetSyncItemsForRequest(r);
+  if(!syncItems.length){
+    showToast('ไม่มีรายการที่ต้อง Sync Sheet','warn');
+    return;
+  }
   r.sheetSync = 'pending';
   r.sheetSyncError = '';
   saveReturnRequest(r);
   renderAdminContent();
   showToast('กำลัง Retry Sync Sheet...','warn');
   updateSheetStatus(
-    {action:'approve', br:r.br, submittedItems:r.submittedItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
+    {action:'approve', br:r.br, submittedItems:syncItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
     function(){
       r.sheetSync = 'synced';
       r.sheetSyncAt = new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
@@ -3210,39 +3325,24 @@ function retrySheetSync(rid){
 
 function adminSendBack(){
   var rid = ADMIN_REVIEW.id;
-  var failedItems = [];
-  var failedKeys = {};
-  var keys = Object.keys(ADMIN_REVIEW.items);
-  for(var i=0;i<keys.length;i++){
-    if(ADMIN_REVIEW.items[keys[i]]==='fail'){
-      var itemKeyVal = keys[i].split('||')[0];
-      failedKeys[itemKeyVal] = true;
-    }
-  }
   var r = null;
   for(var ri=0;ri<RECENT.length;ri++) if(RECENT[ri].id===rid){r=RECENT[ri];break;}
-  var sourceItems = r && r.submittedItems ? r.submittedItems : [];
-  var keyList = Object.keys(failedKeys);
-  for(var i=0;i<keyList.length;i++){
-    var ikey = keyList[i];
-    var src = null;
-    for(var si=0;si<sourceItems.length;si++){
-      if(reviewItemKey(sourceItems[si], si)===ikey || sourceItems[si].code===ikey){src=sourceItems[si];break;}
-    }
-    failedItems.push({
-      itemId:src&&src.itemId||'',
-      lineNo:src&&src.lineNo||0,
-      lineKey:ikey,
-      code:src&&src.code||ikey,
-      reason:ADMIN_REVIEW.reasons[ikey]||'ไม่ระบุเหตุผล'
-    });
-  }
+  if(!r) return;
+  var sourceItems = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : fallbackSubmittedItems(r.br);
+  var split = splitReviewItems(sourceItems);
+  var approvedItems = split.approved;
+  var failedItems = split.failed;
   var changed = null;
   for(var j=0;j<RECENT.length;j++){
     if(RECENT[j].id===rid){
       RECENT[j].status='rejected';
       RECENT[j].adminNote=ADMIN_REVIEW.note;
+      RECENT[j].submittedItems = sourceItems;
       RECENT[j].rejectedItems=failedItems;
+      RECENT[j].items=failedItems.length;
+      RECENT[j].sheetSync=approvedItems.length>0?'pending':'none';
+      RECENT[j].sheetSyncAt='';
+      RECENT[j].sheetSyncError='';
       changed = RECENT[j];
       break;
     }
@@ -3251,7 +3351,39 @@ function adminSendBack(){
   closeAll();
   renderSalePills();
   renderAdminContent();
-  showToast('ส่งกลับให้ Sale แก้ไข '+failedItems.length+' รายการ','warn');
+  if(approvedItems.length>0){
+    showToast('อนุมัติรายการที่ผ่าน '+approvedItems.length+' รายการ และส่งกลับให้ Sale แก้ '+failedItems.length+' รายการ','warn');
+    updateSheetStatus(
+      {action:'approve', br:r.br, submittedItems:approvedItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
+      function(){
+        for(var x=0;x<RECENT.length;x++){
+          if(RECENT[x].id===rid){
+            RECENT[x].sheetSync = 'synced';
+            RECENT[x].sheetSyncAt = new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
+            RECENT[x].sheetSyncError = '';
+            saveReturnRequest(RECENT[x]);
+            break;
+          }
+        }
+        renderAdminContent();
+        showToast('Sync Sheet รายการที่ผ่านสำเร็จ ✓','success');
+      },
+      function(err){
+        for(var x=0;x<RECENT.length;x++){
+          if(RECENT[x].id===rid){
+            RECENT[x].sheetSync = 'failed';
+            RECENT[x].sheetSyncError = err;
+            saveReturnRequest(RECENT[x]);
+            break;
+          }
+        }
+        renderAdminContent();
+        showToast('Sync Sheet รายการที่ผ่านล้มเหลว: '+err,'error');
+      }
+    );
+  } else {
+    showToast('ส่งกลับให้ Sale แก้ไข '+failedItems.length+' รายการ','warn');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
