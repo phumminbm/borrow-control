@@ -1124,12 +1124,18 @@ def generate_multi_br_pdf(brs_data: list) -> bytes:
 
 
 @app.get("/brs/{borrow_no}/pdf")
-def export_br_pdf(borrow_no: str, db: Session = Depends(get_db)):
+def export_br_pdf(
+    borrow_no: str,
+    include_closed: bool = Query(False),
+    db: Session = Depends(get_db),
+):
     """Generate PDF for a single BR"""
-    br_row = db.execute(text("""
+    status_filter = "" if include_closed else "AND b.sheet_status = 'active'"
+    br_row = db.execute(text(f"""
         SELECT b.borrow_no, b.borrow_date, b.days_borrowed, b.borrow_alert,
                b.status, b.remark, b.cust_code
-        FROM borrows b WHERE b.borrow_no = :bno AND b.sheet_status = 'active'
+        FROM borrows b
+        WHERE b.borrow_no = :bno {status_filter}
     """), {"bno": borrow_no}).fetchone()
     if not br_row:
         from fastapi import HTTPException

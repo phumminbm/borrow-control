@@ -1788,7 +1788,7 @@ function printBorrowPdf(brNo){
   var printWindow = openPrintWindow(brNo);
   if(!printWindow) return;
   showToast('Loading BR PDF...', 'success');
-  fetch(BORROW_API_BASE + '/brs/' + encodeURIComponent(brNo) + '/pdf', {cache:'no-store'})
+  fetch(BORROW_API_BASE + '/brs/' + encodeURIComponent(brNo) + '/pdf?include_closed=true', {cache:'no-store'})
     .then(function(r){
       if(!r.ok) throw new Error('PDF request failed ('+r.status+')');
       return r.blob();
