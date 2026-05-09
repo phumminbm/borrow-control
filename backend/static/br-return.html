@@ -826,6 +826,8 @@ tbody tr:last-child td{border-bottom:none;}
 .btn-primary-pink{background:var(--pink);color:#fff;border-color:var(--pink);}
 .btn-primary-pink:hover{background:#b82d68;}
 .btn-primary-pink:disabled{opacity:.4;cursor:not-allowed;}
+.btn-print{background:rgba(24,95,165,0.10);border-color:rgba(24,95,165,0.55);color:#7BB8F5;}
+.btn-print:hover{background:rgba(24,95,165,0.18);border-color:#7BB8F5;color:#A8D4FF;}
 .btn-danger{background:transparent;border-color:rgba(240,96,122,0.3);color:var(--red);}
 .btn-danger:hover{background:rgba(240,96,122,0.1);}
 
@@ -1733,6 +1735,71 @@ function jsArg(v){
     .replace(/\\/g,'\\\\')
     .replace(/'/g,"\\'")
     .replace(/\r?\n/g,' ');
+}
+
+function htmlEscape(v){
+  return String(v||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function isDesktopPrintAvailable(){
+  return window.innerWidth >= 768;
+}
+
+function openPrintWindow(title){
+  var win = window.open('', '_blank');
+  if(!win){
+    showToast('Please allow pop-ups to print PDF', 'warn');
+    return null;
+  }
+  var safeTitle = htmlEscape(title || 'Print PDF');
+  win.document.write(
+    '<!doctype html><html><head><title>'+safeTitle+'</title>'
+    +'<style>html,body{margin:0;height:100%;overflow:hidden}iframe{width:100%;height:100vh;border:0}</style>'
+    +'</head><body><iframe id="pdfFrame" title="'+safeTitle+'"></iframe>'
+    +'<script>var f=document.getElementById("pdfFrame");'
+    +'f.onload=function(){setTimeout(function(){f.contentWindow.focus();f.contentWindow.print();},350)};<\/script>'
+    +'</body></html>'
+  );
+  win.document.close();
+  return win;
+}
+
+function printPdfBlob(blob, title, printWindow){
+  var win = printWindow || openPrintWindow(title);
+  if(!win) return;
+  var blobUrl = URL.createObjectURL(blob);
+  win.document.getElementById('pdfFrame').src = blobUrl;
+  win.addEventListener('beforeunload', function(){ URL.revokeObjectURL(blobUrl); }, {once:true});
+}
+
+function printBorrowPdf(brNo){
+  if(!isDesktopPrintAvailable()){
+    showToast('Print is available on desktop only', 'warn');
+    return;
+  }
+  if(!brNo){
+    showToast('Missing BR number', 'warn');
+    return;
+  }
+  var printWindow = openPrintWindow(brNo);
+  if(!printWindow) return;
+  showToast('Loading BR PDF...', 'success');
+  fetch(BORROW_API_BASE + '/brs/' + encodeURIComponent(brNo) + '/pdf', {cache:'no-store'})
+    .then(function(r){
+      if(!r.ok) throw new Error('PDF request failed ('+r.status+')');
+      return r.blob();
+    })
+    .then(function(blob){
+      printPdfBlob(blob, brNo, printWindow);
+    })
+    .catch(function(err){
+      printWindow.close();
+      showToast('Print failed: '+err.message, 'warn');
+    });
 }
 
 function markSelectedRow(listId, node){
@@ -3030,6 +3097,9 @@ function openDetail(rid){
   // Footer buttons
   var foot = '';
   if(ACTIVE_TAB==='admin'){
+    if(isDesktopPrintAvailable()){
+      foot += '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(r.br)+'\')">Print BR</button>';
+    }
     if(r.status==='pending' || r.status==='rejected'){
       foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>';
     }
@@ -3270,9 +3340,15 @@ function updateReviewButtons(items){
   }
   var allPass = (pass===keys.length);
   var hasFail = (fail>0);
+  var reviewReq = null;
+  for(var ri=0;ri<RECENT.length;ri++) if(RECENT[ri].id===ADMIN_REVIEW.id){reviewReq=RECENT[ri];break;}
+  var printBtn = (reviewReq && isDesktopPrintAvailable())
+    ? '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(reviewReq.br)+'\')">Print BR</button>'
+    : '';
   var sendBackLabel = pass>0 ? '✓ อนุมัติที่ผ่าน / ↩ ส่งกลับที่ไม่ผ่าน' : '↩ ส่งกลับแก้ไข';
 
   el('ar-foot').innerHTML = ''
+    +printBtn
     +'<button class="btn btn-ghost" onclick="closeAll()">ยกเลิก</button>'
     +'<button class="btn btn-danger" onclick="openCancelRequest(\''+ADMIN_REVIEW.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>'
     +((!allPass&&!hasFail)||pend>0?'<button class="btn btn-ghost" style="color:var(--green);border-color:rgba(78,205,160,0.3)" onclick="approveAll()">✓✓ อนุมัติทั้งหมด</button>':'')

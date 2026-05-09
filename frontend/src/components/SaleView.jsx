@@ -3,6 +3,72 @@ import { StatusBadge, T } from "../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function openPrintWindow(title = "Print PDF") {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Please allow pop-ups to print the PDF.");
+    return null;
+  }
+  const safeTitle = escapeHtml(title);
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>${safeTitle}</title>
+        <style>
+          html, body { margin: 0; height: 100%; overflow: hidden; }
+          iframe { width: 100%; height: 100vh; border: 0; }
+        </style>
+      </head>
+      <body>
+        <iframe id="pdfFrame" title="${safeTitle}"></iframe>
+        <script>
+          var frame = document.getElementById("pdfFrame");
+          frame.onload = function () {
+            setTimeout(function () {
+              frame.contentWindow.focus();
+              frame.contentWindow.print();
+            }, 350);
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  return printWindow;
+}
+
+function printPdfBlob(blob, title = "Print PDF", printWindow = null) {
+  const targetWindow = printWindow || openPrintWindow(title);
+  if (!targetWindow) return null;
+  const blobUrl = URL.createObjectURL(blob);
+  targetWindow.document.getElementById("pdfFrame").src = blobUrl;
+  targetWindow.addEventListener("beforeunload", () => URL.revokeObjectURL(blobUrl), { once: true });
+  return targetWindow;
+}
+
+async function printPdfFromUrl(pdfUrl, title = "Print PDF") {
+  const printWindow = openPrintWindow(title);
+  if (!printWindow) return;
+  try {
+    const res = await fetch(pdfUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error(`PDF request failed (${res.status})`);
+    const blob = await res.blob();
+    printPdfBlob(blob, title, printWindow);
+  } catch (err) {
+    printWindow.close();
+    alert(`Print failed: ${err.message}`);
+  }
+}
+
 function getS(dark) { return {
   overlay:  { position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
   modal:    { background:dark?"#1a1a1a":"#fff", borderRadius:12, width:"92%", maxWidth:640, maxHeight:"90vh", overflowY:"auto", border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.1)"}`, display:"flex", flexDirection:"column" },
@@ -110,6 +176,13 @@ function BRDetailModal({ br, onClose, dark, t }) {
               <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
               Export PDF
             </button>
+            <button
+              onClick={() => printPdfFromUrl(`${API_BASE}/brs/${br.borrow_no}/pdf`, br.borrow_no)}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:7,border:"0.5px solid #185FA5",background:dark?"#0C2A4A":"#E6F1FB",color:dark?"#7BB8F5":"#0C447C",fontSize:12,fontWeight:600,cursor:"pointer"}}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5h8v3H4v-3Zm-1 9.75h10v3.25H3v-3.25ZM2 5.5h12A1.5 1.5 0 0 1 15.5 7v4.25H13.8V9.7H2.2v1.55H.5V7A1.5 1.5 0 0 1 2 5.5Zm10.5 1.65a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+              Print
+            </button>
             <button style={S.btnGray} onClick={onClose}>ปิด</button>
           </div>
         </div>
@@ -190,6 +263,32 @@ function CustomerModal({ customer, onClose, dark, t }) {
       URL.revokeObjectURL(url);
     } catch (e) {
       alert("Export ไม่สำเร็จ: " + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleBulkPrint = async () => {
+    const title = `${customer?.customer_name || "customer"}(${customer?.cust_code || ""})_All BR`;
+    const printWindow = openPrintWindow(title);
+    if (!printWindow) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`${API_BASE}/export-pdf/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          borrow_nos: [...selected],
+          cust_code: customer?.cust_code || "",
+          customer_name: customer?.customer_name || ""
+        })
+      });
+      if (!res.ok) throw new Error("Print failed");
+      const blob = await res.blob();
+      printPdfBlob(blob, title, printWindow);
+    } catch (e) {
+      printWindow.close();
+      alert("Print ไม่สำเร็จ: " + e.message);
     } finally {
       setExporting(false);
     }
@@ -276,6 +375,7 @@ function CustomerModal({ customer, onClose, dark, t }) {
               {selected.size > 0 && <span style={{fontSize:11,color:"#888"}}>{selected.size} ใบเลือกแล้ว</span>}
               <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
                 {selected.size > 0 && (
+                  <>
                   <button
                     onClick={handleBulkExport}
                     style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:"none",background:"#D4357A",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}
@@ -283,6 +383,14 @@ function CustomerModal({ customer, onClose, dark, t }) {
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
                     Export ({selected.size})
                   </button>
+                  <button
+                    onClick={handleBulkPrint}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:"0.5px solid #185FA5",background:dark?"#0C2A4A":"#E6F1FB",color:dark?"#7BB8F5":"#0C447C",fontSize:11,fontWeight:600,cursor:"pointer"}}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5h8v3H4v-3Zm-1 9.75h10v3.25H3v-3.25ZM2 5.5h12A1.5 1.5 0 0 1 15.5 7v4.25H13.8V9.7H2.2v1.55H.5V7A1.5 1.5 0 0 1 2 5.5Zm10.5 1.65a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+                    Print ({selected.size})
+                  </button>
+                  </>
                 )}
                 {/* ── BR Status Filter Dropdown ── */}
                 <div style={{position:"relative"}}>
