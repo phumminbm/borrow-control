@@ -202,6 +202,17 @@ def swap_staging_to_main(db):
     logger.info("swap_staging_to_main: starting atomic swap")
 
     try:
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtext('borrow-control-sync'))"))
+        staging_borrows = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
+        active_borrows = db.execute(text("SELECT COUNT(*) FROM borrows WHERE sheet_status='active'")).fetchone()[0]
+        if staging_borrows == 0:
+            raise RuntimeError("Refusing swap: staging has 0 borrows")
+        if active_borrows > 100 and staging_borrows < active_borrows * 0.8:
+            raise RuntimeError(
+                f"Refusing swap: staging has only {staging_borrows} borrows, "
+                f"current active has {active_borrows}"
+            )
+
         # 1. Upsert customers จาก staging → main
         db.execute(text("""
             INSERT INTO customers (cust_code, customer_name, istock_id, erp_id, sale, address,
@@ -491,16 +502,14 @@ def get_sync_logs(limit: int = 20, db: Session = Depends(get_db)):
 def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     start = datetime.now(timezone.utc)
     stats = {"inserted": 0, "updated": 0, "closed": 0, "errors": 0}
-    sync_lock_acquired = False
     try: ensure_tables(db)
     except Exception as e: logger.warning(f"ensure_tables in /sync: {e}")
 
     try:
         # ── INSERT เข้า staging ทุก batch (ไม่แตะ borrows จริงเลย) ──────
-        # Serialize the whole sync request, including final swap/clear, so
-        # retries/overlaps cannot append duplicate staging rows.
-        db.execute(text("SELECT pg_advisory_lock(hashtext('borrow-control-sync'))"))
-        sync_lock_acquired = True
+        # Serialize batch writes so retries/overlaps cannot append duplicate
+        # staging rows while still avoiding long session-level locks.
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtext('borrow-control-sync'))"))
 
         cust_params = []
         borrow_params = []
@@ -607,13 +616,6 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         logger.warning(f"sync log write failed: {e}")
         try: db.rollback()
         except Exception as re: logger.warning(f"sync log rollback failed: {re}")
-
-    if sync_lock_acquired:
-        try:
-            db.execute(text("SELECT pg_advisory_unlock(hashtext('borrow-control-sync'))"))
-            db.commit()
-        except Exception as e:
-            logger.warning(f"sync advisory unlock failed: {e}")
 
     return {"success": True, "duration_ms": duration, **stats}
 
