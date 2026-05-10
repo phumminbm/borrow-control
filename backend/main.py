@@ -110,12 +110,18 @@ def ensure_tables(db):
             items_count INTEGER DEFAULT 0,
             submitted_items JSONB DEFAULT '[]'::jsonb,
             rejected_items JSONB DEFAULT '[]'::jsonb,
+            attachments JSONB DEFAULT '[]'::jsonb,
             sheet_sync TEXT DEFAULT 'none',
             sheet_sync_at TEXT DEFAULT '',
             sheet_sync_error TEXT DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
         )
+    """))
+    # Migration: add attachments column to existing tables
+    db.execute(text("""
+        ALTER TABLE return_requests
+        ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb
     """))
 
     # ── ตาราง Staging (รับข้อมูลระหว่าง sync) ──────────────────────
@@ -334,6 +340,7 @@ class ReturnRequestPayload(BaseModel):
     items: Optional[int] = 0
     submittedItems: Optional[list[dict]] = Field(default_factory=list)
     rejectedItems: Optional[list[dict]] = Field(default_factory=list)
+    attachments: Optional[list[dict]] = Field(default_factory=list)
     sheetSync: Optional[str] = "none"
     sheetSyncAt: Optional[str] = ""
     sheetSyncError: Optional[str] = ""
@@ -404,6 +411,7 @@ def _return_request_from_row(row):
         "items": data.get("items_count", 0) or 0,
         "submittedItems": data.get("submitted_items") or [],
         "rejectedItems": data.get("rejected_items") or [],
+        "attachments": data.get("attachments") or [],
         "sheetSync": data.get("sheet_sync", "none"),
         "sheetSyncAt": data.get("sheet_sync_at", ""),
         "sheetSyncError": data.get("sheet_sync_error", ""),
@@ -437,6 +445,7 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         "items_count": payload.items or 0,
         "submitted_items": json.dumps(payload.submittedItems or [], ensure_ascii=False),
         "rejected_items": json.dumps(payload.rejectedItems or [], ensure_ascii=False),
+        "attachments": json.dumps(payload.attachments or [], ensure_ascii=False),
         "sheet_sync": payload.sheetSync or "none",
         "sheet_sync_at": payload.sheetSyncAt or "",
         "sheet_sync_error": payload.sheetSyncError or "",
@@ -445,11 +454,11 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         INSERT INTO return_requests (
             id, cust, cust_code, br, sale, status, request_date, date_sort,
             remark, admin_note, items_count, submitted_items, rejected_items,
-            sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason
+            attachments, sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason
         ) VALUES (
             :id, :cust, :cust_code, :br, :sale, :status, :request_date, :date_sort,
             :remark, :admin_note, :items_count, CAST(:submitted_items AS jsonb), CAST(:rejected_items AS jsonb),
-            :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason
+            CAST(:attachments AS jsonb), :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason
         )
         ON CONFLICT (id) DO UPDATE SET
             cust = EXCLUDED.cust,
@@ -464,6 +473,7 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
             items_count = EXCLUDED.items_count,
             submitted_items = EXCLUDED.submitted_items,
             rejected_items = EXCLUDED.rejected_items,
+            attachments = EXCLUDED.attachments,
             sheet_sync = EXCLUDED.sheet_sync,
             sheet_sync_at = EXCLUDED.sheet_sync_at,
             sheet_sync_error = EXCLUDED.sheet_sync_error,

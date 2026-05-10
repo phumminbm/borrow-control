@@ -926,6 +926,25 @@ tbody tr:last-child td{border-bottom:none;}
   line-height:1.5;transition:border .15s;font-size:12px;
 }
 .admin-note-wrap textarea:focus{border-color:var(--pink);}
+.admin-attach-wrap{margin-top:12px;}
+.admin-attach-wrap label{font-size:11px;color:var(--sub);display:block;margin-bottom:5px;}
+.attach-dropzone{border:1.5px dashed var(--border2);border-radius:9px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg3);}
+.attach-dropzone:hover{border-color:var(--pink);background:rgba(212,53,122,0.04);}
+.attach-dropzone .dz-icon{font-size:22px;margin-bottom:5px;opacity:0.7;}
+.attach-dropzone .dz-text{font-size:11px;color:var(--sub);}
+.attach-dropzone .dz-hint{font-size:10px;color:var(--sub2);margin-top:3px;}
+.attach-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.attach-thumb{position:relative;width:84px;height:84px;border-radius:9px;overflow:hidden;border:1px solid var(--border2);background:var(--bg3);}
+.attach-thumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;}
+.attach-thumb .attach-remove{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(226,75,74,0.9);color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;}
+.attach-thumb .attach-remove:hover{background:#E24B4A;}
+.attach-thumb .attach-name{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);color:#fff;font-size:9px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.attach-view-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.attach-view-list .attach-thumb{width:96px;height:96px;}
+.attach-view-list .attach-thumb img{cursor:zoom-in;}
+.attach-lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out;}
+.attach-lightbox.show{display:flex;}
+.attach-lightbox img{max-width:95%;max-height:95%;object-fit:contain;border-radius:6px;}
 
 /* Success popup */
 .success-popup{text-align:center;padding:36px 20px;}
@@ -1638,7 +1657,7 @@ var FILTERS = {status:'all', search:'', dateFrom:null, dateTo:null};
 var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
 var CAL = {open:false, target:null, step:0, from:null, to:null, viewY:2026, viewM:4};
 var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
-var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:''};
+var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:'',attachments:[]};
 var CANCEL_TARGET = {id:null, from:''};
 var RUN_NUMBER = 1;
 var RUN_DATE   = '';
@@ -2917,6 +2936,7 @@ function doSubmit(){
       if(RECENT[k].id===ST.editId){
         RECENT[k].status='pending';
         RECENT[k].adminNote='';
+        RECENT[k].attachments=[];
         RECENT[k].rejectedItems=[];
         RECENT[k].submittedItems=submitted;
         RECENT[k].remark=remark;
@@ -2947,7 +2967,7 @@ function doSubmit(){
     var newRequest = {
       id:newId,cust:ST.custName,custCode:ST.custCode,br:ST.br,
       items:submitted.length,sale:ST.sale,status:'pending',
-      date:thDate,dateSort:dateSort,remark:remark,adminNote:'',rejectedItems:[],
+      date:thDate,dateSort:dateSort,remark:remark,adminNote:'',rejectedItems:[],attachments:[],
       submittedItems:submitted,cancelReason:'',sheetSync:'none',sheetSyncAt:'',sheetSyncError:''
     };
     RECENT.unshift(newRequest);
@@ -2982,6 +3002,16 @@ function openDetail(rid){
     for(var j=0;j<r.rejectedItems.length;j++){
       var ri = r.rejectedItems[j];
       h += '<div class="rejected-item">✕ <strong>'+ri.code+'</strong> — '+ri.reason+'</div>';
+    }
+    if(r.attachments && r.attachments.length>0){
+      window._DETAIL_ATTACHMENTS = r.attachments;
+      h += '<div class="feedback-note" style="margin-top:8px"><strong>📎 รูปประกอบจาก Admin ('+r.attachments.length+' รูป):</strong></div>';
+      h += '<div class="attach-view-list">';
+      for(var ai=0;ai<r.attachments.length;ai++){
+        var att = r.attachments[ai];
+        h += '<div class="attach-thumb"><img src="'+att.data+'" alt="'+(att.name||'')+'" onclick="openAttachLightbox('+ai+',\'detail\')"/><div class="attach-name">'+(att.name||'image')+'</div></div>';
+      }
+      h += '</div>';
     }
     h += '</div>';
   }
@@ -3111,11 +3141,7 @@ function editRequest(rid){
       var k = requestItemKey(si, i);
       if(ST.editOnlyKeys) ST.editOnlyKeys[k] = true;
       if(ST.editQtyByKey) ST.editQtyByKey[k] = Number(si.retQty||0)+Number(si.clmQty||0)+Number(si.saleQty||0)+Number(si.freeQty||0);
-      ST.items[k] = true;
-      ST.retQtys[k] = si.retQty||0;
-      ST.clmQtys[k] = si.clmQty||0;
-      ST.saleQtys[k] = si.saleQty||0;
-      ST.freeQtys[k] = si.freeQty||0;
+      // NOTE: Do NOT pre-select or pre-fill quantities — Sale must manually select items and enter quantities again.
     }
   }
 
@@ -3140,7 +3166,7 @@ function openAdminReview(rid){
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
   if(!r) return;
 
-  ADMIN_REVIEW = {id:rid,items:{},reasons:{},note:''};
+  ADMIN_REVIEW = {id:rid,items:{},reasons:{},note:'',attachments:[]};
 
   el('ar-id').innerHTML = r.id;
   el('ar-sub').innerHTML = r.cust+' · <span class="br-tag">'+r.br+'</span> · Sale: <strong>'+r.sale+'</strong>';
@@ -3188,7 +3214,19 @@ function openAdminReview(rid){
   h += '<div class="admin-note-wrap"><label>หมายเหตุถึง Sale (ถ้ามี)</label>';
   h += '<textarea id="ar-note" placeholder="กรอก note ถึง Sale..." oninput="ADMIN_REVIEW.note=this.value"></textarea></div>';
 
+  h += '<div class="admin-attach-wrap"><label>📎 แนบรูปภาพ (ส่งให้ Sale ดูตอนแก้ไข)</label>';
+  h += '<div class="attach-dropzone" onclick="el(\'ar-attach-input\').click()">';
+  h += '<div class="dz-icon">📷</div>';
+  h += '<div class="dz-text">คลิกเพื่อแนบรูป หรือลากรูปมาวาง</div>';
+  h += '<div class="dz-hint">รองรับ JPG / PNG (สูงสุด 5 รูป)</div>';
+  h += '</div>';
+  h += '<input type="file" id="ar-attach-input" accept="image/*" multiple style="display:none" onchange="handleAttachUpload(event)"/>';
+  h += '<div class="attach-list" id="ar-attach-list"></div>';
+  h += '</div>';
+
   el('ar-body').innerHTML = h;
+  attachAttachDropzoneEvents();
+  renderAdminAttachments();
   updateReviewSummary(items);
   updateReviewButtons(items);
 
@@ -3408,6 +3446,130 @@ function retrySheetSync(rid){
   );
 }
 
+// ── Admin attachments ────────────────────────────────────────────
+var ATTACH_MAX_FILES = 5;
+var ATTACH_MAX_DIM = 1280;        // resize so longest edge <= 1280px
+var ATTACH_JPEG_QUALITY = 0.78;
+
+function compressImage(file){
+  return new Promise(function(resolve, reject){
+    if(!file || !file.type || file.type.indexOf('image/')!==0){
+      reject(new Error('ไม่ใช่ไฟล์รูปภาพ'));
+      return;
+    }
+    var reader = new FileReader();
+    reader.onerror = function(){ reject(new Error('อ่านไฟล์ไม่สำเร็จ')); };
+    reader.onload = function(e){
+      var img = new Image();
+      img.onerror = function(){ reject(new Error('โหลดรูปไม่สำเร็จ')); };
+      img.onload = function(){
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, ATTACH_MAX_DIM / Math.max(w, h));
+        var dw = Math.round(w*scale), dh = Math.round(h*scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = dw; canvas.height = dh;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, dw, dh);
+        var dataUrl = canvas.toDataURL('image/jpeg', ATTACH_JPEG_QUALITY);
+        resolve({
+          name: file.name,
+          size: dataUrl.length,
+          type: 'image/jpeg',
+          data: dataUrl,
+          uploadedAt: new Date().toISOString()
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function handleAttachUpload(evt){
+  var files = evt.target.files;
+  if(!files || files.length===0) return;
+  var current = ADMIN_REVIEW.attachments || [];
+  var available = ATTACH_MAX_FILES - current.length;
+  if(available <= 0){
+    showToast('แนบได้สูงสุด '+ATTACH_MAX_FILES+' รูป', 'warn');
+    evt.target.value = '';
+    return;
+  }
+  var toProcess = Array.prototype.slice.call(files, 0, available);
+  if(files.length > available){
+    showToast('แนบเกิน '+ATTACH_MAX_FILES+' รูป — รับแค่ '+available+' ไฟล์แรก', 'warn');
+  }
+  Promise.all(toProcess.map(compressImage)).then(function(results){
+    ADMIN_REVIEW.attachments = (ADMIN_REVIEW.attachments || []).concat(results);
+    renderAdminAttachments();
+  }).catch(function(err){
+    showToast('แนบรูปล้มเหลว: '+(err && err.message || err), 'error');
+  }).finally(function(){
+    evt.target.value = '';
+  });
+}
+
+function removeAttachment(idx){
+  if(!ADMIN_REVIEW.attachments) return;
+  ADMIN_REVIEW.attachments.splice(idx, 1);
+  renderAdminAttachments();
+}
+
+function renderAdminAttachments(){
+  var box = el('ar-attach-list');
+  if(!box) return;
+  var atts = ADMIN_REVIEW.attachments || [];
+  if(atts.length===0){ box.innerHTML = ''; return; }
+  var h = '';
+  for(var i=0;i<atts.length;i++){
+    var a = atts[i];
+    h += '<div class="attach-thumb">';
+    h += '<img src="'+a.data+'" alt="'+(a.name||'')+'" onclick="openAttachLightbox(\''+i+'\',\'admin\')"/>';
+    h += '<button class="attach-remove" onclick="removeAttachment('+i+')">✕</button>';
+    h += '<div class="attach-name">'+(a.name||'image')+'</div>';
+    h += '</div>';
+  }
+  box.innerHTML = h;
+}
+
+function attachAttachDropzoneEvents(){
+  var dz = document.querySelector('#ar-body .attach-dropzone');
+  if(!dz) return;
+  dz.addEventListener('dragover', function(e){
+    e.preventDefault();
+    dz.style.borderColor = 'var(--pink)';
+    dz.style.background = 'rgba(212,53,122,0.08)';
+  });
+  dz.addEventListener('dragleave', function(){
+    dz.style.borderColor = '';
+    dz.style.background = '';
+  });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault();
+    dz.style.borderColor = '';
+    dz.style.background = '';
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if(files && files.length){
+      handleAttachUpload({target:{files:files,value:''}});
+    }
+  });
+}
+
+function openAttachLightbox(idx, source){
+  var atts;
+  if(source === 'admin') atts = ADMIN_REVIEW.attachments || [];
+  else if(source === 'detail') atts = window._DETAIL_ATTACHMENTS || [];
+  else atts = [];
+  if(!atts[idx]) return;
+  el('attach-lightbox-img').src = atts[idx].data;
+  el('attach-lightbox').classList.add('show');
+}
+
+function closeAttachLightbox(){
+  el('attach-lightbox').classList.remove('show');
+  el('attach-lightbox-img').src = '';
+}
+
 function adminSendBack(){
   var rid = ADMIN_REVIEW.id;
   var r = null;
@@ -3422,6 +3584,7 @@ function adminSendBack(){
     if(RECENT[j].id===rid){
       RECENT[j].status='rejected';
       RECENT[j].adminNote=ADMIN_REVIEW.note;
+      RECENT[j].attachments=(ADMIN_REVIEW.attachments || []).slice();
       RECENT[j].submittedItems = sourceItems;
       RECENT[j].rejectedItems=failedItems;
       RECENT[j].items=failedItems.length;
@@ -3681,5 +3844,6 @@ document.addEventListener('click', function(e){
 <!-- Calendar Panel -->
 <div id="cal-backdrop" onclick="closeCal()"></div>
 <div id="cal-panel"></div>
+<div class="attach-lightbox" id="attach-lightbox" onclick="closeAttachLightbox()"><img id="attach-lightbox-img" src="" alt=""/></div>
 </body>
 </html>
