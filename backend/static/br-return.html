@@ -2915,19 +2915,33 @@ function doSubmit(){
     var editedRequest = null;
     for(var k=0;k<RECENT.length;k++){
       if(RECENT[k].id===ST.editId){
-        RECENT[k].status='pending'; RECENT[k].adminNote=null; RECENT[k].rejectedItems=[];
-        RECENT[k].submittedItems=submitted; RECENT[k].remark=remark; RECENT[k].items=submitted.length;
-        RECENT[k].cancelReason = '';
-        RECENT[k].sheetSync = 'none';
-        RECENT[k].sheetSyncAt = '';
-        RECENT[k].sheetSyncError = '';
+        RECENT[k].status='pending';
+        RECENT[k].adminNote='';
+        RECENT[k].rejectedItems=[];
+        RECENT[k].submittedItems=submitted;
+        RECENT[k].remark=remark;
+        RECENT[k].items=submitted.length;
+        RECENT[k].cancelReason='';
+        RECENT[k].sheetSync='none';
+        RECENT[k].sheetSyncAt='';
+        RECENT[k].sheetSyncError='';
+        RECENT[k].date=thDate;
+        RECENT[k].dateSort=dateSort;
         editedRequest = RECENT[k];
         break;
       }
     }
+    if(!editedRequest){
+      showToast('ไม่พบคำขอที่ต้องการแก้ไข','warn');
+      return;
+    }
     el('ok-id').innerHTML = ST.editId;
-    saveReturnRequest(editedRequest);
-    showToast('แก้ไขและส่งใหม่แล้ว','success');
+    saveReturnRequest(editedRequest).then(function(res){
+      if(res && res.success){
+        showToast('แก้ไขและส่งใหม่แล้ว','success');
+        loadReturnRequests({silent:true});
+      }
+    });
   } else {
     var newId = genId();
     var newRequest = {

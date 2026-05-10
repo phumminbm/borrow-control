@@ -321,22 +321,22 @@ class SyncPayload(BaseModel):
 
 class ReturnRequestPayload(BaseModel):
     id: str
-    cust: str = ""
-    custCode: str = ""
-    br: str = ""
-    sale: str = ""
-    status: str = "pending"
-    date: str = ""
-    dateSort: int = 0
-    remark: str = ""
-    adminNote: str = ""
-    cancelReason: str = ""
-    items: int = 0
-    submittedItems: list[dict] = Field(default_factory=list)
-    rejectedItems: list[dict] = Field(default_factory=list)
-    sheetSync: str = "none"
-    sheetSyncAt: str = ""
-    sheetSyncError: str = ""
+    cust: Optional[str] = ""
+    custCode: Optional[str] = ""
+    br: Optional[str] = ""
+    sale: Optional[str] = ""
+    status: Optional[str] = "pending"
+    date: Optional[str] = ""
+    dateSort: Optional[int] = 0
+    remark: Optional[str] = ""
+    adminNote: Optional[str] = ""
+    cancelReason: Optional[str] = ""
+    items: Optional[int] = 0
+    submittedItems: Optional[list[dict]] = Field(default_factory=list)
+    rejectedItems: Optional[list[dict]] = Field(default_factory=list)
+    sheetSync: Optional[str] = "none"
+    sheetSyncAt: Optional[str] = ""
+    sheetSyncError: Optional[str] = ""
 
 # ── Endpoints ─────────────────────────────────────────────────────────
 
@@ -424,19 +424,19 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
     ensure_tables(db)
     params = {
         "id": payload.id,
-        "cust": payload.cust,
-        "cust_code": payload.custCode,
-        "br": payload.br,
-        "sale": payload.sale,
-        "status": payload.status,
-        "request_date": payload.date,
-        "date_sort": payload.dateSort,
-        "remark": payload.remark,
+        "cust": payload.cust or "",
+        "cust_code": payload.custCode or "",
+        "br": payload.br or "",
+        "sale": payload.sale or "",
+        "status": payload.status or "pending",
+        "request_date": payload.date or "",
+        "date_sort": payload.dateSort or 0,
+        "remark": payload.remark or "",
         "admin_note": payload.adminNote or "",
         "cancel_reason": payload.cancelReason or "",
-        "items_count": payload.items,
-        "submitted_items": json.dumps(payload.submittedItems, ensure_ascii=False),
-        "rejected_items": json.dumps(payload.rejectedItems, ensure_ascii=False),
+        "items_count": payload.items or 0,
+        "submitted_items": json.dumps(payload.submittedItems or [], ensure_ascii=False),
+        "rejected_items": json.dumps(payload.rejectedItems or [], ensure_ascii=False),
         "sheet_sync": payload.sheetSync or "none",
         "sheet_sync_at": payload.sheetSyncAt or "",
         "sheet_sync_error": payload.sheetSyncError or "",
