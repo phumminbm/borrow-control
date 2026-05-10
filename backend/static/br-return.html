@@ -400,6 +400,16 @@ input,select,textarea,button{font-family:inherit;font-size:13px;}
 .banner-left p{font-size:11px;color:var(--sub);}
 .banner-status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 7px rgba(78,205,160,0.6);flex-shrink:0;display:inline-block;}
 .banner-right{display:none;}
+.data-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:0.8px;padding:3px 10px;border-radius:5px;margin-left:8px;vertical-align:middle;}
+.data-badge.live{background:rgba(78,205,160,0.12);color:var(--green);border:1px solid rgba(78,205,160,0.3);}
+.data-badge.offline{background:rgba(226,75,74,0.12);color:#E24B4A;border:1px solid rgba(226,75,74,0.3);}
+.data-badge.beta{background:rgba(212,53,122,0.12);color:var(--pink);border:1px solid rgba(212,53,122,0.3);}
+.data-badge .badge-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.data-badge.live .badge-dot{background:var(--green);box-shadow:0 0 5px rgba(78,205,160,0.5);}
+.data-badge.offline .badge-dot{background:#E24B4A;box-shadow:0 0 5px rgba(226,75,74,0.5);}
+.data-badge.beta .badge-dot{background:var(--pink);box-shadow:0 0 5px rgba(212,53,122,0.5);}
+#connection-error{display:none;padding:12px 16px;margin:8px 14px;border-radius:10px;background:rgba(226,75,74,0.08);border:1px solid rgba(226,75,74,0.25);color:#E24B4A;font-size:12px;text-align:center;}
+#connection-error button{margin-top:8px;padding:6px 16px;border-radius:7px;border:1px solid rgba(226,75,74,0.4);background:rgba(226,75,74,0.12);color:#E24B4A;font-size:11px;font-weight:600;cursor:pointer;}
 .btn-create{
   display:flex;align-items:center;gap:7px;padding:7px 16px;
   background:var(--green);color:#0a1a0f;border:none;border-radius:9px;
@@ -1069,9 +1079,13 @@ tbody tr:last-child td{border-bottom:none;}
       <!-- Module Banner -->
       <div id="module-banner">
         <div class="banner-left">
-          <h2><span class="banner-status-dot"></span>ระบบคืนสินค้ายืม (BR Return)</h2>
+          <h2><span class="banner-status-dot" id="banner-dot"></span>ระบบคืนสินค้ายืม (BR Return)<span class="data-badge beta" id="beta-badge"><span class="badge-dot"></span>BETA</span><span class="data-badge live" id="data-badge" style="display:none"><span class="badge-dot"></span>LIVE</span></h2>
           <p>สร้างคำขอคืน ติดตาม และตรวจสอบรายการสินค้าจากใบยืม</p>
         </div>
+      </div>
+      <div id="connection-error">
+        <div>ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ</div>
+        <button onclick="retryConnection()">ลองใหม่</button>
       </div>
 
       <!-- Sale pills bar -->
@@ -1353,125 +1367,13 @@ tbody tr:last-child td{border-bottom:none;}
 // ═══════════════════════════════════════════════════════════════
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSMj78k_1RNnED357GE97A3jxQekNnTCLoRmuDOETEdEMuWU8IqZNQg78fslMabrgJ_g/exec';
 var BORROW_API_BASE = localStorage.getItem('br-return-api-base') || (location.protocol.indexOf('http') === 0 ? location.origin : 'http://localhost:8000');
-var MASTER_SOURCE = 'mock';
+var MASTER_SOURCE = 'api';
 var MASTER_LOADING = false;
 
-var SALES = ["OPAL","PAT","MAMAEW","SHIRLEY","NING","TANG","GAM","ICE"];
-
-var CUSTS = [
-  {code:'50742',name:'มหาวิทยาลัยธรรมศาสตร์',sale:'OPAL',status:'BLOCK',days:1525,addr:'99 ม.18 ต.คลองหนึ่ง อ.คลองหลวง ปทุมธานี 12121'},
-  {code:'50532',name:'เอเดลไวซ์ เดนทัลเอ้าส์',sale:'OPAL',status:'BLOCK',days:1499,addr:'123 ถ.สีลม แขวงสีลม เขตบางรัก กรุงเทพฯ 10500'},
-  {code:'50746',name:'ทพ.สุเทพ บ่วงสี่เสียด',sale:'OPAL',status:'BLOCK',days:1499,addr:'456 ม.3 ต.ดอนแก้ว อ.แม่ริม จ.เชียงใหม่ 50180'},
-  {code:'50122',name:'ทพ.พิสุทธิ์ แสนมโน',sale:'PAT',status:'BLOCK',days:1512,addr:'789 ถ.มิตรภาพ อ.เมือง จ.ขอนแก่น 40000'},
-  {code:'50611',name:'ทพญ.กนิษฐ์ นันทเสน์',sale:'OPAL',status:'BLOCK',days:1400,addr:'321 ถ.ราชดำเนิน กรุงเทพฯ 10200'},
-  {code:'51540',name:'ทพ.ปานสวรรค์ ตัวกุล',sale:'OPAL',status:'BLOCK',days:1449,addr:'654 ถ.เพชรบุรีตัดใหม่ กรุงเทพฯ 10310'},
-  {code:'50015',name:'โรงพยาบาลทันตกรรม มหาจักรีสิรินธร',sale:'MAMAEW',status:'BLOCK',days:1448,addr:'111 ถ.พระรามที่ 2 แขวงแสมดำ เขตบางขุนเทียน กรุงเทพฯ 10150'},
-  {code:'50049',name:'ผ่าทันดกรรม โรงพยาบาลสมเด็จพระยุพราชส่วางแดนดิน',sale:'NING',status:'WARNING',days:1409,addr:'555 ถ.มิตรภาพ อ.ส่วางแดนดิน จ.สกลนคร 47110'},
-  {code:'50074',name:'โรงพยาบาลกุยบุรี',sale:'MAMAEW',status:'BLOCK',days:1501,addr:'68/11 ถ.แสงชูโต อ.เมือง จ.กาญจนบุรี 71000'},
-  {code:'50534',name:'บริษัท โรงพยาบาลพญาไท 2 จำกัด',sale:'SHIRLEY',status:'BLOCK',days:1466,addr:'943 ถ.พหลโยธิน แขวงพญาไท เขตพญาไท กรุงเทพฯ 10400'},
-  {code:'51194',name:'ดร.ปรินทร์',sale:'ICE',status:'NORMAL',days:24,addr:'888 ถ.รัชดาภิเษก ห้วยขวาง กรุงเทพฯ 10310'},
-  {code:'52560',name:'ทพ.ชนม์พิริยะ สมิทธินนท์',sale:'TANG',status:'WARNING',days:95,addr:'222 ถ.นิมมานเหมินท์ อ.เมือง จ.เชียงใหม่ 50200'},
-];
-
-var BRS = {
-  '50742':[
-    {br:'BR202202620',date:'18-02-2022',days:1525,value:5000,status:'BLOCK'},
-    {br:'BR202203445',date:'14-03-2022',days:1501,value:2400,status:'BLOCK'},
-    {br:'BR202212726',date:'20-12-2022',days:1220,value:11000,status:'BLOCK'},
-  ],
-  '50532':[
-    {br:'BR202203539',date:'16-03-2022',days:1499,value:36100,status:'BLOCK'},
-    {br:'BR202209093',date:'02-09-2022',days:1328,value:3000,status:'BLOCK'},
-  ],
-  '50746':[
-    {br:'BR202205924',date:'26-05-2022',days:1428,value:4000,status:'BLOCK'},
-    {br:'BR202205925',date:'26-05-2022',days:1428,value:3900,status:'BLOCK'},
-  ],
-  '50122':[
-    {br:'BR202203154',date:'03-03-2022',days:1512,value:1200,status:'BLOCK'},
-  ],
-  '50611':[
-    {br:'BR202202767',date:'23-06-2022',days:1400,value:2700,status:'BLOCK'},
-    {br:'BR202202766',date:'23-06-2022',days:1400,value:900,status:'BLOCK'},
-  ],
-  '51540':[
-    {br:'BR202205182',date:'05-05-2022',days:1449,value:9000,status:'BLOCK'},
-    {br:'BR202206387',date:'06-10-2022',days:1413,value:11500,status:'BLOCK'},
-  ],
-  '50015':[
-    {br:'BR202205268',date:'06-05-2022',days:1448,value:2500,status:'BLOCK'},
-    {br:'BR202205266',date:'06-05-2022',days:1448,value:12500,status:'BLOCK'},
-  ],
-  '50049':[
-    {br:'BR202206495',date:'14-06-2022',days:1409,value:32500,status:'BLOCK'},
-  ],
-  '50074':[
-    {br:'BR202203416',date:'14-03-2022',days:1501,value:10400,status:'BLOCK'},
-  ],
-  '50534':[
-    {br:'BR202204470',date:'18-04-2022',days:1466,value:5000,status:'BLOCK'},
-    {br:'BR202206578',date:'16-06-2022',days:1407,value:3500,status:'BLOCK'},
-  ],
-  '51194':[
-    {br:'BR102601290127',date:'29-01-2026',days:84,value:3000,status:'NORMAL'},
-  ],
-  '52560':[
-    {br:'BR102502050088',date:'05-02-2025',days:442,value:4500,status:'WARNING'},
-  ],
-};
-
-var ITEMS = {
-  'BR202202620':[{code:'ISAH3537',name:'IS Cemented Abutment Dia.3.5*3.0mm L:7.0mm Hex',qty:2}],
-  'BR202203445':[{code:'ISAHT480',name:'IS Hexed Temporary Abutment 4.5*2mm L8mm',qty:2}],
-  'BR202206387':[
-    {code:'IS34010AP',name:'IS-III active Fixture Dia.4.0*10.0mm',qty:4},
-    {code:'IS34510AP',name:'IS-III active Fixture Dia.4.0*11.5mm',qty:2},
-    {code:'ISAH524',name:'IS Hexed Cementation Abutment Ø5.2mm',qty:1},
-  ],
-  'BR202212726':[
-    {code:'ISPSBH50NB',name:'IS Oral Scan Body',qty:2},
-    {code:'SGISLA500',name:'Surgical Guide IS Lab Analog',qty:1},
-  ],
-  'BR202203539':[
-    {code:'OSLY1020',name:'Lysogide 10*20mm',qty:5},
-    {code:'IS33510AP',name:'IS-III active Fixture Dia.3.5*10.0mm',qty:5},
-    {code:'MUALA48',name:'Multi Unit Abutment Lab Analog Ø4.8',qty:3},
-  ],
-  'BR202205924':[
-    {code:'ISAHMU1440S',name:'IS Angled Hex MU Abutment 4.8*4.0mm 17°',qty:2},
-    {code:'MUAHC48',name:'Multi Unit Abutment Healing Cap Ø4.8',qty:5},
-  ],
-  'BR202203154':[{code:'MUALA48',name:'Multi Unit Abutment Lab Analog Ø4.8',qty:1}],
-  'BR202202767':[
-    {code:'IS33510AP',name:'IS-III active Fixture Dia.3.5*10.0mm',qty:1},
-    {code:'ISH603',name:'IS Healing Abutment Ø6.0* 3mm',qty:2},
-  ],
-  'BR202205182':[
-    {code:'IS34510AP',name:'IS-III active Fixture Dia.4.0*10.0mm',qty:1},
-    {code:'IS35010AP',name:'IS-III active Fixture Dia.5.0*10.0mm',qty:1},
-  ],
-  'BR202205268':[{code:'ISAH524',name:'IS Hexed Cementation Abutment Ø5.2mm',qty:1}],
-  'BR202206495':[
-    {code:'AS4AN1.5',name:'IS 4.0 ANGELED 1.5',qty:1},
-    {code:'AS4AN3.0',name:'IS 4.0 ANGLED 3.0',qty:1},
-    {code:'SQ35AN1.5',name:'IS 3.5 ANGLED 1.5',qty:2},
-    {code:'SQ35AN3.0',name:'IS 3.5 ANGLED 3.0',qty:2},
-  ],
-  'BR202203416':[
-    {code:'IS33508AP',name:'IS-III active Fixture;Dia.3.5*8.5mm',qty:1},
-    {code:'T GEN S 2030 (EXP)',name:'T-Gen2030(EXP)',qty:1},
-    {code:'TITAN X V 050M (EXP)',name:'Titan-X: Vial / Volume M / Particle M',qty:1},
-  ],
-  'BR202204470':[{code:'ISPSBH50NB',name:'IS Oral Scan Body',qty:2}],
-  'BR202206578':[
-    {code:'ISPSBH50NB',name:'IS Oral Scan Body',qty:1},
-    {code:'SGISLA500',name:'Surgical Guide IS Lab Analog',qty:1},
-  ],
-  'BR102601290127':[{code:'ISAH3537',name:'IS Cemented Abutment Dia.3.5*3.0mm',qty:1}],
-  'BR102502050088':[{code:'IS34510AP',name:'IS-III active Fixture Dia.4.0*10.0mm',qty:1}],
-  'BR202209093':[{code:'OSLY1020',name:'Lysogide 10*20mm',qty:2}],
-  'BR202205925':[{code:'MUATPCN48',name:'Multi Unit Abut Temporary Cylinder Non-h Ø4.8',qty:3}],
-};
+var SALES = [];
+var CUSTS = [];
+var BRS = {};
+var ITEMS = {};
 
 // ── Initial RECENT data ──
 var RECENT = [];
@@ -1660,6 +1562,27 @@ function applyBorrowMasterData(customers, sales, brsByCustomer, itemsByBr){
   else renderAdminContent();
 }
 
+function updateConnectionBadge(connected){
+  var badge = el('data-badge');
+  var dot = el('banner-dot');
+  var errPanel = el('connection-error');
+  if(connected){
+    if(badge) badge.style.display = 'inline-flex';
+    if(dot){ dot.style.background = 'var(--green)'; dot.style.boxShadow = '0 0 7px rgba(78,205,160,0.6)'; }
+    if(errPanel) errPanel.style.display = 'none';
+  } else {
+    if(badge) badge.style.display = 'none';
+    if(dot){ dot.style.background = '#E24B4A'; dot.style.boxShadow = '0 0 7px rgba(226,75,74,0.6)'; }
+    if(errPanel) errPanel.style.display = 'block';
+  }
+}
+
+function retryConnection(){
+  el('connection-error').style.display = 'none';
+  showToast('Reconnecting...', 'warn');
+  loadBorrowMasterData();
+}
+
 function loadBorrowMasterData(){
   MASTER_LOADING = true;
   return Promise.all([
@@ -1673,11 +1596,12 @@ function loadBorrowMasterData(){
     BRS = {};
     ITEMS = {};
     applyBorrowMasterData(customers, sales, {}, {});
-    showToast('Loaded Borrow Control customers', 'success');
+    updateConnectionBadge(true);
+    showToast('Connected — ' + customers.length + ' customers loaded', 'success');
   }).catch(function(err){
-    MASTER_SOURCE = 'mock';
-    console.warn('[BR Return] Using mock master data:', err);
-    showToast('Borrow API not ready - using mock data', 'warn');
+    MASTER_SOURCE = 'api';
+    console.warn('[BR Return] Cannot connect to database:', err);
+    updateConnectionBadge(false);
   }).finally(function(){
     MASTER_LOADING = false;
   });
