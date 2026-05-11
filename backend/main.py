@@ -649,6 +649,59 @@ def recalc(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/value-debug")
+def value_debug(db: Session = Depends(get_db)):
+    """Debug ฿ gap: ค้นหา active borrows ที่ไม่มี items ใน DB"""
+    try:
+        # Total outstanding value from active borrows + their items
+        total_val = db.execute(text("""
+            SELECT COALESCE(SUM(bi.total_price), 0)
+            FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+
+        # Borrows with NO items at all
+        no_items = db.execute(text("""
+            SELECT b.borrow_no, b.cust_code, b.status
+            FROM borrows b
+            LEFT JOIN borrow_items bi ON b.borrow_no = bi.borrow_no
+            WHERE b.sheet_status = 'active'
+              AND bi.borrow_no IS NULL
+            ORDER BY b.borrow_no
+            LIMIT 50
+        """)).fetchall()
+
+        # Count of borrows with no items
+        no_items_count = db.execute(text("""
+            SELECT COUNT(*)
+            FROM borrows b
+            LEFT JOIN borrow_items bi ON b.borrow_no = bi.borrow_no
+            WHERE b.sheet_status = 'active'
+              AND bi.borrow_no IS NULL
+        """)).fetchone()[0]
+
+        # Active borrows total count and item count
+        active_count = db.execute(text("SELECT COUNT(*) FROM borrows WHERE sheet_status='active'")).fetchone()[0]
+        item_count   = db.execute(text("""
+            SELECT COUNT(*) FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+
+        return {
+            "outstanding_value_thb": float(total_val),
+            "active_borrows": active_count,
+            "active_items": item_count,
+            "borrows_with_no_items": no_items_count,
+            "sample_no_item_borrows": [
+                {"borrow_no": r[0], "cust_code": r[1], "status": r[2]}
+                for r in no_items
+            ]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/staging-status")
 def staging_status(db: Session = Depends(get_db)):
     """ดูว่า staging มีข้อมูลเข้ามาเท่าไหร่แล้ว ใช้เช็คระหว่าง sync"""
