@@ -262,8 +262,9 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # Use DISTINCT ON (borrow_no, product_code) to prevent duplicates caused by
-        # concurrent triggers sending overlapping row ranges to borrow_items_staging.
+        # Use DISTINCT ON (borrow_no, product_code, price, quantity, total_price) to deduplicate
+        # only truly identical rows (same product + same qty + same price) while preserving
+        # legitimate cases where the same product appears twice in one BR with different qty/price.
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
@@ -271,12 +272,12 @@ def swap_staging_to_main(db):
         db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-            SELECT DISTINCT ON (borrow_no, product_code)
+            SELECT DISTINCT ON (borrow_no, product_code, price, quantity, total_price)
                 borrow_no, product_code, product_name, price, quantity, total_price, :now
             FROM borrow_items_staging
-            ORDER BY borrow_no, product_code, id ASC
+            ORDER BY borrow_no, product_code, price, quantity, total_price, id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted (deduplicated)")
+        logger.info("swap step 4/5: borrow_items upserted (deduplicated by full row equality)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
@@ -580,13 +581,11 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
             stats["updated"] = len(borrow_params)
 
         if item_params:
-            # Remove existing staging items for these BRs before re-inserting
-            # to prevent duplicates when concurrent triggers send overlapping row ranges
-            bnos_in_batch = list({p["bno"] for p in item_params})
-            db.execute(text("""
-                DELETE FROM borrow_items_staging
-                WHERE borrow_no = ANY(:bnos)
-            """), {"bnos": bnos_in_batch})
+            # Accumulate items from all batches — do NOT delete staging items per batch.
+            # Deleting per batch causes data loss for BRs that span batch boundaries
+            # (a later batch would delete the earlier batch's items for the same BR).
+            # Deduplication of true duplicate rows (concurrent overlapping triggers)
+            # is handled at swap time via DISTINCT ON (bno, pcode, price, qty, total).
             db.execute(text("""
                 INSERT INTO borrow_items_staging
                     (borrow_no, product_code, product_name, price, quantity, total_price)
