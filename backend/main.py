@@ -262,8 +262,8 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # Preserve every sheet row exactly, including identical product lines.
-        # Duplicate protection happens while each sync batch is written.
+        # Use DISTINCT ON (borrow_no, product_code) to prevent duplicates caused by
+        # concurrent triggers sending overlapping row ranges to borrow_items_staging.
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
@@ -271,11 +271,12 @@ def swap_staging_to_main(db):
         db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-            SELECT borrow_no, product_code, product_name, price, quantity, total_price, :now
+            SELECT DISTINCT ON (borrow_no, product_code)
+                borrow_no, product_code, product_name, price, quantity, total_price, :now
             FROM borrow_items_staging
-            ORDER BY id
+            ORDER BY borrow_no, product_code, id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted")
+        logger.info("swap step 4/5: borrow_items upserted (deduplicated)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
@@ -579,6 +580,13 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
             stats["updated"] = len(borrow_params)
 
         if item_params:
+            # Remove existing staging items for these BRs before re-inserting
+            # to prevent duplicates when concurrent triggers send overlapping row ranges
+            bnos_in_batch = list({p["bno"] for p in item_params})
+            db.execute(text("""
+                DELETE FROM borrow_items_staging
+                WHERE borrow_no = ANY(:bnos)
+            """), {"bnos": bnos_in_batch})
             db.execute(text("""
                 INSERT INTO borrow_items_staging
                     (borrow_no, product_code, product_name, price, quantity, total_price)
@@ -789,6 +797,40 @@ def customer_value(db: Session = Depends(get_db)):
         return {r.cust_code: float(r.total_value) for r in rows}
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/fix-duplicate-items")
+def fix_duplicate_items(db: Session = Depends(get_db)):
+    """ลบ borrow_items ที่ซ้ำกัน (borrow_no + product_code เดิม) เก็บแค่ id ต่ำสุดไว้
+    เกิดจาก concurrent triggers ส่ง row ranges ซ้อนกันใน borrow_items_staging"""
+    try:
+        before = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM borrow_items
+                GROUP BY borrow_no, product_code
+            )
+        """))
+        db.commit()
+        after = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        removed = before - after
+        total_value = db.execute(text("""
+            SELECT COALESCE(SUM(bi.total_price), 0)
+            FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+        return {
+            "success": True,
+            "items_before": before,
+            "items_after": after,
+            "duplicates_removed": removed,
+            "outstanding_value_after": float(total_value)
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
 
 @app.get("/migrate")
 def migrate(db: Session = Depends(get_db)):
