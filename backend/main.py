@@ -1,3 +1,32 @@
+# =============================================================================
+# Borrow Control — Backend
+#
+# ARCHITECTURE INVARIANT (read before changing anything in this file):
+#
+#   The Logistics File (Google Sheets) is the SINGLE SOURCE OF TRUTH for all
+#   borrow state. Two upstream paths write to it:
+#     1. Sales / admins editing the sheet directly
+#     2. The "BR Return" Apps Script writing BORROW → WAIT in real time when
+#        an admin approves a return
+#
+#   This database is a READ-SIDE CACHE — a nightly snapshot of the source.
+#   It is rebuilt by:
+#     - Apps Script "Find BR" reading the Summary tab (STATUS='BORROW' filter)
+#       and POSTing batches to /sync
+#     - swap_staging_to_main() atomically promoting staging → main on the
+#       final batch of each nightly cycle
+#
+#   The ONLY write path into `borrows` and `borrow_items` is the swap
+#   pipeline. No endpoint, no migration, no admin tool should ever insert
+#   or update these tables directly outside swap_staging_to_main().
+#   Doing so will be silently overwritten by the next nightly swap and
+#   creates the exact data-integrity bugs we redesigned to eliminate.
+#
+#   Item identity is keyed by (borrow_no, line_no) where line_no is the
+#   absolute row position in the Summary sheet. This preserves source order
+#   and disambiguates same-product / different-qty rows in the same BR.
+# =============================================================================
+
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -733,6 +762,57 @@ def value_debug(db: Session = Depends(get_db)):
                 {"borrow_no": r[0], "cust_code": r[1], "status": r[2]}
                 for r in no_items
             ]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/sync-health")
+def sync_health(db: Session = Depends(get_db)):
+    """Staleness signal for the nightly snapshot model.
+
+    Returns the timestamp of the last successful swap (inferred from
+    MAX(updated_at) on borrow_items — every successful swap stamps all
+    items with `now`), how many hours ago that was, and a green/yellow/red
+    status flag so the dashboard can render a banner without doing math.
+
+    Thresholds:
+      - green:  < 28h since last swap   (one nightly cycle, within tolerance)
+      - yellow: 28h – 48h               (last night likely skipped — investigate)
+      - red:    > 48h                   (multiple nights missed — incident)
+    """
+    try:
+        row = db.execute(text("""
+            SELECT MAX(updated_at) AS last_swap_at
+            FROM borrow_items
+        """)).fetchone()
+        last_swap_at = row[0] if row else None
+
+        if last_swap_at is None:
+            return {
+                "last_successful_swap_at": None,
+                "hours_since_last_swap": None,
+                "status": "red",
+                "message": "No swap on record",
+            }
+
+        now = datetime.now(timezone.utc)
+        # Ensure last_swap_at is timezone-aware before subtraction
+        if last_swap_at.tzinfo is None:
+            last_swap_at = last_swap_at.replace(tzinfo=timezone.utc)
+        delta_hours = (now - last_swap_at).total_seconds() / 3600.0
+
+        if delta_hours < 28:
+            status, message = "green", "Snapshot fresh"
+        elif delta_hours < 48:
+            status, message = "yellow", "Last night's sync may have been skipped"
+        else:
+            status, message = "red", "Snapshot is stale — sync has missed multiple nights"
+
+        return {
+            "last_successful_swap_at": last_swap_at.isoformat(),
+            "hours_since_last_swap": round(delta_hours, 2),
+            "status": status,
+            "message": message,
         }
     except Exception as e:
         return {"error": str(e)}

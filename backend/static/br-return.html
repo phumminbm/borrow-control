@@ -1781,9 +1781,12 @@ function statusBadgeHTML(status, isAdmin){
 function syncPillHTML(r){
   var sync = r.sheetSync || 'none';
   if(sync==='synced'){
-    return '<span class="sync-pill sync-ok">'
+    // The BR Return Apps Script has written BORROW → WAIT into the Logistics
+    // File (source of truth). The Find Borrow DB is a nightly snapshot, so
+    // the BR will continue to appear active until the next nightly swap.
+    return '<span class="sync-pill sync-ok" title="อัพเดต Logistics File แล้ว — Find Borrow DB จะอัพเดตในรอบ sync ถัดไป (รายคืน)">'
       +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#4ECDA0" stroke-width="1"/><path d="M3 5l1.5 1.5L7 3.5" stroke="#4ECDA0" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      +'synced</span>';
+      +'อนุมัติ · รอ snapshot คืนถัดไป</span>';
   }
   if(sync==='pending'){
     return '<span class="sync-pill sync-pending">'

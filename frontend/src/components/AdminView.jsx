@@ -75,7 +75,7 @@ function BarChart({ team, customers }) {
   return <canvas ref={ref} style={{width:"100%",height:160,display:"block"}}/>;
 }
 
-export default function AdminView({ customers, syncLogs, dark, analytics, custValues = {}, lang = "th" }) {
+export default function AdminView({ customers, syncLogs, syncHealth, dark, analytics, custValues = {}, lang = "th" }) {
   const t = T[lang];
   const [selTeam, setSelTeam]       = useState(null);
   const [search, setSearch]         = useState("");
@@ -228,6 +228,27 @@ export default function AdminView({ customers, syncLogs, dark, analytics, custVa
         </div>
 
         {/* Sync bar */}
+        {syncHealth && syncHealth.status && (() => {
+          const palette = {
+            green:  { dot: "#639922", bg: dark?"#1a2b14":"#f0f7e8", text: dark?"#cfe2b6":"#3e6a13" },
+            yellow: { dot: "#EF9F27", bg: dark?"#2b220e":"#fdf5e5", text: dark?"#f0d7a2":"#8a5a0f" },
+            red:    { dot: "#A32D2D", bg: dark?"#2b1414":"#fbeaea", text: dark?"#f0a5a5":"#7a1818" },
+          }[syncHealth.status] || { dot: "#888", bg: "transparent", text: "#888" };
+          const hrs = syncHealth.hours_since_last_swap;
+          const ago = hrs == null ? "—"
+                    : hrs < 1 ? `${Math.round(hrs*60)} min ago`
+                    : hrs < 48 ? `${hrs.toFixed(1)} h ago`
+                    : `${Math.floor(hrs/24)} days ago`;
+          return (
+            <div style={{background:palette.bg,border:`1px solid ${palette.dot}33`,borderRadius:8,padding:"7px 14px",marginBottom:10,fontSize:12,color:palette.text,display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
+              <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:palette.dot}}/>
+              <strong>Snapshot:</strong>
+              <span>last swap {ago}</span>
+              <span style={{opacity:0.7}}>· {syncHealth.message}</span>
+            </div>
+          );
+        })()}
+
         {lastSync && (
           <div style={{background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,borderRadius:8,padding:"7px 14px",marginBottom:10,fontSize:11,color:"#888",display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
             <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:dark?"#ddd":"#555"}}>{t.syncLatest}:</strong> {lastSync.synced_at}</span>

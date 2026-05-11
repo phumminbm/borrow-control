@@ -136,6 +136,7 @@ function DesktopApp() {
   const [view, setView]           = useState("sale");
   const [customers, setCustomers] = useState(() => Array.isArray(cachedData.customers) ? cachedData.customers : []);
   const [syncLogs, setSyncLogs]   = useState(() => Array.isArray(cachedData.syncLogs) ? cachedData.syncLogs : []);
+  const [syncHealth, setSyncHealth] = useState(() => cachedData.syncHealth || null);
   const [analytics, setAnalytics] = useState(() => cachedData.analytics || null);
   const [custValues, setCustValues] = useState(() => cachedData.custValues || {});
   const [loading, setLoading]     = useState(() => !(Array.isArray(cachedData.customers) && cachedData.customers.length > 0));
@@ -151,11 +152,13 @@ function DesktopApp() {
         fetchJson("/sync-logs", 1),
         fetchJson("/analytics/summary", 1),
         fetchJson("/analytics/customer-value", 1),
+        fetchJson("/sync-health", 1),
       ]).then(results => {
-        const custs = results[0].status === "fulfilled" ? results[0].value : null;
-        const logs  = results[1].status === "fulfilled" ? results[1].value : null;
-        const anal  = results[2].status === "fulfilled" ? results[2].value : null;
-        const cv    = results[3].status === "fulfilled" ? results[3].value : null;
+        const custs  = results[0].status === "fulfilled" ? results[0].value : null;
+        const logs   = results[1].status === "fulfilled" ? results[1].value : null;
+        const anal   = results[2].status === "fulfilled" ? results[2].value : null;
+        const cv     = results[3].status === "fulfilled" ? results[3].value : null;
+        const health = results[4].status === "fulfilled" ? results[4].value : null;
 
         let nextCache = readDataCache(DESKTOP_DATA_CACHE);
         if (Array.isArray(custs) && custs.length > 0) {
@@ -173,6 +176,10 @@ function DesktopApp() {
         if (cv && !cv.error) {
           setCustValues(cv);
           nextCache.custValues = cv;
+        }
+        if (health && !health.error) {
+          setSyncHealth(health);
+          nextCache.syncHealth = health;
         }
         writeDataCache(DESKTOP_DATA_CACHE, nextCache);
       }).finally(() => setLoading(false));
@@ -234,7 +241,7 @@ function DesktopApp() {
         ) : view === "sale" ? (
           <SaleView customers={customers} dark={dark} custValues={custValues} analytics={analytics} lang={lang}/>
         ) : (
-          <AdminView customers={customers} syncLogs={syncLogs} dark={dark} analytics={analytics} custValues={custValues} lang={lang}/>
+          <AdminView customers={customers} syncLogs={syncLogs} syncHealth={syncHealth} dark={dark} analytics={analytics} custValues={custValues} lang={lang}/>
         )}
       </div>
     </div>
