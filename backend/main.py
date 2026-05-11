@@ -297,36 +297,57 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # DEDUP STRATEGY: by CONTENT (borrow_no, product_code, price, quantity,
-        # total_price), keeping the smallest line_no as the row's stable
-        # identity. line_no is preserved for SOURCE ORDER but NOT used as the
-        # dedup key — because on long cycles with retries against a mutating
-        # Summary sheet, the same logical source row can get different line_no
-        # values across retries (sheet position shifts). Using line_no as
-        # identity inflates the snapshot by re-inserting the same content
-        # under multiple line_nos (this was observed in production:
-        # 47,920 items vs source's 37,612, +29% outstanding value).
+        # DEDUP STRATEGY: by SOURCE ROW IDENTITY (borrow_no, line_no).
+        # This is the correct invariant because the source Sheet may contain
+        # legitimately-duplicated line items (same product/qty/price in the
+        # same BR but recorded on separate rows on purpose). Content-based
+        # dedup would silently destroy those — DO NOT change this to
+        # (bno, pcode, price, qty, total) without an upstream guarantee that
+        # legitimate duplicates have been disambiguated some other way.
         #
-        # Content-based dedup correctly:
-        #   - preserves same-product-different-qty legit cases (different content tuple)
-        #   - removes retry-induced duplicates (identical content, different line_no)
-        #   - removes the 24 truly-identical source data-entry errors (unchanged)
+        # KNOWN GAP: line_no is only stable if the Summary sheet doesn't
+        # mutate during the sync cycle. On long cycles with retries against
+        # a mutating sheet, the same logical source row can land in staging
+        # with different line_no values. That causes inflation (observed
+        # 2026-05-12: 47,920 items vs source 37,612). The architectural fix
+        # is upstream: have the Apps Script copy Summary → a frozen snapshot
+        # sheet at the START of the cycle, then sync from the frozen sheet.
+        # Until that is in place, occasional inflation during DB-flap nights
+        # is the lesser evil compared to silently deleting real line items.
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
         """))
+        # Pass A — new-format rows keyed by (borrow_no, line_no)
+        db.execute(text("""
+            INSERT INTO borrow_items
+                (borrow_no, line_no, product_code, product_name,
+                 price, quantity, total_price, updated_at)
+            SELECT DISTINCT ON (borrow_no, line_no)
+                borrow_no, line_no, product_code, product_name,
+                price, quantity, total_price, :now
+            FROM borrow_items_staging
+            WHERE line_no IS NOT NULL AND line_no > 0
+            ORDER BY borrow_no, line_no, id ASC
+        """), {"now": now})
+        # Pass B — legacy rows without line_no (only for BRs that have no
+        # new-format rows in staging, to avoid mixing old/new for same BR)
         db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, line_no, product_code, product_name,
                  price, quantity, total_price, updated_at)
             SELECT DISTINCT ON (borrow_no, product_code, price, quantity, total_price)
-                borrow_no, line_no, product_code, product_name,
+                borrow_no, NULL, product_code, product_name,
                 price, quantity, total_price, :now
             FROM borrow_items_staging
-            ORDER BY borrow_no, product_code, price, quantity, total_price,
-                     COALESCE(line_no, 2147483647), id ASC
+            WHERE (line_no IS NULL OR line_no = 0)
+              AND borrow_no NOT IN (
+                SELECT DISTINCT borrow_no FROM borrow_items_staging
+                WHERE line_no IS NOT NULL AND line_no > 0
+              )
+            ORDER BY borrow_no, product_code, price, quantity, total_price, id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted (content-keyed, line_no preserved for order)")
+        logger.info("swap step 4/5: borrow_items upserted (line_no identity preserved)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
