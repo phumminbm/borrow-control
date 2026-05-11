@@ -680,9 +680,31 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
     if payload.is_final_batch and not stats["errors"]:
         try:
             swap_staging_to_main(db)
-            recalc_all_customers(db)
-            # ล้าง staging พร้อมรับ sync รอบหน้า
-            clear_staging(db)
+            # CRITICAL: clear_staging MUST run if swap succeeded, otherwise
+            # staging accumulates cruft across cycles and the next cycle's
+            # swap unions current data with stale data — producing inflated
+            # snapshots with the same content under different line_no values
+            # (observed inflation 2026-05-12: 47,920 items vs source 37,612).
+            # Therefore clear_staging is called BEFORE recalc_all_customers
+            # and is wrapped in its own try/except so a recalc failure can't
+            # leave staging populated.
+            try:
+                clear_staging(db)
+            except Exception as ce:
+                logger.error(f"clear_staging FAILED after successful swap: {ce}", exc_info=True)
+                # Best-effort fallback: try truncate again without rollback context
+                try:
+                    db.rollback()
+                    clear_staging(db)
+                except Exception as ce2:
+                    logger.critical(f"clear_staging fallback ALSO failed — staging may carry into next cycle: {ce2}")
+            try:
+                recalc_all_customers(db)
+            except Exception as re:
+                # recalc is derivative — failing here doesn't corrupt state.
+                # Log loudly but don't increment stats["errors"] because the
+                # swap itself succeeded; next cycle's swap will rebuild.
+                logger.error(f"recalc_all_customers failed after swap (non-fatal): {re}", exc_info=True)
             stats["closed"] = 0  # closed ถูก handle ใน swap แล้ว
         except Exception as e:
             stats["errors"] += 1
