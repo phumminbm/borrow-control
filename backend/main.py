@@ -268,15 +268,17 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # DISTINCT ON (borrow_no, line_no) — each row in the Summary sheet has a unique
-        # absolute row position (line_no), so each source row gets exactly one DB row,
-        # in source order. Concurrent overlapping batches that re-send the same source
-        # row are correctly deduplicated; legitimate same-product-different-qty cases
-        # are preserved because they live on different source rows.
+        # Primary path: DISTINCT ON (borrow_no, line_no) — each Summary-sheet row has a
+        # unique absolute position, so each source row gets exactly one DB row in source
+        # order. Legit same-product-different-qty cases are preserved (different line_no).
+        # Transition fallback: for BRs whose staging rows still have NULL line_no
+        # (carried over from an older Apps Script version), use the old full-row-equality
+        # DISTINCT ON so the DB doesn't lose those BRs' items during the rollout.
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
         """))
+        # Pass A — new-format rows
         db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, line_no, product_code, product_name,
@@ -288,7 +290,24 @@ def swap_staging_to_main(db):
             WHERE line_no IS NOT NULL AND line_no > 0
             ORDER BY borrow_no, line_no, id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted (keyed by source line_no)")
+        # Pass B — legacy rows (only for BRs that have no new-format rows at all,
+        # to avoid mixing old/new items for the same BR)
+        db.execute(text("""
+            INSERT INTO borrow_items
+                (borrow_no, line_no, product_code, product_name,
+                 price, quantity, total_price, updated_at)
+            SELECT DISTINCT ON (borrow_no, product_code, price, quantity, total_price)
+                borrow_no, NULL, product_code, product_name,
+                price, quantity, total_price, :now
+            FROM borrow_items_staging
+            WHERE (line_no IS NULL OR line_no = 0)
+              AND borrow_no NOT IN (
+                SELECT DISTINCT borrow_no FROM borrow_items_staging
+                WHERE line_no IS NOT NULL AND line_no > 0
+              )
+            ORDER BY borrow_no, product_code, price, quantity, total_price, id ASC
+        """), {"now": now})
+        logger.info("swap step 4/5: borrow_items upserted (line_no with legacy fallback)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
