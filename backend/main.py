@@ -297,46 +297,36 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # Primary path: DISTINCT ON (borrow_no, line_no) — each Summary-sheet row has a
-        # unique absolute position, so each source row gets exactly one DB row in source
-        # order. Legit same-product-different-qty cases are preserved (different line_no).
-        # Transition fallback: for BRs whose staging rows still have NULL line_no
-        # (carried over from an older Apps Script version), use the old full-row-equality
-        # DISTINCT ON so the DB doesn't lose those BRs' items during the rollout.
+        # DEDUP STRATEGY: by CONTENT (borrow_no, product_code, price, quantity,
+        # total_price), keeping the smallest line_no as the row's stable
+        # identity. line_no is preserved for SOURCE ORDER but NOT used as the
+        # dedup key — because on long cycles with retries against a mutating
+        # Summary sheet, the same logical source row can get different line_no
+        # values across retries (sheet position shifts). Using line_no as
+        # identity inflates the snapshot by re-inserting the same content
+        # under multiple line_nos (this was observed in production:
+        # 47,920 items vs source's 37,612, +29% outstanding value).
+        #
+        # Content-based dedup correctly:
+        #   - preserves same-product-different-qty legit cases (different content tuple)
+        #   - removes retry-induced duplicates (identical content, different line_no)
+        #   - removes the 24 truly-identical source data-entry errors (unchanged)
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
         """))
-        # Pass A — new-format rows
-        db.execute(text("""
-            INSERT INTO borrow_items
-                (borrow_no, line_no, product_code, product_name,
-                 price, quantity, total_price, updated_at)
-            SELECT DISTINCT ON (borrow_no, line_no)
-                borrow_no, line_no, product_code, product_name,
-                price, quantity, total_price, :now
-            FROM borrow_items_staging
-            WHERE line_no IS NOT NULL AND line_no > 0
-            ORDER BY borrow_no, line_no, id ASC
-        """), {"now": now})
-        # Pass B — legacy rows (only for BRs that have no new-format rows at all,
-        # to avoid mixing old/new items for the same BR)
         db.execute(text("""
             INSERT INTO borrow_items
                 (borrow_no, line_no, product_code, product_name,
                  price, quantity, total_price, updated_at)
             SELECT DISTINCT ON (borrow_no, product_code, price, quantity, total_price)
-                borrow_no, NULL, product_code, product_name,
+                borrow_no, line_no, product_code, product_name,
                 price, quantity, total_price, :now
             FROM borrow_items_staging
-            WHERE (line_no IS NULL OR line_no = 0)
-              AND borrow_no NOT IN (
-                SELECT DISTINCT borrow_no FROM borrow_items_staging
-                WHERE line_no IS NOT NULL AND line_no > 0
-              )
-            ORDER BY borrow_no, product_code, price, quantity, total_price, id ASC
+            ORDER BY borrow_no, product_code, price, quantity, total_price,
+                     COALESCE(line_no, 2147483647), id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted (line_no with legacy fallback)")
+        logger.info("swap step 4/5: borrow_items upserted (content-keyed, line_no preserved for order)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
@@ -1026,6 +1016,60 @@ def fix_duplicate_items(db: Session = Depends(get_db)):
             "items_after": after,
             "duplicates_removed": removed,
             "outstanding_value_after": float(total_value)
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
+@app.post("/fix-content-duplicates")
+def fix_content_duplicates(db: Session = Depends(get_db)):
+    """One-time cleanup for the line_no-drift inflation bug.
+
+    Background: when retries occur during a long sync against a mutating
+    Summary sheet, the same logical source row can get inserted multiple
+    times with different `line_no` values (because the sheet position
+    shifted between attempts). The swap's `DISTINCT ON (bno, line_no)`
+    treats each as unique, inflating active_items.
+
+    This endpoint dedupes by content tuple (bno, pcode, price, qty, total),
+    keeping the row with the smallest id (= earliest inserted = canonical
+    line_no for that content). Preserves legit same-product-different-qty
+    cases (different content tuples) and collapses retry-induced duplicates.
+
+    Safe to run any time the DB looks inflated. Idempotent — running it
+    on already-clean data is a no-op.
+    """
+    try:
+        before = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM borrow_items
+                GROUP BY borrow_no, product_code, price, quantity, total_price
+            )
+        """))
+        db.commit()
+        after = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        removed = before - after
+        total_value = db.execute(text("""
+            SELECT COALESCE(SUM(bi.total_price), 0)
+            FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+        active_items = db.execute(text("""
+            SELECT COUNT(*) FROM borrow_items bi
+            JOIN borrows b ON bi.borrow_no = b.borrow_no
+            WHERE b.sheet_status = 'active'
+        """)).fetchone()[0]
+        return {
+            "success": True,
+            "items_before": before,
+            "items_after": after,
+            "duplicates_removed": removed,
+            "active_items_after": active_items,
+            "outstanding_value_after": float(total_value),
         }
     except Exception as e:
         db.rollback()
