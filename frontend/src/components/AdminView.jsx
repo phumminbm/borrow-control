@@ -218,9 +218,12 @@ export default function AdminView({ customers, syncLogs, syncHealth, dark, analy
             ["WARNING", filteredWa, dark?"#2D1E00":"#FAEEDA", dark?"#7A5500":"#FAC775", dark?"#FAC775":"#854F0B", dark?"#FAC775":"#854F0B"],
             ["NORMAL", filteredNo, dark?"#162010":"#EAF3DE", dark?"#3A6014":"#C0DD97", dark?"#C0DD97":"#3B6D11", dark?"#C0DD97":"#3B6D11"],
             [t.brActive, filteredBR.toLocaleString(), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#2a2a2a":"var(--color-border-secondary)", dark?"#eee":"var(--color-text-primary)", dark?"#ddd":"#888"],
-            [t.totalValue, fmtVal(filteredValue), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D"],
-          ].map(([label,val,bg,bd,vc,lc],i)=>(
-            <div key={i} style={{background:bg,border:`1.5px solid ${bd}`,borderRadius:10,padding:"10px 12px"}}>
+            // 7th element = full exact value shown on hover (browser-native title tooltip).
+            // Used only for the Outstanding Value card so admins can read the full ฿ figure
+            // during reconciliation without affecting any sync/calculation logic.
+            [t.totalValue, fmtVal(filteredValue), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D", `฿ ${Math.round(filteredValue).toLocaleString()}`],
+          ].map(([label,val,bg,bd,vc,lc,fullTitle],i)=>(
+            <div key={i} title={fullTitle} style={{background:bg,border:`1.5px solid ${bd}`,borderRadius:10,padding:"10px 12px",cursor:fullTitle?"help":"default"}}>
               <div style={{fontSize:10,color:lc,marginBottom:2,fontWeight:i>0&&i<4?500:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
               <div style={{fontSize:i===5?17:19,fontWeight:600,color:vc}}>{val}</div>
             </div>
