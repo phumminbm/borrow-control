@@ -82,9 +82,13 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW()
+            total_price NUMERIC(14,2), updated_at TIMESTAMPTZ DEFAULT NOW(),
+            line_no INTEGER
         )
     """))
+    # Migration: add line_no to borrow_items if missing (for upgrading existing DB)
+    db.execute(text("ALTER TABLE borrow_items ADD COLUMN IF NOT EXISTS line_no INTEGER"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_borrow_items_bno_line ON borrow_items(borrow_no, line_no)"))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS sync_logs (
             id SERIAL PRIMARY KEY, synced_at TIMESTAMPTZ DEFAULT NOW(),
@@ -136,9 +140,11 @@ def ensure_tables(db):
         CREATE TABLE IF NOT EXISTS borrow_items_staging (
             id SERIAL PRIMARY KEY, borrow_no TEXT, product_code TEXT,
             product_name TEXT, price NUMERIC(14,2), quantity INTEGER,
-            total_price NUMERIC(14,2)
+            total_price NUMERIC(14,2), line_no INTEGER
         )
     """))
+    # Migration: add line_no to borrow_items_staging
+    db.execute(text("ALTER TABLE borrow_items_staging ADD COLUMN IF NOT EXISTS line_no INTEGER"))
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS customers_staging (
             cust_code TEXT PRIMARY KEY,
@@ -262,22 +268,27 @@ def swap_staging_to_main(db):
         logger.info("swap step 3/5: borrows upserted")
 
         # 4. Upsert borrow_items จาก staging → main
-        # Use DISTINCT ON (borrow_no, product_code, price, quantity, total_price) to deduplicate
-        # only truly identical rows (same product + same qty + same price) while preserving
-        # legitimate cases where the same product appears twice in one BR with different qty/price.
+        # DISTINCT ON (borrow_no, line_no) — each row in the Summary sheet has a unique
+        # absolute row position (line_no), so each source row gets exactly one DB row,
+        # in source order. Concurrent overlapping batches that re-send the same source
+        # row are correctly deduplicated; legitimate same-product-different-qty cases
+        # are preserved because they live on different source rows.
         db.execute(text("""
             DELETE FROM borrow_items
             WHERE borrow_no IN (SELECT borrow_no FROM borrows_staging)
         """))
         db.execute(text("""
             INSERT INTO borrow_items
-                (borrow_no, product_code, product_name, price, quantity, total_price, updated_at)
-            SELECT DISTINCT ON (borrow_no, product_code, price, quantity, total_price)
-                borrow_no, product_code, product_name, price, quantity, total_price, :now
+                (borrow_no, line_no, product_code, product_name,
+                 price, quantity, total_price, updated_at)
+            SELECT DISTINCT ON (borrow_no, line_no)
+                borrow_no, line_no, product_code, product_name,
+                price, quantity, total_price, :now
             FROM borrow_items_staging
-            ORDER BY borrow_no, product_code, price, quantity, total_price, id ASC
+            WHERE line_no IS NOT NULL AND line_no > 0
+            ORDER BY borrow_no, line_no, id ASC
         """), {"now": now})
-        logger.info("swap step 4/5: borrow_items upserted (deduplicated by full row equality)")
+        logger.info("swap step 4/5: borrow_items upserted (keyed by source line_no)")
 
         # 5. ลบ borrow_items ที่ไม่อยู่ใน staging แล้ว (สินค้าถูก CLEAR ออก)
         db.execute(text("""
@@ -322,6 +333,10 @@ class SyncRow(BaseModel):
     price: float = 0
     quantity: int = 0
     total_price: float = 0
+    # Stable row identity from the source Summary sheet (absolute row position).
+    # Used to preserve item order and prevent silent collapsing of legit duplicate
+    # rows (e.g. same product appearing twice in one BR with different qty).
+    line_no: int = 0
 
 class SyncPayload(BaseModel):
     rows: list[SyncRow]
@@ -388,10 +403,10 @@ def get_customer_brs(cust_code: str, db: Session = Depends(get_db)):
         items = db.execute(text("""
             SELECT
                 id AS item_id,
-                ROW_NUMBER() OVER (ORDER BY id) AS line_no,
+                line_no,
                 product_code, product_name, price, quantity, total_price
             FROM borrow_items WHERE borrow_no=:bno
-            ORDER BY id
+            ORDER BY line_no NULLS LAST, id
         """), {"bno": br.borrow_no}).fetchall()
         result.append({**dict(br._mapping), "items": [dict(i._mapping) for i in items]})
     return result
@@ -550,9 +565,10 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
             if row.product_code:
                 item_params.append({
-                    "bno": row.borrow_no, "code": row.product_code,
-                    "name": row.product_name, "price": row.price,
-                    "qty": row.quantity, "total": row.total_price
+                    "bno": row.borrow_no, "line_no": row.line_no,
+                    "code": row.product_code, "name": row.product_name,
+                    "price": row.price, "qty": row.quantity,
+                    "total": row.total_price
                 })
 
         if cust_params:
@@ -582,14 +598,15 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
 
         if item_params:
             # Accumulate items from all batches — do NOT delete staging items per batch.
-            # Deleting per batch causes data loss for BRs that span batch boundaries
-            # (a later batch would delete the earlier batch's items for the same BR).
-            # Deduplication of true duplicate rows (concurrent overlapping triggers)
-            # is handled at swap time via DISTINCT ON (bno, pcode, price, qty, total).
+            # Deleting per batch causes data loss for BRs that span batch boundaries.
+            # Deduplication of true duplicate rows (concurrent overlapping triggers
+            # re-sending the same source row) is handled at swap time via
+            # DISTINCT ON (borrow_no, line_no). line_no is the absolute Summary sheet
+            # row, so each source row has a unique identity end-to-end.
             db.execute(text("""
                 INSERT INTO borrow_items_staging
-                    (borrow_no, product_code, product_name, price, quantity, total_price)
-                VALUES (:bno, :code, :name, :price, :qty, :total)
+                    (borrow_no, line_no, product_code, product_name, price, quantity, total_price)
+                VALUES (:bno, :line_no, :code, :name, :price, :qty, :total)
             """), item_params)
 
         db.commit()
@@ -852,17 +869,34 @@ def customer_value(db: Session = Depends(get_db)):
 
 @app.post("/fix-duplicate-items")
 def fix_duplicate_items(db: Session = Depends(get_db)):
-    """ลบ borrow_items ที่ซ้ำกัน (borrow_no + product_code เดิม) เก็บแค่ id ต่ำสุดไว้
-    เกิดจาก concurrent triggers ส่ง row ranges ซ้อนกันใน borrow_items_staging"""
+    """ลบ borrow_items ที่ซ้ำกัน — keyed by source line_no when present.
+    Falls back to (borrow_no, product_code, price, quantity, total_price)
+    for old rows that don't have a line_no yet."""
     try:
         before = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
+        # Step A: dedupe rows that have line_no — same (bno, line_no) means
+        # the same source row was inserted twice. Keep lowest id.
         db.execute(text("""
             DELETE FROM borrow_items
-            WHERE id NOT IN (
+            WHERE line_no IS NOT NULL
+              AND id NOT IN (
                 SELECT MIN(id)
                 FROM borrow_items
-                GROUP BY borrow_no, product_code
-            )
+                WHERE line_no IS NOT NULL
+                GROUP BY borrow_no, line_no
+              )
+        """))
+        # Step B: dedupe legacy rows without line_no — same (bno, pcode, price, qty, total)
+        # means truly identical. Different qty/price are preserved (legitimate duplicates).
+        db.execute(text("""
+            DELETE FROM borrow_items
+            WHERE line_no IS NULL
+              AND id NOT IN (
+                SELECT MIN(id)
+                FROM borrow_items
+                WHERE line_no IS NULL
+                GROUP BY borrow_no, product_code, price, quantity, total_price
+              )
         """))
         db.commit()
         after = db.execute(text("SELECT COUNT(*) FROM borrow_items")).fetchone()[0]
@@ -1251,7 +1285,7 @@ def export_br_pdf(
 
     items = db.execute(text("""
         SELECT product_code, product_name, price, quantity, total_price
-        FROM borrow_items WHERE borrow_no = :bno ORDER BY id
+        FROM borrow_items WHERE borrow_no = :bno ORDER BY line_no NULLS LAST, id
     """), {"bno": borrow_no}).fetchall()
 
     br = dict(br_row._mapping)
@@ -1303,7 +1337,7 @@ def export_bulk_pdf(payload: BulkExportRequest, db: Session = Depends(get_db)):
 
         items = db.execute(text("""
             SELECT product_code, product_name, price, quantity, total_price
-            FROM borrow_items WHERE borrow_no = :bno ORDER BY id
+            FROM borrow_items WHERE borrow_no = :bno ORDER BY line_no NULLS LAST, id
         """), {"bno": bno}).fetchall()
 
         br_dict       = dict(br_row._mapping)
