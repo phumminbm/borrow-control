@@ -29,7 +29,7 @@
 
 from fastapi import FastAPI, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel, Field, validator
@@ -691,6 +691,20 @@ def sync_from_sheets(payload: SyncPayload, db: Session = Depends(get_db)):
         try: db.rollback()
         except Exception as re: logger.warning(f"sync log rollback failed: {re}")
 
+    # If the batch had errors, signal that to the caller with a non-2xx status.
+    # The Apps Script syncBatch() treats non-200 as "do not advance lastRow,
+    # retry on the next trigger" — that's exactly the right behavior when the
+    # batch's data didn't actually land in staging.
+    if stats["errors"] > 0:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "success": False,
+                "duration_ms": duration,
+                "message": "Batch had errors — caller should retry",
+                **stats,
+            },
+        )
     return {"success": True, "duration_ms": duration, **stats}
 
 @app.get("/recalc")
