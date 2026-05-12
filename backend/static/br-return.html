@@ -1535,8 +1535,7 @@ function stepProducts(){
 }
 
 function productLineLabel(p){
-  if(!p || !p.lineNo) return '';
-  return ' <span style="font-size:10px;color:var(--sub2)">#'+p.lineNo+'</span>';
+  return '';
 }
 
 function mapItem(row, idx){
@@ -1848,7 +1847,8 @@ function blankRequestItem(si, idx){
     code: si.code || si.product_code || '',
     name: si.name || si.product_name || '',
     price: Number(si.price || 0),
-    total: Number(si.total || si.total_price || 0),
+    quantity: Number(si.quantity || si.qty || 0),
+    totalPrice: Number(si.totalPrice || si.total || si.total_price || 0),
     retQty: 0,
     clmQty: 0,
     saleQty: 0,
@@ -1917,7 +1917,7 @@ function sheetSyncItemsForRequest(r){
 function fallbackSubmittedItems(br){
   return (ITEMS[br]||[]).map(function(p, idx){
     var k = itemKey(p, idx);
-    return {itemId:p.itemId||'',lineNo:p.lineNo||0,lineKey:k,code:p.code,name:p.name,retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};
+    return {itemId:p.itemId||'',lineNo:p.lineNo||0,lineKey:k,code:p.code,name:p.name,price:Number(p.price||0),quantity:Number(p.qty||0),totalPrice:Number(p.total||0),retQty:p.qty,clmQty:0,saleQty:0,freeQty:0};
   });
 }
 
@@ -2921,6 +2921,9 @@ function doSubmit(){
       lineKey:k,
       code:p.code||k,
       name:p.name||'',
+      price:Number(p.price||0),
+      quantity:Number(p.qty||0),
+      totalPrice:Number(p.total||0),
       retQty:ST.retQtys[k]||0,
       clmQty:ST.clmQtys[k]||0,
       saleQty:ST.saleQtys[k]||0,
