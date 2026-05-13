@@ -143,8 +143,15 @@ export default function AdminView({ customers, syncLogs, syncHealth, dark, analy
     .sort((a,b) => b.block_count - a.block_count);
 
   // ── มูลค่ารวมตาม filter ──
-  const filteredValue = analytics?.sale_value
-    ? saleScope.reduce((sum, sale) => sum + (analytics.sale_value[sale] || 0), 0)
+  // When no team/sale filter is active, use the backend's exact total_value.
+  // sale_value is keyed by sale name and doesn't include rows whose sale field
+  // is blank, so summing over saleScope (built from the TEAMS mapping) silently
+  // dropped customers with no sale assigned. Falling back to total_value when
+  // there's no filter keeps the unfiltered KPI byte-for-byte consistent with
+  // the Sheet. Filtered views still sum sale_value so per-team/per-sale slicing
+  // is unchanged.
+  const filteredValue = (saleFilter || teamFilter)
+    ? saleScope.reduce((sum, sale) => sum + (analytics?.sale_value?.[sale] || 0), 0)
     : (analytics?.total_value || 0);
 
   const lastSync = syncLogs[0];
