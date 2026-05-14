@@ -2652,16 +2652,11 @@ function goStep3(){
   el('ov3-stepbar').innerHTML = makeStepBar(3);
   ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null; ST.editOnlyKeys = null; ST.editQtyByKey = null;
 
-  // Pre-fill the remark textarea from this BR's own source remark and clear
-  // anything left over from a previous submission. Without this the field
-  // retains whatever was typed last (or auto-filled from another BR's edit
-  // path), which caused remarks to bleed across requests for different BRs.
-  var brList = BRS[ST.custCode] || [];
-  var sourceRemark = '';
-  for (var i = 0; i < brList.length; i++) {
-    if (brList[i].br === ST.br) { sourceRemark = brList[i].remark || ''; break; }
-  }
-  if (el('ov3-remark')) el('ov3-remark').value = sourceRemark;
+  // Clear the remark textarea on every new request so a remark typed in a
+  // previous submission cannot bleed into the next request. The edit-request
+  // flow loads the saved remark separately at the editReturnRequest entry
+  // point, so this clear only affects fresh submissions.
+  if (el('ov3-remark')) el('ov3-remark').value = '';
 
   renderProductList();
   hide('ov2'); show('ov3');
