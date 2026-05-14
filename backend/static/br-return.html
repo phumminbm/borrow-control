@@ -3443,6 +3443,25 @@ function retrySheetSync(rid){
       showToast('Retry Sync Sheet สำเร็จ ✓','success');
     },
     function(err){
+      // Smart auto-recovery for stuck-pending cases. When Apps Script reports
+      // "No BORROW rows found for BR" on a retry, the Logistics File has zero
+      // BORROW rows left for this BR — meaning the original approval already
+      // flipped those rows to WAIT and the only thing "stuck" is local sheetSync
+      // metadata (the original success response never reached the browser, e.g.
+      // admin closed the tab, network glitch, Apps Script slow response). Treat
+      // this error as evidence the sync already completed and flip to 'synced'
+      // instead of misleading the admin with a 'failed' status. Any OTHER error
+      // (network failure, "No matching BORROW row" content drift, generic Apps
+      // Script error) keeps the existing 'failed' behaviour.
+      if (err && err.indexOf('No BORROW rows found for BR') !== -1) {
+        r.sheetSync = 'synced';
+        r.sheetSyncAt = new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
+        r.sheetSyncError = '';
+        saveReturnRequest(r);
+        renderAdminContent();
+        showToast('ตรวจพบว่า Sheet ได้ sync ไว้แล้ว — อัปเดตสถานะเรียบร้อย ✓','success');
+        return;
+      }
       r.sheetSync = 'failed';
       r.sheetSyncError = err;
       saveReturnRequest(r);
