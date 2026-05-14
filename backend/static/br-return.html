@@ -1669,6 +1669,11 @@ function hide(id){ document.getElementById(id).classList.remove('show'); }
 function closeAll(){
   var ids = ['ov1','ov2','ov3','ov-ok','ov-detail','ov-cancel','ov-admin-review'];
   for(var i=0;i<ids.length;i++) hide(ids[i]);
+  // Defensively clear the new-request remark textarea on every full close so
+  // a typed remark cannot bleed into the next session through DOM persistence.
+  // editReturnRequest sets ov3-remark.value AFTER calling closeAll(), so the
+  // edit flow still loads the saved remark correctly.
+  if (el('ov3-remark')) el('ov3-remark').value = '';
 }
 function el(id){ return document.getElementById(id); }
 
@@ -2547,6 +2552,11 @@ function openStep1(){
   if(MASTER_LOADING){ showToast('Loading Borrow Control data...', 'warn'); return; }
   if(!MSALE){ showToast('กรุณาเลือก Sale ก่อน','warn'); return; }
   ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
+  // Clear remark textarea at the start of every fresh new-request flow.
+  // Belt-and-suspenders with the clears in closeAll() and goStep3() — guarantees
+  // no path can leak a previously-typed remark into a new request regardless of
+  // which Sale, customer, or BR the user chooses next.
+  if (el('ov3-remark')) el('ov3-remark').value = '';
   el('ov1-sale-label').innerHTML = 'Sale: <strong>'+MSALE+'</strong>';
   el('ov1-stepbar').innerHTML = makeStepBar(1);
   el('ov1-search').value = '';
