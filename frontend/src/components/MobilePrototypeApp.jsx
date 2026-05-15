@@ -709,10 +709,11 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
     });
     setPerItem(prev => {
       if (prev[id]) return prev;
-      const it = items.find(i => i.item_id === id);
-      if (!it) return prev;
-      // Default: full quantity allocated to RETURN (most common case)
-      return { ...prev, [id]: { ...blankAlloc(), retQty: it.quantity } };
+      // Start fully empty — Sale chooses qty+type explicitly. No pre-fill so
+      // the workflow does not accidentally suggest "all RETURN" before Sale
+      // has actually decided. User must allocate at least one piece across
+      // any type for Step 2 validation to pass (see validStep2).
+      return { ...prev, [id]: blankAlloc() };
     });
   }
 
@@ -1389,18 +1390,40 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
     <div style={{ color: text, display: "flex", flexDirection: "column", height: "100%" }}>
       {/* KPI strip */}
       <div style={{ padding: "0 16px 10px", flexShrink: 0 }}>
+        {/* KPI strip — tap a card to filter by that status (toggleable).
+            Label uses sub-foreground for high contrast, count uses primary
+            text color, and a small colored dot + tinted bg when selected
+            keep the status identity visible without sacrificing legibility. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
           {[
             ["pending", counts.pending, STATUS_META.pending],
             ["approved", counts.approved, STATUS_META.approved],
             ["rejected", counts.rejected, STATUS_META.rejected],
             ["cancelled", counts.cancelled, STATUS_META.cancelled],
-          ].map(([k, n, m]) => (
-            <button key={k} onClick={() => setStatusFilter(statusFilter === k ? "" : k)} style={{ background: card, border: `0.5px solid ${statusFilter === k ? m.color : bdr}`, borderRadius: 10, padding: "9px 6px", textAlign: "center", cursor: "pointer" }}>
-              <div style={{ fontSize: 9, color: m.color, fontWeight: 700, textTransform: "uppercase" }}>{m.label_short_th}</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: m.color, marginTop: 3 }}>{n}</div>
-            </button>
-          ))}
+          ].map(([k, n, m]) => {
+            const isActive = statusFilter === k;
+            return (
+              <button
+                key={k}
+                onClick={() => setStatusFilter(isActive ? "" : k)}
+                style={{
+                  background: isActive ? m.bg : card,
+                  border: `1px solid ${isActive ? m.color : bdr}`,
+                  borderRadius: 10, padding: "10px 6px", textAlign: "center",
+                  cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.12s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? m.color : (dark ? "#ccc" : "#444"), letterSpacing: 0.3 }}>
+                    {m.label_short_th}
+                  </span>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: isActive ? m.color : text, lineHeight: 1 }}>{n}</div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Search */}
@@ -1410,19 +1433,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: sub, cursor: "pointer", padding: 4 }}><Icon name="close" size={12} color={sub} /></button>}
         </div>
 
-        {/* Status filter chips */}
-        <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}>
-          {[["", lang === "th" ? "ทุกสถานะ" : "All"], ["pending", STATUS_META.pending.label_short_th], ["approved", STATUS_META.approved.label_short_th], ["rejected", STATUS_META.rejected.label_short_th], ["cancelled", STATUS_META.cancelled.label_short_th]].map(([v, l]) => {
-            const active = statusFilter === v;
-            const col = v ? STATUS_META[v]?.color : "#D4357A";
-            return (
-              <button key={v} onClick={() => setStatusFilter(v)} style={{ padding: "5px 11px", fontSize: 11, fontWeight: 600, borderRadius: 14, flexShrink: 0, border: `1px solid ${active ? col : "rgba(255,255,255,0.1)"}`, background: active ? col : card, color: active ? "#fff" : sub, cursor: "pointer" }}>{l}</button>
-            );
-          })}
-        </div>
+        {/* Status filter is now driven entirely by the KPI cards above —
+            tap a card to filter, tap again to clear. The redundant chip
+            row that used to live here has been removed per user feedback. */}
 
         {/* Date chips */}
-        <div style={{ display: "flex", gap: 6, marginTop: 6, overflowX: "auto", paddingBottom: 2 }}>
+        <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}>
           {[["", lang === "th" ? "ทุกวันที่" : "Any time"], ["today", lang === "th" ? "วันนี้" : "Today"], ["7d", "7d"], ["30d", "30d"]].map(([v, l]) => {
             const active = dateRange === v;
             return (
