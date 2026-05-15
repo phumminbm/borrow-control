@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import SaleView from "./components/SaleView";
 import AdminView from "./components/AdminView";
 import MobileApp from "./components/MobileApp";
+import MobilePrototypeApp from "./components/MobilePrototypeApp";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const DESKTOP_DATA_CACHE = "borrow-control:last-good-desktop-data";
@@ -248,8 +249,23 @@ function DesktopApp() {
   );
 }
 
-// ── Root — auto-switch Desktop / Mobile ────────────────────────────────
+// ── Prototype gate ─────────────────────────────────────────────────────
+// Activated only via `?prototype=1` URL flag. Renders MobilePrototypeApp
+// instead of the normal Desktop/Mobile switch. Production users at the bare
+// URL get the unchanged app. The prototype reads real data but writes
+// submissions to localStorage only — see MobilePrototypeApp.jsx header for
+// full safety invariants.
+function isPrototypeMode() {
+  try {
+    return new URLSearchParams(window.location.search).get("prototype") === "1";
+  } catch {
+    return false;
+  }
+}
+
+// ── Root — auto-switch Desktop / Mobile (or Prototype if ?prototype=1) ─
 export default function App() {
+  if (isPrototypeMode()) return <MobilePrototypeApp />;
   const isMobile = useIsMobile();
   return isMobile ? <MobileApp /> : <DesktopApp />;
 }
