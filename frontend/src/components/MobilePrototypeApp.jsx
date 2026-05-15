@@ -19,6 +19,61 @@
 // mobile app, and changes to the real mobile app do not bleed into the
 // prototype. When the prototype is promoted (or discarded), no cleanup needed.
 // =============================================================================
+//
+// INTEGRATION READINESS CHECKLIST (for whoever ships this to production)
+// =============================================================================
+// Goal of integration: backport the BR Return additions into the real
+// MobileApp.jsx without dropping any existing feature. Do NOT replace
+// MobileApp.jsx wholesale.
+//
+// (A) THINGS TO ADD INTO MobileApp.jsx (additive, in this order):
+//     1. Constants: STATUS_META, RETURN_TYPES, genReturnId helper
+//        (rename PROTO_* keys, drop the "RT-P-" prefix, drop _prototype flag)
+//     2. Components: ReturnStatusPill, RequestReturnSheet, ReturnsScreen
+//        (lift them verbatim from this file, drop any "Prototype" badges)
+//     3. New "returns" entry in the bottom-tab `tabs` array
+//     4. New "ขอคืนสินค้า" CTA button in the BR Detail header (inside
+//        CustomerDetailSheet, next to the Back button)
+//     5. Optional: a "Quick Action" tile on Home linking to the returns tab
+//
+// (B) THINGS TO PRESERVE in MobileApp.jsx after merge (parity audit):
+//     - GET /brs/{borrow_no}/pdf  → single-BR PDF Export button (BR Detail)
+//     - POST /export-pdf/bulk     → multi-BR bulk PDF Export (Customer Detail)
+//     - BR list search + status filter (BLOCK/WARNING/NORMAL chips)
+//     - Customer list search + status filter + sort options
+//     - Alerts tab BLOCK/WARNING split
+//     - Profile / Change Sale flow
+//     - Donut chart + KPI grid + critical-customers preview on Home
+//     - Status pill / Team pill styling exactly as today
+//     - 4-min sync indicator + last-sync timestamp on Home + Profile
+//
+// (C) THINGS TO REMOVE before merge (prototype-only scaffolding):
+//     - loadProtoReturns / saveProtoReturns / upsertProtoReturn
+//       → replace with fetch('/return-requests') calls (GET + POST)
+//     - "RT-P-" prefix in genReturnId → drop prefix to align with desktop
+//     - "_prototype: true" flag on submitted requests → remove
+//     - PROTOTYPE badge component + all its render sites
+//     - Long-press "Simulate Admin status" handler in ReturnsScreen
+//       → drop entirely (real status comes from Admin Desktop)
+//     - Delete-request action in admin sim sheet → drop
+//     - Separate localStorage cache key (PROTO_DATA_CACHE) → use the
+//       existing MOBILE_DATA_CACHE
+//
+// (D) PRE-MERGE VERIFICATION:
+//     - Diff MobileApp.jsx (current) vs MobileApp.jsx (after backport).
+//       Expected: only "+" additive lines. Any "-" line is a regression
+//       — investigate before merging.
+//     - Test single-BR PDF export still works
+//     - Test bulk PDF export still works
+//     - Test return submission writes to real /return-requests endpoint
+//       and shows up in Admin Desktop /br-return queue
+//     - Confirm Admin can approve/reject/cancel and Sale sees the status
+//
+// (E) DO NOT merge without explicit user sign-off. Integration crosses the
+//     boundary from read-only prototype into the real production write
+//     path — the safety invariants at the top of this file STOP APPLYING
+//     once the localStorage shim is replaced with a backend POST.
+// =============================================================================
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { TEAMS, TEAM_COLORS } from "../App";
@@ -110,11 +165,17 @@ function fmtDateTime(d) {
 }
 
 // ── Status taxonomy — matches Desktop BR Return exactly ──────────────
+// Colors aligned to MobileApp.jsx existing palette (BLOCK/WARNING/NORMAL family)
+// for visual continuity with the rest of the mobile UI.
+//   pending   → WARNING palette (amber/orange family)
+//   approved  → NORMAL palette  (green family)
+//   rejected  → soft peach (matches desktop convention for "needs revision")
+//   cancelled → neutral gray harmonized with existing card borders
 const STATUS_META = {
-  pending:   { label_th: "รอตรวจสอบคำขอ", label_short_th: "รอตรวจสอบ", label_en: "Pending review", color: "#F0B429", bg: "#1e1a08",  border: "#5a4810" },
-  approved:  { label_th: "อนุมัติแล้ว",  label_short_th: "อนุมัติแล้ว", label_en: "Approved",       color: "#97C459", bg: "#1A2E0A",  border: "#3A6014" },
-  rejected:  { label_th: "แก้ไขคำขอ",    label_short_th: "แก้ไขคำขอ",  label_en: "Need revision",  color: "#E89C7D", bg: "#2a1815",  border: "#6b3a26" },
-  cancelled: { label_th: "ยกเลิกแล้ว",   label_short_th: "ยกเลิกแล้ว", label_en: "Cancelled",      color: "#888",    bg: "#1a1a1a",  border: "#333" },
+  pending:   { label_th: "รอตรวจสอบคำขอ", label_short_th: "รอตรวจสอบ", label_en: "Pending review", color: "#FAC775", bg: "#3D2A00", border: "#7A5500" },
+  approved:  { label_th: "อนุมัติแล้ว",  label_short_th: "อนุมัติแล้ว", label_en: "Approved",       color: "#C0DD97", bg: "#1A2E0A", border: "#3A6014" },
+  rejected:  { label_th: "แก้ไขคำขอ",    label_short_th: "แก้ไขคำขอ",  label_en: "Need revision",  color: "#E89C7D", bg: "#2a1815", border: "#6b3a26" },
+  cancelled: { label_th: "ยกเลิกแล้ว",   label_short_th: "ยกเลิกแล้ว", label_en: "Cancelled",      color: "#aaa",    bg: "#1a1a1a", border: "rgba(255,255,255,0.1)" },
 };
 
 // Return type taxonomy (matches BR Return Apps Script)
@@ -789,7 +850,17 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
         {step === 3 && (
           <>
             <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "หมายเหตุ (ถ้ามี)" : "Remark (optional)"}</div>
-            <textarea value={remark} onChange={e => setRemark(e.target.value)} placeholder={lang === "th" ? "ระบุรายละเอียดที่ Admin ควรทราบ..." : "Add any details Admin should know..."} style={{ width: "100%", minHeight: 140, borderRadius: 12, padding: "12px 14px", background: card, border: `0.5px solid ${bdr}`, color: text, fontFamily: "inherit", fontSize: 13, lineHeight: 1.5, resize: "none", outline: "none" }} />
+            <textarea
+              value={remark}
+              onChange={e => setRemark(e.target.value.slice(0, 500))}
+              maxLength={500}
+              placeholder={lang === "th" ? "ระบุรายละเอียดที่ Admin ควรทราบ..." : "Add any details Admin should know..."}
+              style={{ width: "100%", minHeight: 140, borderRadius: 12, padding: "12px 14px", background: card, border: `0.5px solid ${remark.length >= 500 ? "#EF9F27" : bdr}`, color: text, fontFamily: "inherit", fontSize: 13, lineHeight: 1.5, resize: "none", outline: "none" }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, fontSize: 10, color: remark.length >= 500 ? "#EF9F27" : sub }}>
+              <span>{remark.length >= 500 ? (lang === "th" ? "ครบ 500 อักษรแล้ว" : "Max 500 chars reached") : ""}</span>
+              <span>{remark.length} / 500</span>
+            </div>
             <div style={{ fontSize: 11, color: sub, marginTop: 16, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "รายการที่จะส่ง" : "Items to submit"}</div>
             <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden" }}>
               {submittedItems.map(si => {
@@ -1062,6 +1133,16 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, sale, 
                     <div style={{ fontSize: 13, color: text, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${bdr}`, borderRadius: 9, padding: "10px 12px" }}>{selectedBR.remark}</div>
                   </div>
                 )}
+                {/* PDF Export — same read-only endpoint the production MobileApp uses.
+                    GET /brs/{borrow_no}/pdf returns a PDF blob; no DB writes, no Sheet
+                    writes, no Apps Script. Safe inside the prototype's isolation. */}
+                <button
+                  onClick={() => window.open(`${API_BASE}/brs/${selectedBR.borrow_no}/pdf`, "_blank")}
+                  style={{ marginTop: 12, width: "100%", padding: "13px", borderRadius: 11, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+                  Export PDF
+                </button>
               </div>
             </div>
           );
