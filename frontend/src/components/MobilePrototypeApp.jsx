@@ -648,7 +648,6 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [perItem, setPerItem] = useState({}); // item_id -> {qty, type}
   const [remark, setRemark] = useState("");
-  const [submittedReq, setSubmittedReq] = useState(null); // null = still inputting; non-null = success screen
 
   useEffect(() => {
     if (open) {
@@ -656,7 +655,6 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       setSelectedIds(new Set());
       setPerItem({});
       setRemark("");
-      setSubmittedReq(null);
     }
   }, [open, br?.borrow_no]);
 
@@ -733,18 +731,10 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       _prototype: true,
     };
     upsertProtoReturn(newReq);
-    setSubmittedReq(newReq);
-    // Notify parent so the Returns count badge refreshes immediately, but
-    // pass action=null so the parent does NOT close this sheet yet — the
-    // success screen needs to stay visible until the user picks an action.
-    if (onSubmitted) onSubmitted(newReq, null);
-  }
-
-  // Called from the success screen — closes the request sheet and tells the
-  // parent which post-submit destination the user picked.
-  function finishSubmittedFlow(action) {
-    if (onSubmitted) onSubmitted(submittedReq, action);
-    onClose();
+    // Parent handles: close this sheet, close BR detail + customer detail,
+    // open the full-screen success view (which lives at the MobilePrototypeApp
+    // top level — see the `submittedRequest` state there).
+    if (onSubmitted) onSubmitted(newReq);
   }
 
   const stepLabels = lang === "th"
@@ -764,86 +754,33 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             <Icon name="close" size={14} color={sub} />
           </button>
         </div>
-        {/* BR / customer context line — hidden on the success screen so the
-            confirmation summary stays clean (per user feedback). */}
-        {!submittedReq && (
-          <div style={{ display: "flex", gap: 6, fontSize: 11, color: sub, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{br.borrow_no}</span>·
-            <span>{customer.customer_name}</span>·
-            <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
-          </div>
-        )}
-        {/* Steps (hidden once submitted — success screen replaces the workflow) */}
-        {!submittedReq && (
-          <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
-            {stepLabels.map((label, i) => {
-              const n = i + 1;
-              const active = step === n;
-              const done = step > n;
-              return (
-                <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 600, color: active ? "#D4357A" : done ? "#97C459" : sub }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: active ? "#D4357A" : done ? "#1A2E0A" : (dark ? "#1a1a1a" : "#f5f5f3"), color: active ? "#fff" : done ? "#97C459" : sub, border: `0.5px solid ${active ? "#D4357A" : done ? "#3A6014" : (dark ? "#333" : "#ddd")}`, fontSize: 10, fontWeight: 700 }}>
-                    {done ? "✓" : n}
-                  </div>
-                  <span style={{ whiteSpace: "nowrap" }}>{label}</span>
-                  {i < stepLabels.length - 1 && <div style={{ flex: 1, height: 0.5, background: dark ? "#2a2a2a" : "#ddd", margin: "0 4px" }} />}
+        <div style={{ display: "flex", gap: 6, fontSize: 11, color: sub, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{br.borrow_no}</span>·
+          <span>{customer.customer_name}</span>·
+          <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
+        </div>
+        {/* Steps */}
+        <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
+          {stepLabels.map((label, i) => {
+            const n = i + 1;
+            const active = step === n;
+            const done = step > n;
+            return (
+              <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 600, color: active ? "#D4357A" : done ? "#97C459" : sub }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: active ? "#D4357A" : done ? "#1A2E0A" : (dark ? "#1a1a1a" : "#f5f5f3"), color: active ? "#fff" : done ? "#97C459" : sub, border: `0.5px solid ${active ? "#D4357A" : done ? "#3A6014" : (dark ? "#333" : "#ddd")}`, fontSize: 10, fontWeight: 700 }}>
+                  {done ? "✓" : n}
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <span style={{ whiteSpace: "nowrap" }}>{label}</span>
+                {i < stepLabels.length - 1 && <div style={{ flex: 1, height: 0.5, background: dark ? "#2a2a2a" : "#ddd", margin: "0 4px" }} />}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Step body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px", color: text }}>
-        {submittedReq ? (
-          // ── Success screen ────────────────────────────────────────────
-          (() => {
-            const reqTotal = (submittedReq.submittedItems || []).reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0)*(Number(x.quantity)||0)), 0);
-            return (
-              <>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 24 }}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #639922, #3A6014)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18, boxShadow: "0 8px 30px rgba(99,153,34,0.3)" }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{lang === "th" ? "ส่งคำขอสำเร็จ" : "Submitted Successfully"}</div>
-                  <div style={{ fontSize: 12, color: sub, textAlign: "center", maxWidth: 280, lineHeight: 1.55, marginBottom: 22 }}>
-                    {lang === "th"
-                      ? <>คำขอของคุณถูกบันทึกแล้ว Admin จะตรวจสอบและอนุมัติให้<br/>สามารถดูสถานะได้ที่แท็บ <b style={{ color: "#D4357A" }}>Returns</b></>
-                      : <>Your request has been saved. Admin will review and approve.<br/>Track its status under the <b style={{ color: "#D4357A" }}>Returns</b> tab.</>}
-                  </div>
-                </div>
-
-                <div style={{ width: "100%", padding: 14, background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600, marginBottom: 6 }}>{lang === "th" ? "เลขที่คำขอ" : "Request ID"}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "ui-monospace,monospace" }}>{submittedReq.id}</div>
-                  <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>{fmtDateTime(submittedReq.date)}</div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <ReturnStatusPill status={submittedReq.status} size="sm" lang={lang} />
-                    <span style={{ fontSize: 11, color: sub }}>→ Admin {lang === "th" ? "ตรวจสอบ" : "review"} → Sheet sync</span>
-                  </div>
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `0.5px solid ${bdr}`, display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                    <span style={{ color: sub }}>{submittedReq.items} {lang === "th" ? "รายการ" : "items"}</span>
-                    <span style={{ fontWeight: 700, color: "#D4357A" }}>฿{reqTotal.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div style={{ padding: "12px 14px", background: dark ? "#0a0a0a" : "#fafaf8", border: `0.5px dashed ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 11, fontSize: 11, color: sub, lineHeight: 1.55, marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, color: dark ? "#aaa" : "#444", marginBottom: 4 }}>📌 {lang === "th" ? "ขั้นถัดไป" : "Next steps"}</div>
-                  {lang === "th"
-                    ? "Admin จะตรวจสอบและอนุมัติ ระบบจะ Sync กับ Logistics File โดยอัตโนมัติ การเปลี่ยนแปลงจะปรากฏใน Dashboard ในรอบ snapshot คืนถัดไป (~23:30)"
-                    : "Admin will review and approve. The system syncs to Logistics File automatically; changes appear on the Dashboard at the next nightly snapshot (~23:30)."}
-                </div>
-
-                <div style={{ padding: "10px 12px", background: dark ? "#1e1a08" : "#FEFAEE", border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, borderRadius: 9, fontSize: 10, color: dark ? "#FAC775" : "#854F0B", lineHeight: 1.55 }}>
-                  ⚠ {lang === "th"
-                    ? "Prototype: บันทึกเฉพาะใน localStorage ของเครื่องนี้ — ไม่เข้า Admin Desktop จริง"
-                    : "Prototype: saved to this browser's localStorage only — does not reach real Admin Desktop"}
-                </div>
-              </>
-            );
-          })()
-        ) : step === 1 && (
+        {step === 1 && (
           <>
             <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return"}</div>
             {items.length === 0 ? (
@@ -1027,47 +964,29 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       </div>
 
       {/* Bottom action bar */}
-      {submittedReq ? (
-        // ── Success screen action bar — two destinations ─────────────
-        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
+        <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {step === 1 ? (lang === "th" ? "ยกเลิก" : "Cancel") : (lang === "th" ? "← กลับ" : "← Back")}
+        </button>
+        {step < 4 ? (
           <button
-            onClick={() => finishSubmittedFlow("backToList")}
-            style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            onClick={() => setStep(s => s + 1)}
+            disabled={(step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)}
+            style={{
+              flex: 2, padding: 14, borderRadius: 12, border: "none",
+              background: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#333" : "#D4357A",
+              color: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#666" : "#fff",
+              fontSize: 14, fontWeight: 700, cursor: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "not-allowed" : "pointer",
+            }}
           >
-            {lang === "th" ? "← กลับไปที่ BR List" : "← Back to BR List"}
+            {step === 1 ? (lang === "th" ? `เลือก ${selectedIds.size} รายการ →` : `Selected ${selectedIds.size} →`) : (lang === "th" ? "ถัดไป →" : "Next →")}
           </button>
-          <button
-            onClick={() => finishSubmittedFlow("viewAll")}
-            style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            {lang === "th" ? "ดูคำขอทั้งหมด →" : "View All Requests →"}
+        ) : (
+          <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            {lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit"}
           </button>
-        </div>
-      ) : (
-        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
-          <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            {step === 1 ? (lang === "th" ? "ยกเลิก" : "Cancel") : (lang === "th" ? "← กลับ" : "← Back")}
-          </button>
-          {step < 4 ? (
-            <button
-              onClick={() => setStep(s => s + 1)}
-              disabled={(step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)}
-              style={{
-                flex: 2, padding: 14, borderRadius: 12, border: "none",
-                background: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#333" : "#D4357A",
-                color: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#666" : "#fff",
-                fontSize: 14, fontWeight: 700, cursor: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "not-allowed" : "pointer",
-              }}
-            >
-              {step === 1 ? (lang === "th" ? `เลือก ${selectedIds.size} รายการ →` : `Selected ${selectedIds.size} →`) : (lang === "th" ? "ถัดไป →" : "Next →")}
-            </button>
-          ) : (
-            <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-              {lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit"}
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </BottomSheet>
   );
 }
@@ -1256,22 +1175,13 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, sale, 
         sale={sale}
         lang={lang}
         dark={dark}
-        onSubmitted={(newReq, action) => {
-          // action = null  → first call right after save; keep the request sheet
-          //                  open so the success screen can render. Just notify
-          //                  the parent so the Returns badge count refreshes.
-          // action = "backToList" → user picked "Back to BR List": close request
-          //                  sheet + close BR detail, customer detail stays
-          //                  open so the BR list reappears, do NOT switch tab.
-          // action = "viewAll" → user picked "View All Requests": close
-          //                  everything and switch to the Returns tab.
-          if (action === null) {
-            if (onProtoSubmitted) onProtoSubmitted(newReq, "refreshOnly");
-            return;
-          }
+        onSubmitted={(newReq) => {
+          // Close the request sheet and the BR detail. The customer detail
+          // will be closed by the parent (MobilePrototypeApp) so the
+          // full-screen success view can take over.
           setRequestOpen(false);
           setSelectedBR(null);
-          if (onProtoSubmitted) onProtoSubmitted(newReq, action);
+          if (onProtoSubmitted) onProtoSubmitted(newReq);
         }}
       />
     </>
@@ -1677,6 +1587,58 @@ function SplashScreen({ visible }) {
 }
 
 // =============================================================================
+// SUCCESS SCREEN (full-screen confirmation after submit)
+// =============================================================================
+// Replaces the tab content + bottom tab bar when MobilePrototypeApp's
+// `submittedRequest` state is set. Body content per user feedback — clean
+// summary only: check icon, heading, description, RT card (id/date/status/
+// flow text), next-step note. No item count, no total, no prototype banner.
+// Bottom destination buttons live in MobilePrototypeApp main (so they sit
+// in the same fixed footer where the tab bar normally would).
+
+function SuccessScreen({ req, lang, dark }) {
+  const text = dark ? "#eee" : "#111";
+  const sub = dark ? "#888" : "#666";
+  const card = dark ? "#141414" : "#fff";
+  const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 20px 24px" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40 }}>
+        <div style={{ width: 92, height: 92, borderRadius: "50%", background: "linear-gradient(135deg, #639922, #3A6014)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 22, boxShadow: "0 8px 30px rgba(99,153,34,0.3)" }}>
+          <svg width="46" height="46" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: text, marginBottom: 8 }}>
+          {lang === "th" ? "ส่งคำขอสำเร็จ" : "Submitted Successfully"}
+        </div>
+        <div style={{ fontSize: 12, color: sub, textAlign: "center", maxWidth: 300, lineHeight: 1.6, marginBottom: 24 }}>
+          {lang === "th"
+            ? <>คำขอของคุณถูกบันทึกแล้ว Admin จะตรวจสอบและอนุมัติให้<br/>สามารถดูสถานะได้ที่แท็บ <b style={{ color: "#D4357A" }}>Returns</b></>
+            : <>Your request has been saved. Admin will review and approve.<br/>Track its status under the <b style={{ color: "#D4357A" }}>Returns</b> tab.</>}
+        </div>
+      </div>
+
+      <div style={{ width: "100%", padding: 16, background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600, marginBottom: 6 }}>{lang === "th" ? "เลขที่คำขอ" : "Request ID"}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{req.id}</div>
+        <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>{fmtDateTime(req.date)}</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <ReturnStatusPill status={req.status} size="sm" lang={lang} />
+          <span style={{ fontSize: 11, color: sub }}>→ Admin {lang === "th" ? "ตรวจสอบ" : "review"} → Sheet sync</span>
+        </div>
+      </div>
+
+      <div style={{ padding: "13px 14px", background: dark ? "#0a0a0a" : "#fafaf8", border: `0.5px dashed ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 11, fontSize: 12, color: sub, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 600, color: dark ? "#bbb" : "#444", marginBottom: 4 }}>📌 {lang === "th" ? "ขั้นถัดไป" : "Next steps"}</div>
+        {lang === "th"
+          ? "Admin จะอนุมัติและระบบจะ Sync กับ Logistics File โดยอัตโนมัติ การเปลี่ยนแปลงจะปรากฏใน Dashboard ในรอบ snapshot คืนถัดไป (~23:30)"
+          : "Admin will approve and the system syncs to Logistics File automatically. Changes appear on the Dashboard at the next nightly snapshot (~23:30)."}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // MAIN — MobilePrototypeApp
 // =============================================================================
 
@@ -1697,6 +1659,10 @@ export default function MobilePrototypeApp() {
   // prototype-only state
   const [returns, setReturns] = useState(() => loadProtoReturns());
   const [returnsCount, setReturnsCount] = useState(0);
+  // Full-screen success view state — when non-null, replaces the tab content
+  // and bottom tab bar with a success-confirmation view + two destination
+  // buttons. Driven by RequestReturnSheet.onSubmitted bubble-up.
+  const [submittedRequest, setSubmittedRequest] = useState(null);
   const refreshReturns = useCallback(() => setReturns(loadProtoReturns()), []);
 
   useEffect(() => { localStorage.setItem("mobile-theme", dark ? "dark" : "light"); }, [dark]);
@@ -1752,26 +1718,35 @@ export default function MobilePrototypeApp() {
       {selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderBottom: `0.5px solid ${navBdr}`, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {tab !== "home" ? (
-              <button onClick={() => setTab("home")} style={{ width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${navBdr}`, background: dark ? "#141414" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <svg width={18} height={18} viewBox="0 0 24 24" style={{ display: "block" }}>
-                  <path d="M15 6l-6 6 6 6" stroke={dark ? "#eee" : "#111"} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+            {submittedRequest ? (
+              // Full-screen success: title only, no back button, no PROTOTYPE badge
+              <div style={{ fontSize: 16, fontWeight: 700, color: navText }}>
+                {lang === "th" ? "ส่งคำขอสำเร็จ" : "Submitted Successfully"}
+              </div>
             ) : (
-              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.5, color: navText }}>
-                <span style={{ color: "#D4357A" }}>Neo</span>Biotech
-              </div>
+              <>
+                {tab !== "home" ? (
+                  <button onClick={() => setTab("home")} style={{ width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${navBdr}`, background: dark ? "#141414" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    <svg width={18} height={18} viewBox="0 0 24 24" style={{ display: "block" }}>
+                      <path d="M15 6l-6 6 6 6" stroke={dark ? "#eee" : "#111"} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.5, color: navText }}>
+                    <span style={{ color: "#D4357A" }}>Neo</span>Biotech
+                  </div>
+                )}
+                {tab !== "home" && (
+                  <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
+                    {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
+                     : tab === "returns" ? (lang === "th" ? "คืนสินค้า" : "Returns")
+                     : tab === "alerts" ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
+                     : (lang === "th" ? "โปรไฟล์" : "Profile")}
+                  </div>
+                )}
+                <PrototypeBadge />
+              </>
             )}
-            {tab !== "home" && (
-              <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
-                {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
-                 : tab === "returns" ? (lang === "th" ? "คืนสินค้า" : "Returns")
-                 : tab === "alerts" ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
-                 : (lang === "th" ? "โปรไฟล์" : "Profile")}
-              </div>
-            )}
-            <PrototypeBadge />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 10, fontWeight: 600, color: "#D4357A", background: dark ? "#2D0F1A" : "#FBE8F1", border: "0.5px solid #D4357A44", borderRadius: 6, padding: "3px 8px" }}>{selectedSale}</span>
@@ -1787,6 +1762,9 @@ export default function MobilePrototypeApp() {
           <SalePicker onSelect={s => { setSelectedSale(s); setTab("home"); }} dark={dark} setDark={setDark} lang={lang} setLang={setLang} />
         ) : loading ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: dark ? "#555" : "#aaa", fontSize: 13 }}>{lang === "th" ? "กำลังโหลดข้อมูล..." : "Loading..."}</div>
+        ) : submittedRequest ? (
+          // ── Full-screen success view ─────────────────────────────────
+          <SuccessScreen req={submittedRequest} lang={lang} dark={dark} />
         ) : (
           <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
             {tab === "home" ? (
@@ -1804,7 +1782,23 @@ export default function MobilePrototypeApp() {
         )}
       </div>
 
-      {selectedSale && (
+      {/* Bottom: success-view destinations OR normal tab bar */}
+      {selectedSale && submittedRequest ? (
+        <div style={{ background: navBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, padding: "12px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 8px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => { setSubmittedRequest(null); setTab("home"); }}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${navBdr}`, background: "transparent", color: navText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {lang === "th" ? "กลับหน้าหลัก" : "Back to Home"}
+          </button>
+          <button
+            onClick={() => { setSubmittedRequest(null); setTab("returns"); }}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {lang === "th" ? "ดูคำขอทั้งหมด →" : "View All Requests →"}
+          </button>
+        </div>
+      ) : selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, display: "flex", flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
           {tabs.map(([key, icon, label]) => {
             const active = tab === key;
@@ -1833,21 +1827,11 @@ export default function MobilePrototypeApp() {
         lang={lang}
         dark={dark}
         sale={selectedSale}
-        onProtoSubmitted={(newReq, action) => {
+        onProtoSubmitted={(newReq) => {
+          // Close customer detail and open the full-screen success view.
           refreshReturns();
-          // action = "refreshOnly"  → just refresh badge counter, keep UI as-is
-          //                            (the success screen is rendering inside
-          //                            the request sheet — leave it open)
-          // action = "backToList"   → return user to the customer's BR list;
-          //                            the CustomerDetailSheet already closed
-          //                            the BR detail, so the BR list shows.
-          //                            Do NOT switch tab.
-          // action = "viewAll"      → close customer detail and switch to
-          //                            the Returns tab for the full history.
-          if (action === "viewAll") {
-            setSelectedCustomer(null);
-            setTab("returns");
-          }
+          setSelectedCustomer(null);
+          setSubmittedRequest(newReq);
         }}
       />
     </div>
