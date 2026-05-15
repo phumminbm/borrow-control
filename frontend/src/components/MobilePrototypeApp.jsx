@@ -186,6 +186,28 @@ const RETURN_TYPES = [
   { key: "FREE",   label_th: "ฟรี",  icon: "🎁", color: "#fff",    bg: "#1a1a1a", border: "#555" },
 ];
 
+// Decompose a submittedItem into the list of types it actually uses
+// (qty > 0). Each entry has { key, qty, label, color, icon }. Returns []
+// when nothing is allocated. Used by Step 3 / Step 4 / Returns list /
+// Returns detail to display multi-type items cleanly.
+function breakdownFor(si) {
+  const out = [];
+  const KEYS = [
+    ["RETURN", "retQty"],
+    ["CLAIM",  "clmQty"],
+    ["SALE",   "saleQty"],
+    ["FREE",   "freeQty"],
+  ];
+  for (const [key, prop] of KEYS) {
+    const q = Number(si[prop]) || 0;
+    if (q > 0) {
+      const t = RETURN_TYPES.find(r => r.key === key);
+      out.push({ key, qty: q, label_th: t.label_th, color: t.color, icon: t.icon });
+    }
+  }
+  return out;
+}
+
 // =============================================================================
 // SMALL UI COMPONENTS
 // =============================================================================
@@ -670,6 +692,14 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   const items = Array.isArray(br.items) ? br.items : [];
   const selectedItems = items.filter(it => selectedIds.has(it.item_id));
 
+  // ── Per-item allocation model ────────────────────────────────────────
+  // perItem[id] = { retQty, clmQty, saleQty, freeQty }
+  // Mirrors the desktop BR Return flow: one source row can be split into
+  // multiple return types simultaneously, as long as the sum across types
+  // does not exceed the source row's available quantity.
+  const QTY_KEY = { RETURN: "retQty", CLAIM: "clmQty", SALE: "saleQty", FREE: "freeQty" };
+  const blankAlloc = () => ({ retQty: 0, clmQty: 0, saleQty: 0, freeQty: 0 });
+
   function togglePick(id) {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -681,32 +711,73 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       if (prev[id]) return prev;
       const it = items.find(i => i.item_id === id);
       if (!it) return prev;
-      return { ...prev, [id]: { qty: it.quantity, type: "RETURN" } };
+      // Default: full quantity allocated to RETURN (most common case)
+      return { ...prev, [id]: { ...blankAlloc(), retQty: it.quantity } };
     });
   }
-  function setItemQty(id, qty) { setPerItem(prev => ({ ...prev, [id]: { ...(prev[id] || { type: "RETURN" }), qty } })); }
-  function setItemType(id, type) { setPerItem(prev => ({ ...prev, [id]: { ...(prev[id] || { qty: 1 }), type } })); }
+
+  // Set a single type's qty for one item, clamped so the total across all
+  // four types never exceeds the source row's available quantity.
+  function setItemTypeQty(id, typeKey, nextQty) {
+    const it = items.find(i => i.item_id === id);
+    if (!it) return;
+    const max = it.quantity;
+    setPerItem(prev => {
+      const cur = prev[id] || blankAlloc();
+      const otherTotal = (cur.retQty || 0) + (cur.clmQty || 0) + (cur.saleQty || 0) + (cur.freeQty || 0) - (cur[QTY_KEY[typeKey]] || 0);
+      const clamped = Math.max(0, Math.min(nextQty, max - otherTotal));
+      return { ...prev, [id]: { ...cur, [QTY_KEY[typeKey]]: clamped } };
+    });
+  }
+
+  // Bulk "Select all as TYPE" — sets every currently-selected item so that
+  // the chosen type gets the item's full available quantity and the other
+  // three types are zeroed. Matches the desktop quick-fill buttons.
+  function selectAllAsType(typeKey) {
+    setPerItem(prev => {
+      const next = { ...prev };
+      for (const id of selectedIds) {
+        const it = items.find(i => i.item_id === id);
+        if (!it) continue;
+        next[id] = { ...blankAlloc(), [QTY_KEY[typeKey]]: it.quantity };
+      }
+      return next;
+    });
+  }
+
+  function totalForItem(id) {
+    const cur = perItem[id] || blankAlloc();
+    return (cur.retQty || 0) + (cur.clmQty || 0) + (cur.saleQty || 0) + (cur.freeQty || 0);
+  }
 
   const submittedItems = selectedItems.map(it => {
-    const p = perItem[it.item_id] || { qty: it.quantity, type: "RETURN" };
+    const cur = perItem[it.item_id] || blankAlloc();
+    const retQty  = Math.max(0, cur.retQty  || 0);
+    const clmQty  = Math.max(0, cur.clmQty  || 0);
+    const saleQty = Math.max(0, cur.saleQty || 0);
+    const freeQty = Math.max(0, cur.freeQty || 0);
+    const totalQty = retQty + clmQty + saleQty + freeQty;
+    const price = Number(it.price) || 0;
     return {
       item_id: it.item_id,
       line_no: it.line_no,
       code: it.product_code,
       product_code: it.product_code,
       product_name: it.product_name,
-      price: Number(it.price) || 0,
-      quantity: Math.max(0, Math.min(it.quantity, Number(p.qty) || 0)),
-      totalPrice: (Number(it.price) || 0) * Math.max(0, Math.min(it.quantity, Number(p.qty) || 0)),
-      type: p.type,
-      retQty:  p.type === "RETURN" ? Number(p.qty) || 0 : 0,
-      clmQty:  p.type === "CLAIM"  ? Number(p.qty) || 0 : 0,
-      saleQty: p.type === "SALE"   ? Number(p.qty) || 0 : 0,
-      freeQty: p.type === "FREE"   ? Number(p.qty) || 0 : 0,
+      price,
+      quantity: totalQty,
+      totalPrice: price * totalQty,
+      retQty, clmQty, saleQty, freeQty,
     };
   });
   const totalValue = submittedItems.reduce((s, x) => s + x.totalPrice, 0);
-  const validStep2 = submittedItems.every(x => x.quantity > 0 && x.quantity <= (items.find(i => i.item_id === x.item_id)?.quantity || 0));
+  // Valid when every selected item has at least 1 allocated AND the total
+  // allocation doesn't exceed the source row's quantity. The setter already
+  // clamps, but we still guard here in case state was hand-edited.
+  const validStep2 = submittedItems.every(x => {
+    const avail = (items.find(i => i.item_id === x.item_id)?.quantity || 0);
+    return x.quantity > 0 && x.quantity <= avail;
+  });
 
   function submit() {
     const newReq = {
@@ -808,58 +879,97 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
 
         {step === 2 && (
           <>
-            <div style={{ fontSize: 11, color: sub, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "ระบุจำนวนและประเภท" : "Set quantity and type"} ({submittedItems.length})</div>
+            <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "ระบุจำนวนแยกประเภท" : "Allocate quantity per type"} ({submittedItems.length})</div>
+            <div style={{ fontSize: 11, color: sub, marginBottom: 12, lineHeight: 1.5 }}>
+              {lang === "th"
+                ? "แบ่งจำนวนได้หลายประเภทต่อรายการ (RETURN / CLAIM / SALE / FREE) รวมกันไม่เกินจำนวนที่มีอยู่"
+                : "Split one item across multiple types. Total per item must not exceed available qty."}
+            </div>
+
+            {/* Quick "Select all as type" bar — matches the desktop quick-fill */}
+            <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 11, padding: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: sub, marginBottom: 7, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>
+                {lang === "th" ? "เลือกทั้งหมดเป็น" : "Select all as"}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {RETURN_TYPES.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => selectAllAsType(t.key)}
+                    style={{
+                      flex: 1, padding: "8px 4px", borderRadius: 8,
+                      border: `1px solid ${t.border}`,
+                      color: t.color, background: "transparent",
+                      fontSize: 11, fontWeight: 700, cursor: "pointer",
+                      textAlign: "center", fontFamily: "inherit",
+                    }}
+                  >
+                    {t.icon} {t.label_th}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {submittedItems.map(si => {
               const original = items.find(i => i.item_id === si.item_id);
-              const cfg = perItem[si.item_id] || { qty: original?.quantity || 0, type: "RETURN" };
-              const typeMeta = RETURN_TYPES.find(t => t.key === cfg.type) || RETURN_TYPES[0];
-              const lineTotal = (Number(original?.price) || 0) * (Number(cfg.qty) || 0);
+              const avail = original?.quantity || 0;
+              const allocated = (si.retQty || 0) + (si.clmQty || 0) + (si.saleQty || 0) + (si.freeQty || 0);
+              const remaining = avail - allocated;
+              const remColor = remaining === 0 ? "#97C459" : remaining > 0 ? (dark ? "#FAC775" : "#854F0B") : "#E24B4A";
+              const price = Number(original?.price) || 0;
+
               return (
                 <div key={si.item_id} style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, padding: 14, marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{original?.product_code}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{original?.product_name}</div>
-                      <div style={{ fontSize: 10, color: sub, marginTop: 3 }}>{lang === "th" ? "มีอยู่ทั้งหมด" : "Available"}: <span style={{ color: text, fontWeight: 600 }}>{original?.quantity} {lang === "th" ? "ชิ้น" : "pcs"}</span></div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 0, background: dark ? "#1a1a1a" : "#f5f5f3", borderRadius: 8, padding: 2, border: `0.5px solid ${bdr}` }}>
-                      <button onClick={() => setItemQty(si.item_id, Math.max(1, (cfg.qty || 0) - 1))} style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#D4357A", fontSize: 16, fontWeight: 700, cursor: "pointer", borderRadius: 6 }}>−</button>
-                      <span style={{ width: 36, textAlign: "center", fontSize: 13, fontWeight: 700 }}>{cfg.qty}</span>
-                      <button onClick={() => setItemQty(si.item_id, Math.min(original?.quantity || 0, (cfg.qty || 0) + 1))} style={{ width: 28, height: 28, border: "none", background: "transparent", color: "#D4357A", fontSize: 16, fontWeight: 700, cursor: "pointer", borderRadius: 6 }}>+</button>
+                  {/* Header — code, name, available + remaining */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{original?.product_code}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{original?.product_name}</div>
+                    <div style={{ fontSize: 10, color: sub, marginTop: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>{lang === "th" ? "มีอยู่" : "Available"}: <span style={{ color: text, fontWeight: 600 }}>{avail} {lang === "th" ? "ชิ้น" : "pcs"}</span></span>
+                      <span style={{ color: remColor, fontWeight: 700 }}>
+                        {lang === "th" ? "เหลือ" : "Remaining"}: {remaining} {remaining === 0 ? "✓" : ""}
+                      </span>
                     </div>
                   </div>
-                  <div style={{ fontSize: 10, color: sub, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{lang === "th" ? "ประเภท" : "Type"}</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {RETURN_TYPES.map(t => {
-                      const isActive = cfg.type === t.key;
-                      return (
-                        <button
-                          key={t.key}
-                          onClick={() => setItemType(si.item_id, t.key)}
-                          style={{
-                            flex: 1,
-                            padding: "9px 4px",
-                            borderRadius: 9,
-                            border: `1px solid ${isActive ? t.color : t.border}`,
-                            color: isActive ? t.color : (dark ? "#bbb" : "#555"),
-                            background: isActive ? t.bg : "transparent",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            textAlign: "center",
-                            fontFamily: "inherit",
-                            boxShadow: isActive ? `0 0 0 1px ${t.color}44` : "none",
-                            transition: "all 0.12s",
-                          }}
-                        >
+
+                  {/* Four type rows — chip · stepper · value */}
+                  {RETURN_TYPES.map(t => {
+                    const cur = perItem[si.item_id] || blankAlloc();
+                    const qty = cur[QTY_KEY[t.key]] || 0;
+                    const canInc = remaining > 0;
+                    const lineVal = qty * price;
+                    return (
+                      <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `0.5px solid ${bdr}` }}>
+                        {/* Type chip */}
+                        <div style={{ minWidth: 70, fontSize: 11, fontWeight: 700, color: qty > 0 ? t.color : (dark ? "#666" : "#999") }}>
                           {t.icon} {t.label_th}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </div>
+                        {/* Stepper */}
+                        <div style={{ display: "flex", alignItems: "center", background: dark ? "#1a1a1a" : "#f5f5f3", borderRadius: 7, padding: 2, border: `0.5px solid ${bdr}`, flexShrink: 0 }}>
+                          <button
+                            onClick={() => setItemTypeQty(si.item_id, t.key, qty - 1)}
+                            disabled={qty <= 0}
+                            style={{ width: 26, height: 26, border: "none", background: "transparent", color: qty > 0 ? "#D4357A" : (dark ? "#444" : "#ccc"), fontSize: 16, fontWeight: 700, cursor: qty > 0 ? "pointer" : "not-allowed", borderRadius: 5, padding: 0, fontFamily: "inherit" }}
+                          >−</button>
+                          <span style={{ width: 28, textAlign: "center", fontSize: 13, fontWeight: 700, color: qty > 0 ? text : sub }}>{qty}</span>
+                          <button
+                            onClick={() => setItemTypeQty(si.item_id, t.key, qty + 1)}
+                            disabled={!canInc}
+                            style={{ width: 26, height: 26, border: "none", background: "transparent", color: canInc ? "#D4357A" : (dark ? "#444" : "#ccc"), fontSize: 16, fontWeight: 700, cursor: canInc ? "pointer" : "not-allowed", borderRadius: 5, padding: 0, fontFamily: "inherit" }}
+                          >+</button>
+                        </div>
+                        {/* Value */}
+                        <div style={{ flex: 1, textAlign: "right", fontSize: 11, fontWeight: qty > 0 ? 700 : 400, color: qty > 0 ? t.color : (dark ? "#444" : "#bbb") }}>
+                          {qty > 0 ? `฿${lineVal.toLocaleString()}` : "—"}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Per-item subtotal */}
                   <div style={{ marginTop: 10, padding: "8px 11px", background: dark ? "#0a0a0a" : "#f8f8f6", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
-                    <span style={{ color: sub }}>{lang === "th" ? "มูลค่า" : "Value"}</span>
-                    <span style={{ color: typeMeta.color, fontWeight: 700 }}>฿{lineTotal.toLocaleString()}</span>
+                    <span style={{ color: sub }}>{lang === "th" ? `รวม ${allocated} ชิ้น` : `${allocated} pcs total`}</span>
+                    <span style={{ color: allocated > 0 ? "#D4357A" : sub, fontWeight: 700 }}>฿{(allocated * price).toLocaleString()}</span>
                   </div>
                 </div>
               );
@@ -888,14 +998,24 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             <div style={{ fontSize: 11, color: sub, marginTop: 16, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "รายการที่จะส่ง" : "Items to submit"}</div>
             <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden" }}>
               {submittedItems.map(si => {
-                const m = RETURN_TYPES.find(t => t.key === si.type) || RETURN_TYPES[0];
+                const breakdown = breakdownFor(si);
+                // Tint follows the first / only type for visual lightness; if
+                // mixed, default to pink to indicate "compound entry".
+                const primaryColor = breakdown.length === 1 ? breakdown[0].color : "#D4357A";
                 return (
-                  <div key={si.item_id} style={{ padding: "11px 14px", display: "flex", justifyContent: "space-between", borderBottom: `0.5px solid ${bdr}` }}>
-                    <div>
+                  <div key={si.item_id} style={{ padding: "11px 14px", display: "flex", justifyContent: "space-between", gap: 10, borderBottom: `0.5px solid ${bdr}` }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{si.product_code}</div>
-                      <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} · <span style={{ color: m.color, fontWeight: 600 }}>{m.label_th.toUpperCase()}</span></div>
+                      <div style={{ fontSize: 10, color: sub, marginTop: 3, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                        <span>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"}</span>
+                        {breakdown.map(b => (
+                          <span key={b.key} style={{ color: b.color, fontWeight: 600 }}>
+                            {b.icon} {b.qty}{breakdown.length > 1 ? ` ${b.label_th}` : ` ${b.label_th.toUpperCase()}`}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: m.color }}>฿{si.totalPrice.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: primaryColor, whiteSpace: "nowrap" }}>฿{si.totalPrice.toLocaleString()}</div>
                   </div>
                 );
               })}
@@ -927,17 +1047,27 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "รายการ" : "Items"} ({submittedItems.length})</div>
             <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden", marginBottom: 10 }}>
               {submittedItems.map(si => {
-                const m = RETURN_TYPES.find(t => t.key === si.type) || RETURN_TYPES[0];
+                const breakdown = breakdownFor(si);
+                const primaryColor = breakdown.length === 1 ? breakdown[0].color : "#D4357A";
                 return (
-                  <div key={si.item_id} style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}`, display: "flex", justifyContent: "space-between" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontFamily: "ui-monospace,monospace", color: sub }}>{si.product_code}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1 }}>{si.product_name}</div>
-                      <div style={{ fontSize: 10, color: sub, marginTop: 3 }}>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{si.price.toLocaleString()}</div>
+                  <div key={si.item_id} style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontFamily: "ui-monospace,monospace", color: sub }}>{si.product_code}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1 }}>{si.product_name}</div>
+                        <div style={{ fontSize: 10, color: sub, marginTop: 3 }}>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{si.price.toLocaleString()}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: primaryColor }}>฿{si.totalPrice.toLocaleString()}</div>
+                      </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 9, color: m.color, fontWeight: 700, letterSpacing: 0.5 }}>{m.icon} {m.label_th.toUpperCase()}</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: m.color, marginTop: 3 }}>฿{si.totalPrice.toLocaleString()}</div>
+                    {/* Breakdown chip row — one chip per non-zero type */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                      {breakdown.map(b => (
+                        <span key={b.key} style={{ fontSize: 10, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 6, padding: "2px 7px", letterSpacing: 0.3 }}>
+                          {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 );
@@ -1320,8 +1450,17 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
         ) : filtered.map(r => {
           const m = STATUS_META[r.status] || STATUS_META.pending;
           const total = Array.isArray(r.submittedItems) ? r.submittedItems.reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0) * (Number(x.quantity)||0) || 0), 0) : 0;
+          // Derive a short type summary from per-item retQty/clmQty/saleQty/freeQty.
+          // Handles mixed-type items correctly (an item with retQty=2 and clmQty=1
+          // contributes "RETURN" and "CLAIM" both, deduped at the request level).
           const typeSummary = Array.isArray(r.submittedItems)
-            ? [...new Set(r.submittedItems.map(x => x.type).filter(Boolean))].join(", ")
+            ? (() => {
+                const set = new Set();
+                for (const x of r.submittedItems) {
+                  for (const b of breakdownFor(x)) set.add(b.key);
+                }
+                return [...set].join(", ");
+              })()
             : "";
 
           let pressTimer = null;
@@ -1401,18 +1540,28 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                 <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "รายการ" : "Items"} ({(selectedReq.submittedItems || []).length})</div>
                 <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden", marginBottom: 12 }}>
                   {(selectedReq.submittedItems || []).map((si, i) => {
-                    const tm = RETURN_TYPES.find(t => t.key === si.type) || RETURN_TYPES[0];
+                    const breakdown = breakdownFor(si);
+                    const primaryColor = breakdown.length === 1 ? breakdown[0].color : "#D4357A";
                     const arr = selectedReq.submittedItems || [];
                     return (
-                      <div key={i} style={{ padding: "11px 14px", borderBottom: i < arr.length - 1 ? `0.5px solid ${bdr}` : "none", display: "flex", justifyContent: "space-between" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{si.product_code || si.code}</div>
-                          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1 }}>{si.product_name}</div>
-                          <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(si.price).toLocaleString()}</div>
+                      <div key={i} style={{ padding: "11px 14px", borderBottom: i < arr.length - 1 ? `0.5px solid ${bdr}` : "none" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{si.product_code || si.code}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1 }}>{si.product_name}</div>
+                            <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(si.price).toLocaleString()}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: primaryColor }}>฿{(Number(si.totalPrice) || 0).toLocaleString()}</div>
+                          </div>
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 9, color: tm.color, fontWeight: 700 }}>{tm.icon} {tm.label_th.toUpperCase()}</div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: tm.color, marginTop: 3 }}>฿{(Number(si.totalPrice) || 0).toLocaleString()}</div>
+                        {/* Breakdown chip row — one chip per non-zero type */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                          {breakdown.map(b => (
+                            <span key={b.key} style={{ fontSize: 10, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 6, padding: "2px 7px", letterSpacing: 0.3 }}>
+                              {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     );
