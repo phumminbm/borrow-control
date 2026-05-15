@@ -764,11 +764,15 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             <Icon name="close" size={14} color={sub} />
           </button>
         </div>
-        <div style={{ display: "flex", gap: 6, fontSize: 11, color: sub, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{br.borrow_no}</span>·
-          <span>{customer.customer_name}</span>·
-          <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
-        </div>
+        {/* BR / customer context line — hidden on the success screen so the
+            confirmation summary stays clean (per user feedback). */}
+        {!submittedReq && (
+          <div style={{ display: "flex", gap: 6, fontSize: 11, color: sub, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{br.borrow_no}</span>·
+            <span>{customer.customer_name}</span>·
+            <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
+          </div>
+        )}
         {/* Steps (hidden once submitted — success screen replaces the workflow) */}
         {!submittedReq && (
           <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
@@ -847,14 +851,17 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             ) : items.map(it => {
               const checked = selectedIds.has(it.item_id);
               return (
-                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: checked ? "#2D0F1A" : card, border: `1px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer", boxShadow: checked ? "0 0 0 0.5px #D4357A55" : "none" }}>
+                // Selected state distinguished ONLY by pink border + outer ring + filled checkbox.
+                // Card background and all text colors stay identical to the unselected state so
+                // the content remains clearly readable per user feedback.
+                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: card, border: `1px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer", boxShadow: checked ? "0 0 0 1px #D4357A55" : "none" }}>
                   <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${checked ? "#D4357A" : "rgba(255,255,255,0.15)"}`, background: checked ? "#D4357A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {checked && <Icon name="check" size={14} color="#fff" />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: checked ? "#F0A3C5" : sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
+                    <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
                     <div style={{ fontSize: 13, fontWeight: 600, margin: "2px 0 4px", color: text }}>{it.product_name}</div>
-                    <div style={{ fontSize: 10, color: checked ? "#bbb" : sub }}>{it.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(it.price).toLocaleString()} = ฿{(Number(it.price) * it.quantity).toLocaleString()}</div>
+                    <div style={{ fontSize: 10, color: sub }}>{it.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(it.price).toLocaleString()} = ฿{(Number(it.price) * it.quantity).toLocaleString()}</div>
                   </div>
                 </div>
               );
