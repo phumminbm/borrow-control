@@ -648,6 +648,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [perItem, setPerItem] = useState({}); // item_id -> {qty, type}
   const [remark, setRemark] = useState("");
+  const [submittedReq, setSubmittedReq] = useState(null); // null = still inputting; non-null = success screen
 
   useEffect(() => {
     if (open) {
@@ -655,6 +656,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       setSelectedIds(new Set());
       setPerItem({});
       setRemark("");
+      setSubmittedReq(null);
     }
   }, [open, br?.borrow_no]);
 
@@ -731,7 +733,18 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       _prototype: true,
     };
     upsertProtoReturn(newReq);
-    if (onSubmitted) onSubmitted(newReq);
+    setSubmittedReq(newReq);
+    // Notify parent so the Returns count badge refreshes immediately, but
+    // pass action=null so the parent does NOT close this sheet yet — the
+    // success screen needs to stay visible until the user picks an action.
+    if (onSubmitted) onSubmitted(newReq, null);
+  }
+
+  // Called from the success screen — closes the request sheet and tells the
+  // parent which post-submit destination the user picked.
+  function finishSubmittedFlow(action) {
+    if (onSubmitted) onSubmitted(submittedReq, action);
+    onClose();
   }
 
   const stepLabels = lang === "th"
@@ -756,28 +769,77 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
           <span>{customer.customer_name}</span>·
           <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
         </div>
-        {/* Steps */}
-        <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
-          {stepLabels.map((label, i) => {
-            const n = i + 1;
-            const active = step === n;
-            const done = step > n;
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 600, color: active ? "#D4357A" : done ? "#97C459" : sub }}>
-                <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: active ? "#D4357A" : done ? "#1A2E0A" : (dark ? "#1a1a1a" : "#f5f5f3"), color: active ? "#fff" : done ? "#97C459" : sub, border: `0.5px solid ${active ? "#D4357A" : done ? "#3A6014" : (dark ? "#333" : "#ddd")}`, fontSize: 10, fontWeight: 700 }}>
-                  {done ? "✓" : n}
+        {/* Steps (hidden once submitted — success screen replaces the workflow) */}
+        {!submittedReq && (
+          <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
+            {stepLabels.map((label, i) => {
+              const n = i + 1;
+              const active = step === n;
+              const done = step > n;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 600, color: active ? "#D4357A" : done ? "#97C459" : sub }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: active ? "#D4357A" : done ? "#1A2E0A" : (dark ? "#1a1a1a" : "#f5f5f3"), color: active ? "#fff" : done ? "#97C459" : sub, border: `0.5px solid ${active ? "#D4357A" : done ? "#3A6014" : (dark ? "#333" : "#ddd")}`, fontSize: 10, fontWeight: 700 }}>
+                    {done ? "✓" : n}
+                  </div>
+                  <span style={{ whiteSpace: "nowrap" }}>{label}</span>
+                  {i < stepLabels.length - 1 && <div style={{ flex: 1, height: 0.5, background: dark ? "#2a2a2a" : "#ddd", margin: "0 4px" }} />}
                 </div>
-                <span style={{ whiteSpace: "nowrap" }}>{label}</span>
-                {i < stepLabels.length - 1 && <div style={{ flex: 1, height: 0.5, background: dark ? "#2a2a2a" : "#ddd", margin: "0 4px" }} />}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Step body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px", color: text }}>
-        {step === 1 && (
+        {submittedReq ? (
+          // ── Success screen ────────────────────────────────────────────
+          (() => {
+            const reqTotal = (submittedReq.submittedItems || []).reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0)*(Number(x.quantity)||0)), 0);
+            return (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 24 }}>
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #639922, #3A6014)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18, boxShadow: "0 8px 30px rgba(99,153,34,0.3)" }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>{lang === "th" ? "ส่งคำขอสำเร็จ" : "Submitted Successfully"}</div>
+                  <div style={{ fontSize: 12, color: sub, textAlign: "center", maxWidth: 280, lineHeight: 1.55, marginBottom: 22 }}>
+                    {lang === "th"
+                      ? <>คำขอของคุณถูกบันทึกแล้ว Admin จะตรวจสอบและอนุมัติให้<br/>สามารถดูสถานะได้ที่แท็บ <b style={{ color: "#D4357A" }}>Returns</b></>
+                      : <>Your request has been saved. Admin will review and approve.<br/>Track its status under the <b style={{ color: "#D4357A" }}>Returns</b> tab.</>}
+                  </div>
+                </div>
+
+                <div style={{ width: "100%", padding: 14, background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600, marginBottom: 6 }}>{lang === "th" ? "เลขที่คำขอ" : "Request ID"}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "ui-monospace,monospace" }}>{submittedReq.id}</div>
+                  <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>{fmtDateTime(submittedReq.date)}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <ReturnStatusPill status={submittedReq.status} size="sm" lang={lang} />
+                    <span style={{ fontSize: 11, color: sub }}>→ Admin {lang === "th" ? "ตรวจสอบ" : "review"} → Sheet sync</span>
+                  </div>
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `0.5px solid ${bdr}`, display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                    <span style={{ color: sub }}>{submittedReq.items} {lang === "th" ? "รายการ" : "items"}</span>
+                    <span style={{ fontWeight: 700, color: "#D4357A" }}>฿{reqTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: "12px 14px", background: dark ? "#0a0a0a" : "#fafaf8", border: `0.5px dashed ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 11, fontSize: 11, color: sub, lineHeight: 1.55, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, color: dark ? "#aaa" : "#444", marginBottom: 4 }}>📌 {lang === "th" ? "ขั้นถัดไป" : "Next steps"}</div>
+                  {lang === "th"
+                    ? "Admin จะตรวจสอบและอนุมัติ ระบบจะ Sync กับ Logistics File โดยอัตโนมัติ การเปลี่ยนแปลงจะปรากฏใน Dashboard ในรอบ snapshot คืนถัดไป (~23:30)"
+                    : "Admin will review and approve. The system syncs to Logistics File automatically; changes appear on the Dashboard at the next nightly snapshot (~23:30)."}
+                </div>
+
+                <div style={{ padding: "10px 12px", background: dark ? "#1e1a08" : "#FEFAEE", border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, borderRadius: 9, fontSize: 10, color: dark ? "#FAC775" : "#854F0B", lineHeight: 1.55 }}>
+                  ⚠ {lang === "th"
+                    ? "Prototype: บันทึกเฉพาะใน localStorage ของเครื่องนี้ — ไม่เข้า Admin Desktop จริง"
+                    : "Prototype: saved to this browser's localStorage only — does not reach real Admin Desktop"}
+                </div>
+              </>
+            );
+          })()
+        ) : step === 1 && (
           <>
             <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return"}</div>
             {items.length === 0 ? (
@@ -785,14 +847,14 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             ) : items.map(it => {
               const checked = selectedIds.has(it.item_id);
               return (
-                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: checked ? "#1a0f15" : card, border: `0.5px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer" }}>
+                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: checked ? "#2D0F1A" : card, border: `1px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer", boxShadow: checked ? "0 0 0 0.5px #D4357A55" : "none" }}>
                   <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${checked ? "#D4357A" : "rgba(255,255,255,0.15)"}`, background: checked ? "#D4357A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {checked && <Icon name="check" size={14} color="#fff" />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, margin: "2px 0 4px" }}>{it.product_name}</div>
-                    <div style={{ fontSize: 10, color: sub }}>{it.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(it.price).toLocaleString()} = ฿{(Number(it.price) * it.quantity).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: checked ? "#F0A3C5" : sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, margin: "2px 0 4px", color: text }}>{it.product_name}</div>
+                    <div style={{ fontSize: 10, color: checked ? "#bbb" : sub }}>{it.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(it.price).toLocaleString()} = ฿{(Number(it.price) * it.quantity).toLocaleString()}</div>
                   </div>
                 </div>
               );
@@ -823,11 +885,29 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: sub, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{lang === "th" ? "ประเภท" : "Type"}</div>
-                  <div style={{ display: "flex", gap: 5 }}>
+                  <div style={{ display: "flex", gap: 6 }}>
                     {RETURN_TYPES.map(t => {
                       const isActive = cfg.type === t.key;
                       return (
-                        <button key={t.key} onClick={() => setItemType(si.item_id, t.key)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, border: `1px solid ${t.border}`, color: t.color, background: isActive ? t.bg : "transparent", fontSize: 10, fontWeight: 700, cursor: "pointer", textAlign: "center" }}>
+                        <button
+                          key={t.key}
+                          onClick={() => setItemType(si.item_id, t.key)}
+                          style={{
+                            flex: 1,
+                            padding: "9px 4px",
+                            borderRadius: 9,
+                            border: `1px solid ${isActive ? t.color : t.border}`,
+                            color: isActive ? t.color : (dark ? "#bbb" : "#555"),
+                            background: isActive ? t.bg : "transparent",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            textAlign: "center",
+                            fontFamily: "inherit",
+                            boxShadow: isActive ? `0 0 0 1px ${t.color}44` : "none",
+                            transition: "all 0.12s",
+                          }}
+                        >
                           {t.icon} {t.label_th}
                         </button>
                       );
@@ -890,19 +970,13 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                 </div>
                 <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 10, color: sub }}>{customer.cust_code}</span>
               </div>
-              <div style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}`, display: "flex", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 10, color: sub }}>BR</div>
-                  <div style={{ fontSize: 13, marginTop: 2, fontFamily: "ui-monospace,monospace" }}>{br.borrow_no}</div>
-                </div>
-                <StatusPill status={br.borrow_alert || "NORMAL"} size="xs" />
+              <div style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}` }}>
+                <div style={{ fontSize: 10, color: sub }}>BR</div>
+                <div style={{ fontSize: 13, marginTop: 2, fontFamily: "ui-monospace,monospace" }}>{br.borrow_no}</div>
               </div>
-              <div style={{ padding: "11px 14px", display: "flex", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 10, color: sub }}>Sale</div>
-                  <div style={{ fontSize: 13, marginTop: 2 }}>{sale}</div>
-                </div>
-                <TeamPill team={getTeam(sale)} size="xs" />
+              <div style={{ padding: "11px 14px" }}>
+                <div style={{ fontSize: 10, color: sub }}>Sale</div>
+                <div style={{ fontSize: 13, marginTop: 2 }}>{sale}</div>
               </div>
             </div>
 
@@ -946,29 +1020,47 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       </div>
 
       {/* Bottom action bar */}
-      <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
-        <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          {step === 1 ? (lang === "th" ? "ยกเลิก" : "Cancel") : (lang === "th" ? "← กลับ" : "← Back")}
-        </button>
-        {step < 4 ? (
+      {submittedReq ? (
+        // ── Success screen action bar — two destinations ─────────────
+        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
           <button
-            onClick={() => setStep(s => s + 1)}
-            disabled={(step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)}
-            style={{
-              flex: 2, padding: 14, borderRadius: 12, border: "none",
-              background: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#333" : "#D4357A",
-              color: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#666" : "#fff",
-              fontSize: 14, fontWeight: 700, cursor: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "not-allowed" : "pointer",
-            }}
+            onClick={() => finishSubmittedFlow("backToList")}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
           >
-            {step === 1 ? (lang === "th" ? `เลือก ${selectedIds.size} รายการ →` : `Selected ${selectedIds.size} →`) : (lang === "th" ? "ถัดไป →" : "Next →")}
+            {lang === "th" ? "← กลับไปที่ BR List" : "← Back to BR List"}
           </button>
-        ) : (
-          <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-            {lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit"}
+          <button
+            onClick={() => finishSubmittedFlow("viewAll")}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {lang === "th" ? "ดูคำขอทั้งหมด →" : "View All Requests →"}
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
+          <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            {step === 1 ? (lang === "th" ? "ยกเลิก" : "Cancel") : (lang === "th" ? "← กลับ" : "← Back")}
+          </button>
+          {step < 4 ? (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              disabled={(step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)}
+              style={{
+                flex: 2, padding: 14, borderRadius: 12, border: "none",
+                background: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#333" : "#D4357A",
+                color: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "#666" : "#fff",
+                fontSize: 14, fontWeight: 700, cursor: ((step === 1 && selectedIds.size === 0) || (step === 2 && !validStep2)) ? "not-allowed" : "pointer",
+              }}
+            >
+              {step === 1 ? (lang === "th" ? `เลือก ${selectedIds.size} รายการ →` : `Selected ${selectedIds.size} →`) : (lang === "th" ? "ถัดไป →" : "Next →")}
+            </button>
+          ) : (
+            <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              {lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit"}
+            </button>
+          )}
+        </div>
+      )}
     </BottomSheet>
   );
 }
@@ -1157,10 +1249,22 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, sale, 
         sale={sale}
         lang={lang}
         dark={dark}
-        onSubmitted={(newReq) => {
+        onSubmitted={(newReq, action) => {
+          // action = null  → first call right after save; keep the request sheet
+          //                  open so the success screen can render. Just notify
+          //                  the parent so the Returns badge count refreshes.
+          // action = "backToList" → user picked "Back to BR List": close request
+          //                  sheet + close BR detail, customer detail stays
+          //                  open so the BR list reappears, do NOT switch tab.
+          // action = "viewAll" → user picked "View All Requests": close
+          //                  everything and switch to the Returns tab.
+          if (action === null) {
+            if (onProtoSubmitted) onProtoSubmitted(newReq, "refreshOnly");
+            return;
+          }
           setRequestOpen(false);
           setSelectedBR(null);
-          if (onProtoSubmitted) onProtoSubmitted(newReq);
+          if (onProtoSubmitted) onProtoSubmitted(newReq, action);
         }}
       />
     </>
@@ -1722,9 +1826,21 @@ export default function MobilePrototypeApp() {
         lang={lang}
         dark={dark}
         sale={selectedSale}
-        onProtoSubmitted={(newReq) => {
+        onProtoSubmitted={(newReq, action) => {
           refreshReturns();
-          setTab("returns");
+          // action = "refreshOnly"  → just refresh badge counter, keep UI as-is
+          //                            (the success screen is rendering inside
+          //                            the request sheet — leave it open)
+          // action = "backToList"   → return user to the customer's BR list;
+          //                            the CustomerDetailSheet already closed
+          //                            the BR detail, so the BR list shows.
+          //                            Do NOT switch tab.
+          // action = "viewAll"      → close customer detail and switch to
+          //                            the Returns tab for the full history.
+          if (action === "viewAll") {
+            setSelectedCustomer(null);
+            setTab("returns");
+          }
         }}
       />
     </div>
