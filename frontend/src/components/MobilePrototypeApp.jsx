@@ -164,6 +164,35 @@ function fmtDateTime(d) {
   return dt.toLocaleString("th-TH", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short", year: "numeric" });
 }
 
+// ── Calendar helpers (for the date-range picker on Returns tab) ──────
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const EN_MONTHS_SHORT   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const THAI_DAY_HEADERS  = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const EN_DAY_HEADERS    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const THAI_DAY_FULL     = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
+const EN_DAY_FULL       = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function fmtDayMonth(d, lang) {
+  if (!d) return "";
+  const day = (lang === "th" ? THAI_DAY_FULL : EN_DAY_FULL)[d.getDay()];
+  const mon = (lang === "th" ? THAI_MONTHS_SHORT : EN_MONTHS_SHORT)[d.getMonth()];
+  return `${day} ${d.getDate()} ${mon}`;
+}
+function fmtShortDate(d, lang) {
+  if (!d) return "";
+  const mon = (lang === "th" ? THAI_MONTHS_SHORT : EN_MONTHS_SHORT)[d.getMonth()];
+  return `${d.getDate()} ${mon}`;
+}
+
 // ── Status taxonomy — matches Desktop BR Return exactly ──────────────
 // Colors aligned to MobileApp.jsx existing palette (BLOCK/WARNING/NORMAL family)
 // for visual continuity with the rest of the mobile UI.
@@ -1320,13 +1349,214 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, sale, 
 }
 
 // =============================================================================
+// DATE RANGE PICKER (hotel-app style calendar, themed to our dark/pink UI)
+// =============================================================================
+// Replaces the small "Today / 7d / 30d" chip row with a proper calendar that
+// the user opens in a bottom sheet. Selects an inclusive from..to range
+// (or a single day when only "from" is picked). Theming uses the prototype's
+// existing card / pink / dark palette so it matches every other screen.
+
+function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) {
+  const [localFrom, setLocalFrom] = useState(from);
+  const [localTo, setLocalTo] = useState(to);
+
+  useEffect(() => {
+    if (open) {
+      setLocalFrom(from);
+      setLocalTo(to);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const text = dark ? "#eee" : "#111";
+  const sub = dark ? "#888" : "#666";
+  const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
+
+  // 11 months back + current + 1 forward — adjust if the dataset goes deeper
+  const months = useMemo(() => {
+    const out = [];
+    const now = new Date();
+    for (let i = -11; i <= 1; i++) {
+      out.push(new Date(now.getFullYear(), now.getMonth() + i, 1));
+    }
+    return out;
+  }, [open]);
+
+  const today = startOfDay(new Date());
+
+  function pickDate(d) {
+    const day = startOfDay(d);
+    if (!localFrom || (localFrom && localTo)) {
+      // No selection yet, OR both already set — start a fresh range
+      setLocalFrom(day);
+      setLocalTo(null);
+    } else {
+      // Have from, no to yet
+      if (day.getTime() < localFrom.getTime()) {
+        // User clicked an earlier date — restart from there
+        setLocalFrom(day);
+        setLocalTo(null);
+      } else {
+        // Set the end (can equal from for a single-day range)
+        setLocalTo(day);
+      }
+    }
+  }
+
+  function inBetween(d) {
+    if (!localFrom || !localTo) return false;
+    const t = d.getTime();
+    return t > localFrom.getTime() && t < localTo.getTime();
+  }
+
+  const dayHeaders = lang === "th" ? THAI_DAY_HEADERS : EN_DAY_HEADERS;
+  const monthsLabels = lang === "th" ? THAI_MONTHS_SHORT : EN_MONTHS_SHORT;
+  const daysCount = (localFrom && localTo)
+    ? Math.round((localTo - localFrom) / 86400000) + 1
+    : (localFrom ? 1 : 0);
+
+  return (
+    <BottomSheet open={open} onClose={onClose} height="92%" dark={dark}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+        {/* Header: close + title + clear */}
+        <div style={{ padding: "4px 20px 12px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="close" size={14} color={sub} />
+            </button>
+            <div style={{ fontSize: 15, fontWeight: 700, color: text }}>{lang === "th" ? "เลือกวันที่" : "Select date"}</div>
+            <button
+              onClick={() => { setLocalFrom(null); setLocalTo(null); }}
+              disabled={!localFrom && !localTo}
+              style={{ fontSize: 12, color: (localFrom || localTo) ? "#D4357A" : sub, background: "transparent", border: "none", cursor: (localFrom || localTo) ? "pointer" : "default", fontWeight: 600, padding: 4, fontFamily: "inherit", opacity: (localFrom || localTo) ? 1 : 0.5 }}
+            >
+              {lang === "th" ? "ล้าง" : "Clear"}
+            </button>
+          </div>
+
+          {/* From / To summary pills */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ flex: 1, padding: "9px 12px", borderRadius: 10, background: localFrom ? "#2D0F1A" : (dark ? "#1a1a1a" : "#f5f5f3"), border: `1px solid ${localFrom ? "#D4357A" : bdr}` }}>
+              <div style={{ fontSize: 9, color: sub, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{lang === "th" ? "เริ่มต้น" : "From"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: localFrom ? "#D4357A" : sub, marginTop: 3 }}>
+                {localFrom ? fmtDayMonth(localFrom, lang) : (lang === "th" ? "เลือกวัน" : "Select")}
+              </div>
+            </div>
+            <Icon name="chevron" size={14} color={sub} />
+            <div style={{ flex: 1, padding: "9px 12px", borderRadius: 10, background: localTo ? "#2D0F1A" : (dark ? "#1a1a1a" : "#f5f5f3"), border: `1px solid ${localTo ? "#D4357A" : bdr}` }}>
+              <div style={{ fontSize: 9, color: sub, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{lang === "th" ? "สิ้นสุด" : "To"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: localTo ? "#D4357A" : sub, marginTop: 3 }}>
+                {localTo ? fmtDayMonth(localTo, lang) : (lang === "th" ? "เลือกวัน" : "Select")}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Day-of-week strip — sticky-looking via top of scroll area */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "10px 16px", flexShrink: 0, borderBottom: `0.5px solid ${bdr}`, background: dark ? "#0a0a0a" : "#fafaf8" }}>
+          {dayHeaders.map((h, i) => (
+            <div key={i} style={{ textAlign: "center", fontSize: 10, color: sub, fontWeight: 600, letterSpacing: 0.3 }}>{h}</div>
+          ))}
+        </div>
+
+        {/* Months list — scrollable */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 16px 20px" }}>
+          {months.map((monthDate, mIdx) => {
+            const year = monthDate.getFullYear();
+            const month = monthDate.getMonth();
+            const firstDayOfWeek = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const cells = [];
+            for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
+            for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+
+            return (
+              <div key={mIdx} style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: text, textAlign: "center", margin: "12px 0 10px" }}>
+                  {monthsLabels[month]} {lang === "th" ? year + 543 : year}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                  {cells.map((d, idx) => {
+                    if (!d) return <div key={idx} style={{ height: 42 }} />;
+                    const isT     = sameDay(d, today);
+                    const isStart = sameDay(d, localFrom);
+                    const isEnd   = sameDay(d, localTo);
+                    const between = inBetween(d);
+                    const isSingleSelected = isStart && (!localTo || sameDay(localFrom, localTo));
+                    // Cell wrapper provides the range "stripe" background.
+                    // Inner pill gives the start/end dots their circle.
+                    const wrapperBg =
+                      between ? "#2D0F1A" :
+                      (isStart && localTo && !sameDay(localFrom, localTo)) ? "linear-gradient(to right, transparent 50%, #2D0F1A 50%)" :
+                      (isEnd && !sameDay(localFrom, localTo))               ? "linear-gradient(to right, #2D0F1A 50%, transparent 50%)" :
+                      "transparent";
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => pickDate(d)}
+                        style={{
+                          height: 42, padding: 0, border: "none", cursor: "pointer",
+                          background: wrapperBg, display: "flex", alignItems: "center", justifyContent: "center",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36, height: 36, borderRadius: "50%",
+                            background: (isStart || isEnd) ? "#D4357A" : "transparent",
+                            color: (isStart || isEnd) ? "#fff" : (between ? "#D4357A" : (isT ? "#D4357A" : text)),
+                            fontSize: 13,
+                            fontWeight: (isStart || isEnd || isT) ? 700 : 500,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            border: (isT && !isStart && !isEnd && !between) ? `1px solid #D4357A` : "none",
+                            boxShadow: (isStart || isEnd) ? "0 2px 8px rgba(212,53,122,0.35)" : "none",
+                          }}
+                        >
+                          {d.getDate()}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Apply button */}
+        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, flexShrink: 0 }}>
+          <button
+            onClick={() => { onApply(localFrom, localTo); onClose(); }}
+            disabled={!localFrom}
+            style={{
+              width: "100%", padding: 14, borderRadius: 12, border: "none",
+              background: localFrom ? "#D4357A" : "#333",
+              color: localFrom ? "#fff" : "#666",
+              fontSize: 14, fontWeight: 700,
+              cursor: localFrom ? "pointer" : "not-allowed",
+              fontFamily: "inherit",
+            }}
+          >
+            {!localFrom ? (lang === "th" ? "เลือกวันที่" : "Select date")
+              : !localTo ? (lang === "th" ? `ตกลง (${fmtShortDate(localFrom, lang)})` : `Apply (${fmtShortDate(localFrom, lang)})`)
+              : (lang === "th" ? `ตกลง (${daysCount} วัน)` : `Apply (${daysCount} days)`)}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// =============================================================================
 // RETURNS SCREEN (new bottom tab)
 // =============================================================================
 
 function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCount }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [dateRange, setDateRange] = useState("");
+  const [dateFrom, setDateFrom] = useState(null);   // Date | null — inclusive start of range
+  const [dateTo, setDateTo]     = useState(null);   // Date | null — inclusive end of range
+  const [dateOpen, setDateOpen] = useState(false);  // calendar sheet visibility
   const [selectedReq, setSelectedReq] = useState(null);
   const [simReq, setSimReq] = useState(null); // for admin sim long-press
   const text = dark ? "#eee" : "#111";
@@ -1346,14 +1576,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
     cancelled: mine.filter(r => r.status === "cancelled").length,
   };
 
-  const dateCutoff = (() => {
-    if (!dateRange) return 0;
-    const now = Date.now();
-    if (dateRange === "today") { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
-    if (dateRange === "7d")    return now - 7 * 24 * 3600 * 1000;
-    if (dateRange === "30d")   return now - 30 * 24 * 3600 * 1000;
-    return 0;
-  })();
+  // Inclusive date bounds: [dateFrom 00:00, dateTo 23:59:59.999].
+  // When only dateFrom is set, treats it as a single-day filter (00:00 → 23:59).
+  const fromTs = dateFrom ? dateFrom.getTime() : null;
+  const toTs   = dateTo
+    ? (dateTo.getTime() + 86400000 - 1)
+    : (dateFrom ? (dateFrom.getTime() + 86400000 - 1) : null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1361,12 +1589,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
       .filter(r =>
         (!q || (r.id || "").toLowerCase().includes(q) || (r.cust || "").toLowerCase().includes(q) || (r.br || "").toLowerCase().includes(q)) &&
         (!statusFilter || r.status === statusFilter) &&
-        (!dateCutoff || (Number(r.dateSort) || 0) >= dateCutoff)
+        (fromTs == null || ((Number(r.dateSort) || 0) >= fromTs && (Number(r.dateSort) || 0) <= toTs))
       )
       .sort((a, b) => (Number(b.dateSort) || 0) - (Number(a.dateSort) || 0));
-  }, [mine, search, statusFilter, dateCutoff]);
+  }, [mine, search, statusFilter, fromTs, toTs]);
 
-  const hasAnyFilter = !!(search || statusFilter || dateRange);
+  const hasAnyFilter = !!(search || statusFilter || dateFrom);
 
   function simulateStatusChange(req, newStatus) {
     const updated = { ...req, status: newStatus };
@@ -1437,17 +1665,39 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
             tap a card to filter, tap again to clear. The redundant chip
             row that used to live here has been removed per user feedback. */}
 
-        {/* Date chips */}
-        <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}>
-          {[["", lang === "th" ? "ทุกวันที่" : "Any time"], ["today", lang === "th" ? "วันนี้" : "Today"], ["7d", "7d"], ["30d", "30d"]].map(([v, l]) => {
-            const active = dateRange === v;
-            return (
-              <button key={v} onClick={() => setDateRange(v)} style={{ padding: "4px 10px", fontSize: 10, fontWeight: 600, borderRadius: 12, flexShrink: 0, border: `0.5px solid ${active ? "#7F77DD" : "rgba(255,255,255,0.08)"}`, background: active ? "#7F77DD" : card, color: active ? "#fff" : sub, cursor: "pointer" }}>{l}</button>
-            );
-          })}
+        {/* Date filter trigger — opens the calendar bottom sheet.
+            Shows the selected range inline, or "ทุกวันที่" when empty. */}
+        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+          <button
+            onClick={() => setDateOpen(true)}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", gap: 8,
+              padding: "9px 12px", borderRadius: 10,
+              border: `1px solid ${dateFrom ? "#D4357A" : bdr}`,
+              background: dateFrom ? "#2D0F1A" : card,
+              color: dateFrom ? "#D4357A" : sub,
+              fontSize: 12, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+            }}
+          >
+            <Icon name="calendar" size={14} color={dateFrom ? "#D4357A" : sub} />
+            <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {!dateFrom
+                ? (lang === "th" ? "ทุกวันที่" : "Any date")
+                : (dateTo && !sameDay(dateFrom, dateTo))
+                  ? `${fmtShortDate(dateFrom, lang)} → ${fmtShortDate(dateTo, lang)}`
+                  : fmtShortDate(dateFrom, lang)}
+            </span>
+            {dateFrom && (
+              <span
+                onClick={(e) => { e.stopPropagation(); setDateFrom(null); setDateTo(null); }}
+                style={{ padding: "0 4px", cursor: "pointer", color: sub, fontSize: 14, lineHeight: 1 }}
+              >✕</span>
+            )}
+          </button>
           {hasAnyFilter && (
-            <button onClick={() => { setSearch(""); setStatusFilter(""); setDateRange(""); }} style={{ padding: "4px 10px", fontSize: 10, fontWeight: 600, borderRadius: 12, flexShrink: 0, border: `0.5px dashed rgba(255,255,255,0.15)`, background: "transparent", color: sub, cursor: "pointer" }}>
-              {lang === "th" ? "ล้างตัวกรอง ✕" : "Clear ✕"}
+            <button onClick={() => { setSearch(""); setStatusFilter(""); setDateFrom(null); setDateTo(null); }} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 600, borderRadius: 10, flexShrink: 0, border: `0.5px dashed rgba(255,255,255,0.15)`, background: "transparent", color: sub, cursor: "pointer" }}>
+              {lang === "th" ? "ล้างตัวกรอง" : "Clear"}
             </button>
           )}
         </div>
@@ -1618,6 +1868,17 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           );
         })()}
       </BottomSheet>
+
+      {/* Date range picker sheet — opened by the calendar trigger above */}
+      <DateRangePickerSheet
+        open={dateOpen}
+        onClose={() => setDateOpen(false)}
+        from={dateFrom}
+        to={dateTo}
+        dark={dark}
+        lang={lang}
+        onApply={(f, t) => { setDateFrom(f); setDateTo(t); }}
+      />
 
       {/* Admin sim sheet */}
       <BottomSheet open={!!simReq} onClose={() => setSimReq(null)} height="50%" dark={dark} title={lang === "th" ? "จำลองสถานะ Admin (Prototype)" : "Simulate Admin status (Prototype)"} extraRight={<PrototypeBadge />}>
