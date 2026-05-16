@@ -112,6 +112,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { TEAMS, TEAM_COLORS } from "../App";
+import { t as _t } from "../i18n";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const PROTO_DATA_CACHE  = "borrow-control:prototype-mobile-cache";
@@ -245,7 +246,9 @@ function upsertProtoReturn(req) {
   return postTestReturnToBackend(req).catch(err => {
     if (beforeOptimistic) upsertTestCacheLocal(beforeOptimistic);
     else                   removeFromTestCacheLocal(req.id);
-    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "บันทึกคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    // Dispatch the i18n KEY rather than a literal Thai string so the
+    // toast listener can render in the active language at receive-time.
+    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msgKey: "toast.backendPostFail" } })); } catch {}
     throw err;
   });
 }
@@ -268,7 +271,7 @@ function replaceProtoReturn(id, patch) {
   upsertTestCacheLocal(next);
   return postTestReturnToBackend(next).catch(err => {
     upsertTestCacheLocal(previousState);  // restore the row to what it was
-    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "อัปเดตคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msgKey: "toast.backendUpdateFail" } })); } catch {}
     throw err;
   });
 }
@@ -471,13 +474,24 @@ const STATUS_META = {
   cancelled: { label_th: "ยกเลิกแล้ว",   label_short_th: "ยกเลิกแล้ว", label_en: "Cancelled",      color: "#aaa",    bg: "#1a1a1a", border: "rgba(255,255,255,0.1)" },
 };
 
-// Return type taxonomy (matches BR Return Apps Script)
+// Return type taxonomy (matches BR Return Apps Script). label_th and
+// label_en are both provided so chips render in either language.
+// Helpers below pick the right one based on the active language.
 const RETURN_TYPES = [
-  { key: "RETURN", label_th: "คืน",  icon: "↩", color: "#97C459", bg: "#1A2E0A", border: "#3A6014" },
-  { key: "CLAIM",  label_th: "เคลม", icon: "⚠", color: "#FAC775", bg: "#3D2A00", border: "#7A5500" },
-  { key: "SALE",   label_th: "ขาย",  icon: "💰", color: "#F09595", bg: "#3D1212", border: "#7A2020" },
-  { key: "FREE",   label_th: "ฟรี",  icon: "🎁", color: "#fff",    bg: "#1a1a1a", border: "#555" },
+  { key: "RETURN", label_th: "คืน",  label_en: "Return", icon: "↩", color: "#97C459", bg: "#1A2E0A", border: "#3A6014" },
+  { key: "CLAIM",  label_th: "เคลม", label_en: "Claim",  icon: "⚠", color: "#FAC775", bg: "#3D2A00", border: "#7A5500" },
+  { key: "SALE",   label_th: "ขาย",  label_en: "Sale",   icon: "💰", color: "#F09595", bg: "#3D1212", border: "#7A2020" },
+  { key: "FREE",   label_th: "ฟรี",  label_en: "Free",   icon: "🎁", color: "#fff",    bg: "#1a1a1a", border: "#555" },
 ];
+
+// Picks the right return-type label string given the active language.
+// Tolerates objects that only have label_th (legacy data from older
+// records) by falling through to the Thai label.
+function typeLabel(t, lang) {
+  if (!t) return "";
+  if (lang === "en") return t.label_en || t.label_th || t.key || "";
+  return t.label_th || t.label_en || t.key || "";
+}
 
 // Decompose a submittedItem into the list of types it actually uses
 // (qty > 0). Each entry has { key, qty, label, color, icon }. Returns []
@@ -495,7 +509,7 @@ function breakdownFor(si) {
     const q = Number(si[prop]) || 0;
     if (q > 0) {
       const t = RETURN_TYPES.find(r => r.key === key);
-      out.push({ key, qty: q, label_th: t.label_th, color: t.color, icon: t.icon });
+      out.push({ key, qty: q, label_th: t.label_th, label_en: t.label_en, color: t.color, icon: t.icon });
     }
   }
   return out;
@@ -1622,7 +1636,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                       textAlign: "center", fontFamily: "inherit",
                     }}
                   >
-                    {t.icon} {t.label_th}
+                    {t.icon} {typeLabel(t, lang)}
                   </button>
                 ))}
               </div>
@@ -1660,7 +1674,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                       <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `0.5px solid ${bdr}` }}>
                         {/* Type chip */}
                         <div style={{ minWidth: 70, fontSize: 11, fontWeight: 700, color: qty > 0 ? t.color : (dark ? "#666" : "#999") }}>
-                          {t.icon} {t.label_th}
+                          {t.icon} {typeLabel(t, lang)}
                         </div>
                         {/* Stepper */}
                         <div style={{ display: "flex", alignItems: "center", background: dark ? "#1a1a1a" : "#f5f5f3", borderRadius: 7, padding: 2, border: `0.5px solid ${bdr}`, flexShrink: 0 }}>
@@ -1728,7 +1742,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                         <span>{si.quantity} {lang === "th" ? "ชิ้น" : "pcs"}</span>
                         {breakdown.map(b => (
                           <span key={b.key} style={{ color: b.color, fontWeight: 600 }}>
-                            {b.icon} {b.qty}{breakdown.length > 1 ? ` ${b.label_th}` : ` ${b.label_th.toUpperCase()}`}
+                            {b.icon} {b.qty}{breakdown.length > 1 ? ` ${typeLabel(b, lang)}` : ` ${typeLabel(b, lang).toUpperCase()}`}
                           </span>
                         ))}
                       </div>
@@ -1800,7 +1814,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
                       {breakdown.map(b => (
                         <span key={b.key} style={{ fontSize: 10, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 6, padding: "2px 7px", letterSpacing: 0.3 }}>
-                          {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                          {b.icon} {b.qty} {typeLabel(b, lang).toUpperCase()}
                         </span>
                       ))}
                     </div>
@@ -2602,7 +2616,7 @@ function AdminFeedbackComposer({ open, request, onClose, onApply, onOpenLightbox
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
                         {tb.map(b => (
                           <span key={b.key} style={{ fontSize: 9, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 5, padding: "1px 6px", letterSpacing: 0.3 }}>
-                            {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                            {b.icon} {b.qty} {typeLabel(b, lang).toUpperCase()}
                           </span>
                         ))}
                       </div>
@@ -2921,7 +2935,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 5 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? m.color : (dark ? "#ccc" : "#444"), letterSpacing: 0.3 }}>
-                    {m.label_short_th}
+                    {lang === "th" ? m.label_short_th : m.label_en}
                   </span>
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: isActive ? m.color : text, lineHeight: 1 }}>{n}</div>
@@ -3254,7 +3268,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
                           {breakdown.map(b => (
                             <span key={b.key} style={{ fontSize: 10, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 6, padding: "2px 7px", letterSpacing: 0.3 }}>
-                              {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                              {b.icon} {b.qty} {typeLabel(b, lang).toUpperCase()}
                             </span>
                           ))}
                         </div>
@@ -3391,7 +3405,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   opacity: current ? 1 : 0.95,
                 }}>
                   <span>
-                    {sm.label_th}
+                    {lang === "th" ? sm.label_th : sm.label_en}
                     {isReject && !current && <span style={{ marginLeft: 6, fontSize: 10, color: sub, fontWeight: 500 }}>({lang === "th" ? "เปิดตัวแก้คำขอ" : "opens composer"})</span>}
                   </span>
                   {current ? <span style={{ fontSize: 10, color: sm.color }}>{lang === "th" ? "ปัจจุบัน" : "current"}</span> : <Icon name="chevron" size={12} color={sub} />}
@@ -3702,13 +3716,18 @@ export default function MobilePrototypeApp() {
   useEffect(() => {
     if (!isTestMode()) return undefined;
     const onErr = (e) => {
-      const msg = (e && e.detail && e.detail.msg) || "Backend error";
+      // Resolve i18n key (preferred) or fall back to a literal msg
+      // from older dispatch sites.
+      const key = e && e.detail && e.detail.msgKey;
+      const lit = e && e.detail && e.detail.msg;
+      const msg = key ? _t(key, lang) : (lit || (lang === "en" ? "Backend error" : "Backend error"));
       setTestToast(msg);
       setTimeout(() => setTestToast(""), 3500);
     };
     window.addEventListener("proto-test-error", onErr);
     return () => window.removeEventListener("proto-test-error", onErr);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   const load = useCallback((isRefresh = false) => {
     if (isRefresh) setRefreshing(true);

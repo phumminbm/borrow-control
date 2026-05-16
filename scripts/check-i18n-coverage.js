@@ -3,24 +3,29 @@
 // scripts/check-i18n-coverage.js
 //
 // Scans the project's UI source files for any remaining Thai characters that
-// live OUTSIDE the i18n dictionaries. The presence of any Thai outside the
-// dictionary means a TH→EN translation was missed, and "EN mode" would still
-// show that string in Thai — which the user has explicitly ruled out.
+// live OUTSIDE the i18n dictionaries AND aren't already paired with an
+// English fallback (via lang-ternaries or label_th/label_en object pairs).
+//
+// The presence of any Thai outside these allowed locations means a TH→EN
+// translation was missed, and "EN mode" would still show that string in
+// Thai — which the user has explicitly ruled out.
 //
 // What's scanned:
 //   - frontend/src/components/MobilePrototypeApp.jsx
 //   - backend/static/br-return.html
 //   - backend/main.py
 //
-// What's whitelisted (Thai text here is expected and OK):
-//   - Inside the BR_STRINGS object in br-return.html (the dictionary itself)
-//   - Inside STRINGS / Mobile dictionary entries
+// What's allowed (Thai here is expected and OK):
+//   - Inside the BR_STRINGS / STRINGS dictionary objects
 //   - Inside // and /* */ and # comments
-//   - Inside string template values mapped via _t()
+//   - Inside `lang === "th" ? "...thai..." : "...english..."` ternaries
+//   - Inside THAI_MONTHS_SHORT / THAI_DAY_HEADERS / THAI_DAY_FULL arrays
+//     (these are paired with EN_* siblings at lookup time)
+//   - Inside object literals where label_th is paired with label_en
 //
 // Exit codes:
-//   0  →  no Thai found outside the dictionary  (build passes)
-//   2  →  Thai found outside the dictionary; outputs a report  (build fails)
+//   0  →  no Thai found outside the allowed zones  (build passes)
+//   2  →  Thai found outside the allowed zones; outputs a report  (build fails)
 //
 // Run via:  node scripts/check-i18n-coverage.js
 // Or:       node scripts/check-i18n-coverage.js --summary    (counts only)
@@ -36,37 +41,60 @@ const TARGETS = [
   'backend/main.py',
 ];
 
-// Thai script Unicode range: U+0E00 through U+0E7F
-const THAI = /[฀-๿]+/;
-const THAI_G = /[฀-๿]+/g;
+// Thai script range, EXCLUDING U+0E3F BAHT SIGN ฿ (currency symbol used
+// in both Thai and English UIs). The Baht sign isn't Thai-language text.
+const THAI   = /[ก-฾เ-๿]+/;
+const THAI_G = /[ก-฾เ-๿]+/g;
 
 const args = new Set(process.argv.slice(2));
 const SUMMARY = args.has('--summary');
 
-// Strip line comments and block comments + dictionary regions so we don't
-// flag Thai that's legitimately inside them. This is intentionally
-// conservative — it would rather miss a real violation than false-positive
-// on legitimate dictionary content.
 function stripBenign(filePath, src) {
   let out = src;
   // Strip /* ... */ block comments
-  out = out.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(THAI_G, ''));
+  out = out.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(THAI_G, ''));
   // Strip // line comments
-  out = out.replace(/(^|[^:])\/\/[^\n]*/g, m => m.replace(THAI_G, ''));
+  out = out.replace(/(^|[^:])\/\/[^\n]*/g, m => m.replace(THAI_G, ''));
   // Strip Python # line comments
   if (filePath.endsWith('.py')) {
-    out = out.replace(/#[^\n]*/g, m => m.replace(THAI_G, ''));
+    out = out.replace(/#[^\n]*/g, m => m.replace(THAI_G, ''));
   }
-  // Strip the i18n dictionary regions wholesale. We bracket-match the
-  // BR_STRINGS object in HTML and STRINGS object in JSX.
+  // Strip the i18n dictionary regions wholesale.
   const dictPatterns = [
     /var\s+BR_STRINGS\s*=\s*\{[\s\S]*?\n\};/m,
     /const\s+STRINGS\s*=\s*\{[\s\S]*?\n\};/m,
     /export\s+const\s+STRINGS\s*=\s*\{[\s\S]*?\n\};/m,
   ];
   for (const re of dictPatterns) {
-    out = out.replace(re, m => m.replace(THAI_G, ''));
+    out = out.replace(re, m => m.replace(THAI_G, ''));
   }
+  // Strip `lang === "th" ? "..." : "..."` ternaries — bilingual already.
+  out = out.replace(
+    /lang\s*===\s*["']th["']\s*\?\s*(?:"[^"]*"|'[^']*'|`(?:[^`\\]|\\.)*`)\s*:\s*(?:"[^"]*"|'[^']*'|`(?:[^`\\]|\\.)*`)/g,
+    m => m.replace(THAI_G, '')
+  );
+  // Also strip JSX-fragment ternaries:
+  //   lang === "th" ? <>...thai...</> : <>...english...</>
+  // Multi-line aware; the fragment can span lines and contain other JSX.
+  out = out.replace(
+    /lang\s*===\s*["']th["']\s*\?\s*<>[\s\S]*?<\/>\s*:\s*<>[\s\S]*?<\/>/g,
+    m => m.replace(THAI_G, '')
+  );
+  // THAI_* calendar arrays — intentionally Thai (paired with EN_*).
+  out = out.replace(
+    /(THAI_MONTHS_SHORT|THAI_DAY_HEADERS|THAI_DAY_FULL)\s*=\s*\[[^\]]*\]/g,
+    m => m.replace(THAI_G, '')
+  );
+  // label_th / label_short_th — paired with label_en at lookup time.
+  out = out.replace(
+    /label_(?:short_)?th\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
+    m => m.replace(THAI_G, '')
+  );
+  // Demo-photo palette tag: strings (overlay in synthesized SVG).
+  out = out.replace(
+    /\btag\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
+    m => m.replace(THAI_G, '')
+  );
   return out;
 }
 
@@ -92,44 +120,39 @@ for (const rel of TARGETS) {
   fileReports.push({ rel, violations });
 }
 
-// Report
 if (SUMMARY) {
   for (const r of fileReports) {
     if (r.error) {
-      console.log(`  [${r.error}] ${r.rel}`);
+      console.log('  [' + r.error + '] ' + r.rel);
     } else {
-      console.log(`  ${r.violations.length.toString().padStart(4)} Thai phrase(s) outside dictionary in  ${r.rel}`);
+      console.log('  ' + r.violations.length.toString().padStart(4) + ' Thai phrase(s) outside dictionary in  ' + r.rel);
     }
   }
-  console.log(`  ────`);
-  console.log(`  ${totalViolations.toString().padStart(4)} TOTAL`);
+  console.log('  ────');
+  console.log('  ' + totalViolations.toString().padStart(4) + ' TOTAL');
 } else {
   console.log('\nI18N COVERAGE REPORT');
-  console.log('────────────────────────────────────────────────────────────');
+  console.log('─'.repeat(60));
   for (const r of fileReports) {
     if (r.error) {
-      console.log(`\n[${r.error}] ${r.rel}`);
+      console.log('\n[' + r.error + '] ' + r.rel);
       continue;
     }
-    console.log(`\n${r.rel}  —  ${r.violations.length} Thai phrase(s) outside dictionary`);
+    console.log('\n' + r.rel + '  —  ' + r.violations.length + ' Thai phrase(s) outside dictionary');
     if (r.violations.length > 0) {
       const preview = r.violations.slice(0, 12);
       for (const v of preview) {
-        console.log(`  L${v.line.toString().padStart(5)}:  ${v.phrase}`);
+        console.log('  L' + v.line.toString().padStart(5) + ':  ' + v.phrase);
       }
       if (r.violations.length > preview.length) {
-        console.log(`  …  +${r.violations.length - preview.length} more`);
+        console.log('  …  +' + (r.violations.length - preview.length) + ' more');
       }
     }
   }
-  console.log('\n────────────────────────────────────────────────────────────');
-  console.log(`TOTAL outside dictionary: ${totalViolations}`);
+  console.log('\n' + '─'.repeat(60));
+  console.log('TOTAL outside dictionary: ' + totalViolations);
 }
 
-// During phase 1 (dictionary skeleton), the count is expected to be > 0
-// because most Thai strings haven't been migrated to the dictionary yet.
-// The script always reports; it only EXITS non-zero when the env var
-// FAIL_ON_THAI=1 is set, so CI gating is opt-in once we reach phase 3.
 if (process.env.FAIL_ON_THAI === '1' && totalViolations > 0) {
   console.error('\nFAIL: Thai text found outside the dictionary.');
   console.error('Add the missing strings to BR_STRINGS / STRINGS and replace');
