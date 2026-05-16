@@ -1108,6 +1108,71 @@ def manual_swap(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/return-requests/cleanup-test")
+def cleanup_test_requests(confirm: str = "", db: Session = Depends(get_db)):
+    """Deletes ONLY return_requests rows with is_test=TRUE.
+    Production rows (is_test=FALSE or NULL) are never touched.
+
+    Requires `?confirm=YES` query param so an accidental click cannot
+    fire. The WHERE clause uses `is_test = TRUE` which in Postgres
+    matches neither FALSE nor NULL — so production rows are
+    mathematically untouchable here regardless of what the caller
+    passes in the URL.
+
+    Returns the number of rows deleted plus a fresh count of remaining
+    test/prod rows so the caller can verify in the same response.
+
+    Safety:
+      - Cannot delete is_test=FALSE rows (constrained by WHERE clause)
+      - Cannot delete is_test IS NULL rows (NULL never equals TRUE)
+      - Cannot truncate the table
+      - Cannot drop columns
+      - Does not call Apps Script
+      - Does not touch the Logistics File
+      - Does not modify real BR data (borrows / borrow_items / customers)
+    """
+    if confirm != "YES":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Refusing to delete without explicit confirmation. "
+                "Pass ?confirm=YES to acknowledge. "
+                "This endpoint can only delete is_test=TRUE rows."
+            ),
+        )
+    ensure_tables(db)
+    try:
+        # Strict WHERE: is_test = TRUE matches neither FALSE nor NULL.
+        result = db.execute(text("DELETE FROM return_requests WHERE is_test = TRUE"))
+        deleted = result.rowcount or 0
+        db.commit()
+        test_remaining = db.execute(text(
+            "SELECT COUNT(*) FROM return_requests WHERE is_test = TRUE"
+        )).fetchone()[0]
+        prod_remaining = db.execute(text(
+            "SELECT COUNT(*) FROM return_requests WHERE is_test = FALSE OR is_test IS NULL"
+        )).fetchone()[0]
+        logger.info(f"cleanup-test: deleted={deleted} test_remaining={test_remaining} prod_remaining={prod_remaining}")
+        return {
+            "success": True,
+            "deleted": deleted,
+            "remaining": {
+                "test_rows": test_remaining,
+                "prod_rows": prod_remaining,
+            },
+        }
+    except (ProgrammingError, OperationalError) as e:
+        # is_test column missing — there's nothing to clean up, so we
+        # report success with deleted=0 rather than blow up.
+        db.rollback()
+        logger.warning(f"cleanup-test: is_test column missing, no-op: {e}")
+        return {
+            "success": True,
+            "deleted": 0,
+            "remaining": {"test_rows": 0, "prod_rows": "unknown"},
+            "note": "is_test column not present; nothing to delete",
+        }
+
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
     try:
