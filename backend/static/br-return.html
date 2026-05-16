@@ -1380,6 +1380,12 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="popup-title d-flex align-center gap8">
           ตรวจสอบคำขอ
           <span id="ar-id" class="mono text-pink" style="font-size:12px"></span>
+          <!-- Rev N chip — visible only when the request has been
+               corrected at least once (revisionHistory.length > 0). -->
+          <span id="ar-rev-chip" style="display:none;font-size:10px;font-weight:700;color:#D4357A;background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.45);border-radius:5px;padding:2px 7px;letter-spacing:0.3px;"></span>
+          <!-- "ดูประวัติแก้ไข" button — visible alongside the chip.
+               Opens ov-revision-history populated for this request. -->
+          <button id="ar-history-btn" onclick="openRevisionHistory(ADMIN_REVIEW.id)" style="display:none;font-size:10px;font-weight:600;color:#D4357A;background:transparent;border:0.5px solid rgba(212,53,122,0.45);border-radius:6px;padding:3px 9px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;">ดูประวัติแก้ไข</button>
         </div>
         <div class="popup-sub" id="ar-sub"></div>
       </div>
@@ -1387,6 +1393,27 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="popup-body" id="ar-body"></div>
     <div class="popup-foot" id="ar-foot"></div>
+  </div>
+</div>
+
+<!-- Revision history popup — read-only view of every correction round
+     for a single BR Return request. Opened from the Admin review modal
+     via the "ดูประวัติแก้ไข" button. Lets Admin tab through revisions
+     and see, for each: submitted items, Admin remark, flagged items
+     with reasons, and photo evidence. -->
+<div class="overlay" id="ov-revision-history">
+  <div class="popup popup-wide">
+    <div class="popup-head">
+      <div>
+        <div class="popup-title d-flex align-center gap8">
+          ประวัติแก้ไขคำขอ
+          <span id="rh-id" class="mono text-pink" style="font-size:12px"></span>
+        </div>
+        <div class="popup-sub" id="rh-sub"></div>
+      </div>
+      <button class="btn-close" onclick="closeAll()">✕</button>
+    </div>
+    <div class="popup-body" id="rh-body"></div>
   </div>
 </div>
 
@@ -1413,7 +1440,7 @@ var RETURN_HISTORY_LOADING = false;
 var RETURN_HISTORY_POLL_MS = 5000;
 
 function hasOpenWorkflowOverlay(){
-  var ids = ['ov1','ov2','ov3','ov-confirm','ov-detail','ov-cancel','ov-admin-review','ov-admin-login'];
+  var ids = ['ov1','ov2','ov3','ov-confirm','ov-detail','ov-cancel','ov-admin-review','ov-admin-login','ov-revision-history'];
   for(var i=0;i<ids.length;i++){
     var node = document.getElementById(ids[i]);
     if(node && node.classList.contains('show')) return true;
@@ -3260,6 +3287,22 @@ function openAdminReview(rid){
   el('ar-id').innerHTML = r.id;
   el('ar-sub').innerHTML = r.cust+' · <span class="br-tag">'+r.br+'</span> · Sale: <strong>'+r.sale+'</strong>';
 
+  // Rev chip + "ดูประวัติแก้ไข" button — only when this request has
+  // been corrected at least once. revisionHistory.length === 0 means
+  // it's still on Rev 1 (the original submission) and there's no
+  // history to show yet.
+  var revHistLen = (Array.isArray(r.revisionHistory) ? r.revisionHistory.length : 0);
+  var revNum = 1 + revHistLen;
+  var chipEl = el('ar-rev-chip');
+  var histBtn = el('ar-history-btn');
+  if(revHistLen > 0){
+    if(chipEl){ chipEl.style.display = 'inline-flex'; chipEl.innerHTML = '↻ แก้ไขครั้งที่ ' + revNum; }
+    if(histBtn){ histBtn.style.display = 'inline-flex'; }
+  } else {
+    if(chipEl) chipEl.style.display = 'none';
+    if(histBtn) histBtn.style.display = 'none';
+  }
+
   // Body
   var h = '';
   h += '<div class="detail-grid" style="margin-bottom:14px">';
@@ -3320,6 +3363,226 @@ function openAdminReview(rid){
   updateReviewButtons(items);
 
   show('ov-admin-review');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REVISION HISTORY VIEWER
+// ═══════════════════════════════════════════════════════════════
+//
+// Opens a read-only panel showing every correction round for a single
+// request. Driven entirely off the record's `revisionHistory` JSONB
+// field (built by Mobile/Desktop Sale on resubmission). Never modifies
+// the request — pure display.
+//
+// Data model recap (each entry is one Sale resubmission event):
+//   {
+//     at: ISO timestamp of the resubmit,
+//     prevStatus: status BEFORE the resubmit (usually 'rejected'),
+//     prevAdminNote: Admin's remark from THAT round,
+//     prevSubmittedItems: submittedItems BEFORE the resubmit,
+//     prevRejectedItems: items Admin flagged in that round (with reasons),
+//     prevAttachments: photo evidence Admin attached,
+//     correctedItemIds: ids the Sale re-allocated to fix the round,
+//   }
+//
+// Tabs map to revisions:
+//   Rev 1 = original submission. Items = revisionHistory[0].prevSubmittedItems
+//           if history exists, otherwise current submittedItems.
+//   Rev N (1 < N <= history.length) = revisionHistory[N-1].prevSubmittedItems.
+//   Rev (history.length + 1) = "ปัจจุบัน" — current submittedItems.
+
+var REV_HIST_STATE = { rid: null, selected: 0 };
+
+function openRevisionHistory(rid){
+  var r = null;
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
+  if(!r) { showToast('ไม่พบคำขอ '+rid, 'warn'); return; }
+  REV_HIST_STATE.rid = rid;
+  var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
+  // Default the tab to the most recently-CORRECTED revision (i.e. the
+  // last entry in history) — that's usually what the Admin wants to
+  // see when they click the button. They can flip to other revisions
+  // or to "current" via the tabs.
+  REV_HIST_STATE.selected = Math.max(0, hist.length - 1);
+  el('rh-id').innerHTML = r.id;
+  el('rh-sub').innerHTML = r.cust + ' · <span class="br-tag">' + r.br + '</span> · Sale: <strong>' + r.sale + '</strong>';
+  renderRevisionHistoryBody();
+  show('ov-revision-history');
+}
+
+function selectRevisionTab(idx){
+  REV_HIST_STATE.selected = idx;
+  renderRevisionHistoryBody();
+}
+
+function renderRevisionHistoryBody(){
+  var rid = REV_HIST_STATE.rid;
+  var r = null;
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
+  if(!r) { el('rh-body').innerHTML = '<div style="padding:18px;color:var(--sub)">ไม่พบคำขอ</div>'; return; }
+  var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
+  var totalRevs = hist.length + 1;       // includes "current"
+  var sel = Math.min(Math.max(0, REV_HIST_STATE.selected), hist.length);
+
+  // Build tabs row. Rev 1 .. Rev N maps to indices 0..N-1, where index
+  // N (= hist.length) means "current".
+  var tabs = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  for(var t=0;t<totalRevs;t++){
+    var isCurrent = (t === hist.length);
+    var label = isCurrent ? 'ปัจจุบัน' : ('แก้ไขครั้งที่ ' + (t+1));
+    var active = (t === sel);
+    tabs += '<button onclick="selectRevisionTab(' + t + ')" style="font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;border:0.5px solid ' + (active ? '#D4357A' : 'var(--bd)') + ';background:' + (active ? 'rgba(212,53,122,0.12)' : 'transparent') + ';color:' + (active ? '#D4357A' : 'var(--fg2)') + ';">' + label + '</button>';
+  }
+  tabs += '</div>';
+
+  // Render the selected revision's snapshot.
+  var bodyHtml = '';
+  if(sel === hist.length){
+    // Current state — built from the live record (not history).
+    bodyHtml = renderRevisionSnapshot({
+      revNumber: sel + 1,
+      isCurrent: true,
+      at: r.resubmittedAt || r.date || '',
+      status: r.status,
+      adminNote: r.adminNote || '',
+      submittedItems: Array.isArray(r.submittedItems) ? r.submittedItems : [],
+      rejectedItems: Array.isArray(r.rejectedItems) ? r.rejectedItems : [],
+      attachments: Array.isArray(r.attachments) ? r.attachments : [],
+    });
+  } else {
+    var snap = hist[sel] || {};
+    bodyHtml = renderRevisionSnapshot({
+      revNumber: sel + 1,
+      isCurrent: false,
+      at: snap.at || '',
+      status: snap.prevStatus || 'rejected',
+      adminNote: snap.prevAdminNote || '',
+      submittedItems: Array.isArray(snap.prevSubmittedItems) ? snap.prevSubmittedItems : [],
+      rejectedItems: Array.isArray(snap.prevRejectedItems) ? snap.prevRejectedItems : [],
+      attachments: Array.isArray(snap.prevAttachments) ? snap.prevAttachments : [],
+    });
+  }
+  el('rh-body').innerHTML = tabs + bodyHtml;
+}
+
+function renderRevisionSnapshot(s){
+  var h = '';
+  var statusLabel = (function(){
+    if(s.status === 'approved') return 'อนุมัติแล้ว';
+    if(s.status === 'rejected') return 'รอแก้ไขคำขอ';
+    if(s.status === 'cancelled') return 'ยกเลิกแล้ว';
+    return 'รอตรวจสอบคำขอ';
+  })();
+  var statusColor = (function(){
+    if(s.status === 'approved') return '#639922';
+    if(s.status === 'rejected') return '#E89C7D';
+    if(s.status === 'cancelled') return '#888';
+    return '#EF9F27';
+  })();
+  // Header card — revision number + timestamp + status of THAT round
+  h += '<div style="background:var(--card2);border:0.5px solid var(--bd);border-radius:11px;padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">';
+  h += '<div>';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--text)">' + (s.isCurrent ? 'สถานะปัจจุบัน · ' : '') + 'แก้ไขครั้งที่ ' + s.revNumber + '</div>';
+  if(s.at) h += '<div style="font-size:10px;color:var(--sub);margin-top:2px">' + (s.isCurrent ? 'อัปเดตล่าสุด: ' : 'ส่งกลับเพื่อแก้ไขเมื่อ: ') + escapeHtml(s.at) + '</div>';
+  h += '</div>';
+  h += '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;background:rgba(0,0,0,0.06);color:' + statusColor + ';border:0.5px solid ' + statusColor + '55">' + statusLabel + '</span>';
+  h += '</div>';
+
+  // Admin remark for this round (shown only if there was one)
+  if(s.adminNote){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">หมายเหตุ Admin</div>';
+    h += '<div style="background:#2a1815;border:0.5px solid #6b3a26;border-radius:9px;padding:10px 12px;font-size:12px;color:#fff;line-height:1.55;white-space:pre-line">' + escapeHtml(s.adminNote) + '</div>';
+    h += '</div>';
+  }
+
+  // Submitted items in this revision (= what was on the request at
+  // the time this snapshot was taken — useful for tracing what Sale
+  // had requested vs. what Admin rejected).
+  if(s.submittedItems && s.submittedItems.length > 0){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">รายการที่ Sale ส่ง (' + s.submittedItems.length + ')</div>';
+    h += '<div style="background:var(--card2);border:0.5px solid var(--bd);border-radius:10px;overflow:hidden">';
+    for(var i=0;i<s.submittedItems.length;i++){
+      var it = s.submittedItems[i];
+      var name = it.name || it.product_name || '';
+      var code = it.code || it.product_code || '';
+      var qty = it.quantity || ((it.retQty||0) + (it.clmQty||0) + (it.saleQty||0) + (it.freeQty||0));
+      h += '<div style="padding:9px 12px;' + (i<s.submittedItems.length-1 ? 'border-bottom:0.5px solid var(--bd);' : '') + '">';
+      h += '<div style="display:flex;justify-content:space-between;gap:10px"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--text)">' + escapeHtml(name) + '</div><div style="font-size:10px;color:var(--sub);font-family:var(--mono);margin-top:2px">' + escapeHtml(code) + '</div></div>';
+      h += '<div style="font-size:11px;color:var(--sub);text-align:right">' + qty + ' ชิ้น · ฿' + Number(it.totalPrice||0).toLocaleString() + '</div>';
+      h += '</div></div>';
+    }
+    h += '</div></div>';
+  }
+
+  // Per-item rejection (Admin flagged these items at the end of this round)
+  if(s.rejectedItems && s.rejectedItems.length > 0){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">รายการที่ Admin ขอแก้ (' + s.rejectedItems.length + ')</div>';
+    h += '<div style="background:#2a1815;border:0.5px solid #6b3a26;border-radius:10px;overflow:hidden">';
+    for(var j=0;j<s.rejectedItems.length;j++){
+      var ri = s.rejectedItems[j];
+      var rname = ri.name || ri.product_name || '';
+      var rcode = ri.code || ri.product_code || '';
+      h += '<div style="padding:10px 12px;' + (j<s.rejectedItems.length-1 ? 'border-bottom:0.5px solid #4a2820;' : '') + '">';
+      h += '<div style="font-size:12px;font-weight:600;color:#fff">' + escapeHtml(rname) + '</div>';
+      h += '<div style="font-size:10px;color:#E89C7D;font-family:var(--mono);margin-top:2px">' + escapeHtml(rcode) + '</div>';
+      if(ri.reason){
+        h += '<div style="margin-top:7px;padding:7px 9px;background:rgba(0,0,0,0.25);border-radius:6px;font-size:11px;color:#fff;line-height:1.5"><b>เหตุผล:</b> ' + escapeHtml(ri.reason) + '</div>';
+      }
+      h += '</div>';
+    }
+    h += '</div></div>';
+  }
+
+  // Photo evidence in this round
+  if(s.attachments && s.attachments.length > 0){
+    h += '<div style="margin-bottom:14px">';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">📷 หลักฐาน Admin (' + s.attachments.length + ')</div>';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">';
+    for(var k=0;k<s.attachments.length;k++){
+      var att = s.attachments[k];
+      var src = att && att.data ? att.data : '';
+      var aname = (att && (att.name || '')) || '';
+      h += '<button onclick="openAttachLightboxFromHistory(' + k + ')" style="aspect-ratio:1/1;border:0.5px solid var(--bd);border-radius:8px;overflow:hidden;background:#0a0a0a;padding:0;cursor:pointer;position:relative"><img src="' + src + '" alt="' + escapeHtml(aname) + '" style="width:100%;height:100%;object-fit:cover;display:block"/></button>';
+    }
+    h += '</div></div>';
+  }
+
+  if((!s.submittedItems || s.submittedItems.length === 0) && (!s.rejectedItems || s.rejectedItems.length === 0) && !s.adminNote){
+    h += '<div style="padding:20px;text-align:center;color:var(--sub);font-size:12px">ไม่มีข้อมูลในรอบนี้</div>';
+  }
+  return h;
+}
+
+function openAttachLightboxFromHistory(idx){
+  // Wire attachments for the currently-selected revision into the
+  // existing lightbox so the user can zoom photos from history view.
+  var rid = REV_HIST_STATE.rid;
+  var r = null;
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
+  if(!r) return;
+  var sel = REV_HIST_STATE.selected;
+  var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
+  var atts = [];
+  if(sel === hist.length){
+    atts = Array.isArray(r.attachments) ? r.attachments : [];
+  } else if(hist[sel]){
+    atts = Array.isArray(hist[sel].prevAttachments) ? hist[sel].prevAttachments : [];
+  }
+  if(!atts[idx]) return;
+  window._DETAIL_ATTACHMENTS = atts;
+  openAttachLightbox(idx, 'detail');
+}
+
+// Tiny HTML-escape so user-supplied notes/codes/names don't break
+// the markup or open XSS holes when shown in the history panel.
+function escapeHtml(s){
+  if(s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function setReviewType(itemKeyVal, typeKey, val){

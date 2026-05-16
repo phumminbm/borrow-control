@@ -1218,16 +1218,29 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
     const freeQty = Math.max(0, cur.freeQty || 0);
     const totalQty = retQty + clmQty + saleQty + freeQty;
     const price = Number(it.price) || 0;
+    // Match the EXACT field shape Desktop BR Return writes for items.
+    // Desktop's renderer (br-return.html) reads `code`, `name`, `itemId`,
+    // `lineNo`, `lineKey`. Earlier we only sent `product_code` /
+    // `product_name` / `item_id` / `line_no` (snake_case), so Desktop
+    // rendered the product name as `undefined`. Now we send the
+    // Desktop-canonical keys AND keep the snake_case aliases so Mobile's
+    // own renderers (which read either) keep working.
     return {
-      item_id: it.item_id,
-      line_no: it.line_no,
+      // Desktop-canonical:
       code: it.product_code,
-      product_code: it.product_code,
-      product_name: it.product_name,
+      name: it.product_name,
       price,
       quantity: totalQty,
       totalPrice: price * totalQty,
       retQty, clmQty, saleQty, freeQty,
+      itemId: it.item_id,
+      lineNo: it.line_no,
+      lineKey: `line:${it.line_no}|code:${it.product_code}`,
+      // Mobile aliases (read by breakdownFor + various detail views):
+      item_id: it.item_id,
+      line_no: it.line_no,
+      product_code: it.product_code,
+      product_name: it.product_name,
     };
   });
   const totalValue = submittedItems.reduce((s, x) => s + x.totalPrice, 0);
@@ -1245,26 +1258,42 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
     setSubmitting(true);
     try {
       if (isEditing) {
-        // Resubmit corrected request — keep the same id, preserve approved
-        // items unchanged, replace the rejected items with the re-allocated
-        // versions, clear all rejection metadata, and push a snapshot to
-        // revisionHistory so the Sale-side UI can mark this as Rev N.
-        // Mirrors Desktop br-return.html:2960-2963 exactly (status='pending',
+        // Resubmit corrected request — keep the same id; submittedItems
+        // now contains ONLY the corrected items (NOT merged with the
+        // already-approved ones). This makes Desktop Admin see only
+        // what was just re-touched, per the user's correction-flow
+        // intent: "Admin should see only the corrected/resubmitted
+        // item(s), not the full original item list".
+        //
+        // The approved items aren't lost — they're snapshotted into
+        // revisionHistory[N].prevSubmittedItems and the request's
+        // ORIGINAL submittedItems are preserved in revisionHistory[0]
+        // (when present). The history viewer on Desktop can replay
+        // each round.
+        //
+        // Mirrors Desktop br-return.html:2960-2963 (status='pending',
         // adminNote='', rejectedItems=[], attachments=[]) plus the
         // prototype-only revisionHistory extension.
         const orig = editingRequest;
-        const merged = [...approvedPassthroughItems, ...submittedItems];
         const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
         // Track which item_ids were corrected in this revision so the
-        // Return Detail view can filter the items list down to just the
-        // items the Sale actually re-touched.
+        // Return Detail view can filter when needed.
         const correctedItemIds = (orig.rejectedItems || [])
           .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
           .filter(Boolean);
+        // Richer snapshot: includes the full prior state (items, admin
+        // note, rejected items + reasons, photos) so the Desktop
+        // "ดูประวัติแก้ไข" viewer can show what each correction round
+        // contained. The previous revision's submittedItems is the
+        // single most important piece — without it, history is just
+        // counts.
         const snapshot = {
           at: new Date().toISOString(),
           prevStatus: orig.status || "rejected",
           prevAdminNote: orig.adminNote || "",
+          prevSubmittedItems: Array.isArray(orig.submittedItems) ? orig.submittedItems : [],
+          prevRejectedItems: Array.isArray(orig.rejectedItems) ? orig.rejectedItems : [],
+          prevAttachments: Array.isArray(orig.attachments) ? orig.attachments : [],
           prevRejectedItemCount: (orig.rejectedItems || []).length,
           prevAttachmentCount: (orig.attachments || []).length,
           correctedItemIds,
@@ -1275,13 +1304,13 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
         // editable on retry.
         const updated = await replaceProtoReturn(orig.id, {
           status: "pending",
-          submittedItems: merged,
-          items: merged.length,
+          submittedItems: submittedItems,           // ← ONLY the corrected items
+          items: submittedItems.length,
           adminNote: "",
           rejectedItems: [],
           attachments: [],
           remark: remark.trim() || orig.remark || "",
-          dateSort: todayDateSort(),  // INT4-safe; matches Desktop format
+          dateSort: todayDateSort(),                // INT4-safe; matches Desktop format
           resubmittedAt: new Date().toISOString(),
           revisionHistory: [...prevHistory, snapshot],
         });
@@ -2415,22 +2444,33 @@ function AdminFeedbackComposer({ open, request, onClose, onApply, onOpenLightbox
     const reasonsByKey = rejectMap;
     const rejectedItems = submittedItems
       .filter(si => reasonsByKey[itemKey(si)]?.rejected)
-      .map(si => ({
-        code: si.product_code || si.code,
-        product_code: si.product_code || si.code,
-        name: si.product_name,
-        product_name: si.product_name,
-        price: Number(si.price) || 0,
-        quantity: Number(si.quantity) || 0,
-        totalPrice: Number(si.totalPrice) || 0,
-        retQty:  Number(si.retQty)  || 0,
-        clmQty:  Number(si.clmQty)  || 0,
-        saleQty: Number(si.saleQty) || 0,
-        freeQty: Number(si.freeQty) || 0,
-        reason: (reasonsByKey[itemKey(si)]?.reason || "").trim(),
-        itemId: si.item_id,
-        lineNo: si.line_no,
-      }));
+      .map(si => {
+        const code = si.code || si.product_code;
+        const name = si.name || si.product_name;          // ← read either shape
+        const itemId = si.itemId || si.item_id;
+        const lineNo = si.lineNo || si.line_no;
+        return {
+          // Desktop-canonical:
+          code,
+          name,
+          price: Number(si.price) || 0,
+          quantity: Number(si.quantity) || 0,
+          totalPrice: Number(si.totalPrice) || 0,
+          retQty:  Number(si.retQty)  || 0,
+          clmQty:  Number(si.clmQty)  || 0,
+          saleQty: Number(si.saleQty) || 0,
+          freeQty: Number(si.freeQty) || 0,
+          reason: (reasonsByKey[itemKey(si)]?.reason || "").trim(),
+          itemId,
+          lineNo,
+          lineKey: `line:${lineNo}|code:${code}`,
+          // Mobile aliases for our own renderers:
+          product_code: code,
+          product_name: name,
+          item_id: itemId,
+          line_no: lineNo,
+        };
+      });
     if (rejectedItems.length === 0) {
       setErrMsg(lang === "th"
         ? "เลือกอย่างน้อย 1 รายการที่ต้องแก้"
