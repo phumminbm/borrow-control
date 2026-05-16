@@ -1091,12 +1091,21 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       const orig = editingRequest;
       const merged = [...approvedPassthroughItems, ...submittedItems];
       const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
+      // Track which item_ids were corrected in this revision so the Return
+      // Detail view can filter the items list down to just the items the
+      // Sale actually re-touched (per user feedback: hide approved items
+      // from corrected-request detail). Each rejected item carries its
+      // itemId in the same shape AdminFeedbackComposer wrote it.
+      const correctedItemIds = (orig.rejectedItems || [])
+        .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
+        .filter(Boolean);
       const snapshot = {
         at: new Date().toISOString(),
         prevStatus: orig.status || "rejected",
         prevAdminNote: orig.adminNote || "",
         prevRejectedItemCount: (orig.rejectedItems || []).length,
         prevAttachmentCount: (orig.attachments || []).length,
+        correctedItemIds,
       };
       const updated = replaceProtoReturn(orig.id, {
         status: "pending",
@@ -1199,18 +1208,18 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
                 background: STATUS_META.rejected.bg,
                 border: `0.5px solid ${STATUS_META.rejected.border}`,
                 borderRadius: 11, padding: "11px 13px", marginBottom: 12,
-                color: STATUS_META.rejected.color,
+                color: "#fff",
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase", color: "#fff" }}>
                   ↻ {lang === "th" ? "กำลังแก้ไขคำขอ" : "Editing request"}
                 </div>
-                <div style={{ fontSize: 12, lineHeight: 1.55, color: dark ? "#ddd" : "#333" }}>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: "#fff" }}>
                   {lang === "th"
                     ? `แก้ไขเฉพาะรายการที่ Admin ขอแก้ ${editingRequest.rejectedItems?.length || 0} รายการ — รายการอื่นจะคงเดิม`
                     : `Edit only the ${editingRequest.rejectedItems?.length || 0} item(s) Admin flagged. The rest are kept as-is.`}
                 </div>
                 {editingRequest.adminNote && (
-                  <div style={{ marginTop: 7, fontSize: 11, color: STATUS_META.rejected.color, lineHeight: 1.5, whiteSpace: "pre-line" }}>
+                  <div style={{ marginTop: 7, fontSize: 11, color: "#fff", lineHeight: 1.5, whiteSpace: "pre-line", opacity: 0.92 }}>
                     <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{editingRequest.adminNote}
                   </div>
                 )}
@@ -1485,14 +1494,14 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             {isEditing && (
               <div style={{
                 background: "#2D0F1A",
-                border: "1px solid #D4357A44",
+                border: "1px solid #D4357A66",
                 borderRadius: 11, padding: "11px 13px", marginBottom: 12,
-                color: "#D4357A",
+                color: "#fff",
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase", color: "#fff" }}>
                   📝 {lang === "th" ? "กำลังแก้ไขคำขอ" : "Editing request"} · {editingRequest.id}
                 </div>
-                <div style={{ fontSize: 12, lineHeight: 1.55, color: dark ? "#ddd" : "#333" }}>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: "#fff" }}>
                   {lang === "th"
                     ? `${approvedPassthroughItems.length} รายการที่ Admin อนุมัติแล้วจะคงเดิม · ${submittedItems.length} รายการแก้ไขใหม่จะถูกส่งให้ Admin ตรวจอีกครั้ง`
                     : `${approvedPassthroughItems.length} approved item(s) will be kept as-is · ${submittedItems.length} revised item(s) will be re-sent for Admin review.`}
@@ -2742,7 +2751,65 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
       <BottomSheet open={!!selectedReq} onClose={() => setSelectedReq(null)} height="86%" dark={dark}>
         {selectedReq && (() => {
           const m = STATUS_META[selectedReq.status] || STATUS_META.pending;
-          const total = (selectedReq.submittedItems || []).reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0) * (Number(x.quantity)||0)), 0);
+          // ── Items-in-scope filter ───────────────────────────────────
+          // The detail view focuses on the items that matter for the
+          // CURRENT lifecycle stage rather than the full historical list:
+          //   • rejected   → only items Admin flagged this round
+          //   • after a    → only items the Sale re-touched in the
+          //     correction    most recent revision (drawn from
+          //                   revisionHistory[last].correctedItemIds)
+          //   • otherwise  → the full submittedItems list (unchanged)
+          // The Rev N chip in the header + the resubmittedAt line keep the
+          // "this is corrected" context visible without listing approved
+          // items that haven't changed since.
+          const revHist = Array.isArray(selectedReq.revisionHistory) ? selectedReq.revisionHistory : [];
+          let displayItems;
+          let scopeMode;  // "rejected" | "corrected" | "all"
+          if (selectedReq.status === "rejected") {
+            // Map rejectedItems shape → submittedItems-ish shape so the
+            // existing row renderer can render them uniformly. Reason is
+            // carried over as _rejectReason for the inline note.
+            displayItems = (selectedReq.rejectedItems || []).map(r => ({
+              item_id: r.itemId || r.item_id,
+              line_no: r.lineNo || r.line_no,
+              product_code: r.code || r.product_code,
+              product_name: r.name || r.product_name,
+              price: Number(r.price) || 0,
+              quantity: Number(r.quantity) || 0,
+              totalPrice: Number(r.totalPrice) || ((Number(r.price)||0) * (Number(r.quantity)||0)),
+              retQty:  Number(r.retQty)  || 0,
+              clmQty:  Number(r.clmQty)  || 0,
+              saleQty: Number(r.saleQty) || 0,
+              freeQty: Number(r.freeQty) || 0,
+              _rejectReason: r.reason || "",
+            }));
+            scopeMode = "rejected";
+          } else if (revHist.length > 0) {
+            const last = revHist[revHist.length - 1];
+            const correctedIds = Array.isArray(last?.correctedItemIds) ? last.correctedItemIds : [];
+            if (correctedIds.length > 0) {
+              displayItems = (selectedReq.submittedItems || []).filter(si =>
+                correctedIds.includes(si.item_id)
+                || correctedIds.includes(`${si.product_code}-${si.line_no || ""}`)
+              );
+              scopeMode = "corrected";
+            } else {
+              displayItems = selectedReq.submittedItems || [];
+              scopeMode = "all";
+            }
+          } else {
+            displayItems = selectedReq.submittedItems || [];
+            scopeMode = "all";
+          }
+          const total = displayItems.reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0) * (Number(x.quantity)||0)), 0);
+          const itemsLabel = scopeMode === "rejected"
+            ? (lang === "th" ? "รายการที่ต้องแก้ไข" : "Items to revise")
+            : scopeMode === "corrected"
+              ? (lang === "th" ? "รายการที่แก้ไขใหม่" : "Revised items")
+              : (lang === "th" ? "รายการ" : "Items");
+          const totalLabel = scopeMode === "all"
+            ? (lang === "th" ? "รวมทั้งหมด" : "Grand total")
+            : (lang === "th" ? "รวมรายการที่แสดง" : "Subtotal (shown)");
           return (
             <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
               <div style={{ padding: "4px 20px 14px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
@@ -2786,14 +2853,54 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   </div>
                 </div>
 
-                <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "รายการ" : "Items"} ({(selectedReq.submittedItems || []).length})</div>
-                <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden", marginBottom: 12 }}>
-                  {(selectedReq.submittedItems || []).map((si, i) => {
+                {/* Rejection HEADLINE banner — moved above the items list so
+                    the Sale immediately sees why this request was sent back
+                    before scanning rows. The per-item reasons are rendered
+                    inline on each items-list row (below), so this banner
+                    now carries only the overall headline + Admin remark. */}
+                {selectedReq.status === "rejected" && (
+                  <div style={{
+                    background: STATUS_META.rejected.bg,
+                    border: `0.5px solid ${STATUS_META.rejected.border}`,
+                    borderRadius: 11, padding: "12px 14px", marginBottom: 12,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", marginBottom: selectedReq.adminNote ? 6 : 0, letterSpacing: 0.3 }}>
+                      ⚠ {lang === "th" ? "มีรายการที่ต้องแก้ไข" : "Items need revision"}
+                    </div>
+                    {selectedReq.adminNote && (
+                      <div style={{ fontSize: 12, lineHeight: 1.55, color: "#fff", whiteSpace: "pre-line" }}>
+                        <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{selectedReq.adminNote}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Items list — filtered per scopeMode (rejected ⇒ flagged
+                    items only, corrected ⇒ latest revision's items only,
+                    otherwise the full list). Reject reason is rendered
+                    inline on each row when present. */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: scopeMode === "rejected" ? "#fff" : sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+                    {itemsLabel} ({displayItems.length})
+                  </div>
+                  {scopeMode !== "all" && (
+                    <span style={{ fontSize: 9, color: sub, fontWeight: 600, letterSpacing: 0.3 }}>
+                      {scopeMode === "rejected"
+                        ? (lang === "th" ? "ซ่อนรายการที่อนุมัติแล้ว" : "Approved items hidden")
+                        : (lang === "th" ? "เฉพาะรายการที่แก้ไขรอบล่าสุด" : "Latest-revision items only")}
+                    </span>
+                  )}
+                </div>
+                <div style={{ background: card, border: `0.5px solid ${scopeMode === "rejected" ? STATUS_META.rejected.border : bdr}`, borderRadius: 13, overflow: "hidden", marginBottom: 12 }}>
+                  {displayItems.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: "center", color: sub, fontSize: 12 }}>
+                      {lang === "th" ? "ไม่มีรายการที่ตรงเงื่อนไข" : "No items in scope"}
+                    </div>
+                  ) : displayItems.map((si, i) => {
                     const breakdown = breakdownFor(si);
                     const primaryColor = breakdown.length === 1 ? breakdown[0].color : "#D4357A";
-                    const arr = selectedReq.submittedItems || [];
                     return (
-                      <div key={i} style={{ padding: "11px 14px", borderBottom: i < arr.length - 1 ? `0.5px solid ${bdr}` : "none" }}>
+                      <div key={i} style={{ padding: "11px 14px", borderBottom: i < displayItems.length - 1 ? `0.5px solid ${bdr}` : "none" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{si.product_code || si.code}</div>
@@ -2812,6 +2919,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                             </span>
                           ))}
                         </div>
+                        {/* Inline reject reason (rejected status only) */}
+                        {si._rejectReason && (
+                          <div style={{ marginTop: 8, padding: "7px 9px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 6, fontSize: 11, color: "#fff", lineHeight: 1.5 }}>
+                            <b>{lang === "th" ? "เหตุผล: " : "Reason: "}</b>{si._rejectReason}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2824,66 +2937,11 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   </>
                 )}
 
+                {/* Rejected-only extras: Admin photo grid + resubmit CTA.
+                    Placed after the items list so the Sale has full context
+                    (banner → items + reasons → photos → action). */}
                 {selectedReq.status === "rejected" && (
                   <div style={{ marginBottom: 14 }}>
-                    {/* Headline banner */}
-                    <div style={{
-                      background: STATUS_META.rejected.bg,
-                      border: `0.5px solid ${STATUS_META.rejected.border}`,
-                      borderRadius: 11, padding: "12px 14px", marginBottom: 10,
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: STATUS_META.rejected.color, marginBottom: selectedReq.adminNote ? 6 : 0, letterSpacing: 0.3 }}>
-                        ⚠ {lang === "th" ? "มีรายการที่ต้องแก้ไข" : "Items need revision"}
-                      </div>
-                      {selectedReq.adminNote && (
-                        <div style={{ fontSize: 12, lineHeight: 1.55, color: STATUS_META.rejected.color, whiteSpace: "pre-line" }}>
-                          <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{selectedReq.adminNote}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Per-item rejection list */}
-                    {Array.isArray(selectedReq.rejectedItems) && selectedReq.rejectedItems.length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11, color: STATUS_META.rejected.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
-                          {lang === "th" ? `รายการที่ Admin ขอแก้ (${selectedReq.rejectedItems.length})` : `Flagged items (${selectedReq.rejectedItems.length})`}
-                        </div>
-                        <div style={{ background: card, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 11, overflow: "hidden" }}>
-                          {selectedReq.rejectedItems.map((ri, idx) => {
-                            const arr = selectedReq.rejectedItems;
-                            const tb = breakdownFor({
-                              retQty: ri.retQty || 0, clmQty: ri.clmQty || 0, saleQty: ri.saleQty || 0, freeQty: ri.freeQty || 0,
-                            });
-                            return (
-                              <div key={idx} style={{ padding: "11px 13px", borderBottom: idx < arr.length - 1 ? `0.5px solid ${bdr}` : "none" }}>
-                                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{ri.code || ri.product_code}</div>
-                                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1, color: text }}>{ri.name || ri.product_name}</div>
-                                    {tb.length > 0 && (
-                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
-                                        {tb.map(b => (
-                                          <span key={b.key} style={{ fontSize: 9, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 5, padding: "1px 6px", letterSpacing: 0.3 }}>
-                                            {b.icon} {b.qty} {b.label_th.toUpperCase()}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                {ri.reason && (
-                                  <div style={{ marginTop: 7, padding: "7px 9px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 6, fontSize: 11, color: STATUS_META.rejected.color, lineHeight: 1.5 }}>
-                                    <b>{lang === "th" ? "เหตุผล: " : "Reason: "}</b>{ri.reason}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Photo evidence grid */}
                     {Array.isArray(selectedReq.attachments) && selectedReq.attachments.length > 0 && (
                       <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: 11, color: STATUS_META.rejected.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
@@ -2910,7 +2968,6 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                       </div>
                     )}
 
-                    {/* Edit-and-resubmit CTA */}
                     <button
                       onClick={() => setEditingReq(selectedReq)}
                       style={{
@@ -2934,8 +2991,8 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   </>
                 )}
 
-                <div style={{ padding: 14, background: "#2D0F1A", border: "1px solid #D4357A44", borderRadius: 11, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 12, color: "#D4357A", fontWeight: 600 }}>{lang === "th" ? "รวมทั้งหมด" : "Grand total"}</span>
+                <div style={{ padding: 14, background: "#2D0F1A", border: "1px solid #D4357A44", borderRadius: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "#D4357A", fontWeight: 600 }}>{totalLabel}</span>
                   <span style={{ fontSize: 17, color: "#D4357A", fontWeight: 700 }}>฿{total.toLocaleString()}</span>
                 </div>
 
