@@ -298,21 +298,51 @@
 :root.light .badge-ver { background: #F4F5F7; border-color: #D0D3DA; color: #5C6070; }
 
 
-/* ── Theme Toggle Button ── */
-.theme-toggle{
-  display:flex;align-items:center;gap:0;
-  background:var(--bg3);border:1px solid var(--border2);
-  border-radius:20px;padding:3px;cursor:pointer;
-  flex-shrink:0;
+/* ── iPhone-style theme toggle (sliding switch with night→sunrise gradient) ── */
+.ios-theme-toggle {
+  --tw: 52px;
+  --th: 26px;
+  width: var(--tw); height: var(--th);
+  border-radius: calc(var(--th)/2);
+  border: none; padding: 0; cursor: pointer;
+  position: relative; flex-shrink: 0;
+  transition: background 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
 }
-.theme-opt{
-  width:26px;height:22px;border-radius:16px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:13px;transition:all .18s;cursor:pointer;
-  border:none;background:transparent;
+.ios-theme-toggle.theme-dark  { background: linear-gradient(180deg,#1a2540,#0d1a2e); }
+.ios-theme-toggle.theme-light { background: linear-gradient(180deg,#FFD89B,#FF8E53); }
+.ios-theme-toggle .thumb {
+  position: absolute; top: 2px;
+  width: calc(var(--th) - 4px); height: calc(var(--th) - 4px);
+  border-radius: 50%; background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1;
+  transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
 }
-.theme-opt.active{background:var(--bg1);box-shadow:0 1px 4px rgba(0,0,0,0.15);}
-:root.light .theme-opt.active{box-shadow:0 1px 4px rgba(0,0,0,0.12);}
+.ios-theme-toggle.theme-dark  .thumb { left: 2px; }
+.ios-theme-toggle.theme-light .thumb { left: calc(var(--tw) - var(--th) + 2px); }
+
+/* ── Language toggle (TH/EN segmented pill) ── */
+.lang-seg {
+  display: flex; gap: 2px;
+  background: var(--bg3);
+  border: 0.5px solid var(--border2);
+  border-radius: 8px; padding: 2px;
+  flex-shrink: 0;
+}
+.lang-seg button {
+  background: transparent; border: none; cursor: pointer;
+  padding: 4px 11px; border-radius: 6px;
+  font-size: 11px; line-height: 1; font-weight: 700;
+  color: var(--sub); letter-spacing: 0.5px;
+  font-family: inherit; transition: all 0.18s;
+}
+.lang-seg button.active {
+  background: var(--bg1); color: var(--pink);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+:root.light .lang-seg button.active { box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter','IBM Plex Sans Thai',sans-serif;font-size:13px;overflow:hidden;}
@@ -1047,10 +1077,22 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="badge-module">BR Return</div>
     <div class="badge-ver">v 1.2</div>
     <div class="topbar-spacer"></div>
-    <div class="topbar-time" id="clock">--:--</div>
-    <div class="theme-toggle" id="theme-toggle">
-      <button class="theme-opt active" id="opt-dark" onclick="setTheme('dark')" title="Dark Mode">🌙</button>
-      <button class="theme-opt" id="opt-light" onclick="setTheme('light')" title="Light Mode">☀️</button>
+    <!-- iPhone-style sliding theme toggle. Click flips dark ↔ light;
+         the gradient + thumb animates between night-navy and warm-amber.
+         Existing setTheme('dark'|'light') is reused via the click handler. -->
+    <button id="ios-theme-toggle" class="ios-theme-toggle theme-dark"
+            onclick="toggleTheme()"
+            title="Toggle dark / light mode"
+            aria-label="Toggle theme">
+      <span class="thumb" id="theme-thumb">🌙</span>
+    </button>
+    <!-- TH/EN segmented language toggle. State persists in
+         localStorage['lang'] so it stays in sync with Mobile, which
+         already uses that key. Default 'th' so production users see
+         zero change until they explicitly switch. -->
+    <div class="lang-seg" id="lang-seg">
+      <button class="active" id="lang-th" onclick="setLang('th')" title="Thai">TH</button>
+      <button id="lang-en" onclick="setLang('en')" title="English">EN</button>
     </div>
     <!-- Test Mode toggle (2026-05-16). When ON, the Admin queue and the
          Sale list both load with ?include_test=only so production rows are
@@ -1065,9 +1107,6 @@ tbody tr:last-child td{border-bottom:none;}
             style="margin-left:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);background:transparent;color:var(--fg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.3px;">
       🧪 TEST
     </button>
-    <div class="topbar-user">
-      <div class="user-avatar">AD</div>
-    </div>
   </div>
 
   <div id="main">
@@ -1439,6 +1478,289 @@ tbody tr:last-child td{border-bottom:none;}
 <div id="toast-wrap"></div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// I18N (Thai / English language toggle, 2026-05-16)
+// ═══════════════════════════════════════════════════════════════
+// Single source of truth for every UI string. Add new strings here.
+// Audit script scripts/check-i18n-coverage.js scans this file for any
+// Thai character (U+0E00–U+0E7F) that lives OUTSIDE this dictionary
+// and fails the build if any are found — that's the mechanism that
+// guarantees "no Thai UI text left when EN is selected".
+//
+// Customer data, BR numbers, product names from the source data are
+// NOT in this dictionary — they flow through unchanged regardless of
+// the active language (Thai customer names stay Thai, etc.). Only
+// the UI chrome is translated.
+//
+// localStorage key 'lang' is shared with Mobile (MobilePrototypeApp.jsx
+// uses the same key) so language preference syncs across both clients.
+var BR_LANG = (function(){ try{ return localStorage.getItem('lang') || 'th'; }catch(e){ return 'th'; }})();
+
+var BR_STRINGS = {
+  // ── Common UI ─────────────────────────────────────────────────
+  "common.cancel":            { th: "ยกเลิก",                en: "Cancel" },
+  "common.confirm":           { th: "ยืนยัน",                en: "Confirm" },
+  "common.save":              { th: "บันทึก",                en: "Save" },
+  "common.search":            { th: "ค้นหา",                  en: "Search" },
+  "common.close":             { th: "ปิด",                   en: "Close" },
+  "common.back":              { th: "ย้อนกลับ",               en: "Back" },
+  "common.next":              { th: "ถัดไป",                 en: "Next" },
+  "common.submit":            { th: "ส่ง",                   en: "Submit" },
+  "common.loading":           { th: "กำลังโหลด...",          en: "Loading..." },
+  "common.all":               { th: "ทั้งหมด",                en: "All" },
+  "common.clear":             { th: "ล้าง",                  en: "Clear" },
+  "common.delete":            { th: "ลบ",                    en: "Delete" },
+  "common.edit":              { th: "แก้ไข",                 en: "Edit" },
+  "common.add":               { th: "เพิ่ม",                  en: "Add" },
+  "common.refresh":           { th: "รีเฟรช",                en: "Refresh" },
+  "common.today":             { th: "วันนี้",                 en: "Today" },
+  "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
+  "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
+  "common.thisMonth":         { th: "เดือนนี้",              en: "This month" },
+  "common.date":              { th: "วันที่",                 en: "Date" },
+  "common.note":              { th: "หมายเหตุ",              en: "Note" },
+  "common.reason":            { th: "เหตุผล",                en: "Reason" },
+  "common.status":            { th: "สถานะ",                 en: "Status" },
+  "common.items":             { th: "รายการ",                en: "items" },
+  "common.qty":               { th: "จำนวน",                 en: "Qty" },
+  "common.price":             { th: "ราคา",                  en: "Price" },
+  "common.total":             { th: "รวม",                   en: "Total" },
+  "common.grandTotal":        { th: "รวมทั้งหมด",            en: "Grand total" },
+  "common.optional":          { th: "(ถ้ามี)",                en: "(optional)" },
+  "common.required":          { th: "(จำเป็น)",              en: "(required)" },
+  "common.success":           { th: "สำเร็จ",                en: "Success" },
+  "common.failed":            { th: "ล้มเหลว",                en: "Failed" },
+  "common.error":             { th: "ข้อผิดพลาด",            en: "Error" },
+  "common.warning":           { th: "คำเตือน",               en: "Warning" },
+  "common.results":           { th: "ผลลัพธ์",               en: "results" },
+  "common.noResults":         { th: "ไม่พบรายการ",           en: "No results found" },
+  "common.noItemsFound":      { th: "ไม่พบรายการที่ตรงกับตัวกรอง", en: "No matching results" },
+  "common.role.sale":         { th: "เซลล์",                 en: "Sale" },
+  "common.role.admin":        { th: "แอดมิน",                en: "Admin" },
+
+  // ── BR Return — module & headers ──────────────────────────────
+  "br.module.title":          { th: "ระบบคืนสินค้ายืม (BR Return)", en: "BR Return System" },
+  "br.module.subtitle":       { th: "สร้างคำขอคืน ติดตาม และตรวจสอบรายการสินค้าจากใบยืม", en: "Create, track, and review return requests from BR documents" },
+  "br.tab.sale":              { th: "Sale",                  en: "Sale" },
+  "br.tab.admin":             { th: "Admin",                 en: "Admin" },
+  "br.createBtn":             { th: "สร้างคำขอคืน",          en: "Create return request" },
+  "br.section.requests":      { th: "รายการคำขอคืนสินค้า",   en: "Return requests" },
+  "br.section.adminAll":      { th: "รายการทั้งหมด (Admin View)", en: "All requests (Admin view)" },
+  "br.filter.allStatus":      { th: "ทุกสถานะ",              en: "All statuses" },
+  "br.filter.allSale":        { th: "ทุก Sale",              en: "All sales" },
+  "br.filter.dateRange":      { th: "กรองวันที่",            en: "Filter by date" },
+  "br.search.placeholder":    { th: "ค้นหา เลขคำขอ / ลูกค้า / BR...", en: "Search request ID / customer / BR..." },
+  "br.col.id":                { th: "เลขคำขอ",               en: "Request ID" },
+  "br.col.date":              { th: "วันที่",                 en: "Date" },
+  "br.col.custCode":          { th: "รหัส",                  en: "Code" },
+  "br.col.customer":          { th: "ลูกค้า / สถานพยาบาล",   en: "Customer / Clinic" },
+  "br.col.br":                { th: "ใบยืม",                 en: "BR" },
+  "br.col.sale":              { th: "Sale",                  en: "Sale" },
+  "br.col.items":             { th: "รายการ",                en: "Items" },
+  "br.col.status":            { th: "สถานะ",                 en: "Status" },
+  "br.col.action":            { th: "Action",                en: "Action" },
+  "br.col.sheetSync":         { th: "Sheet Sync",            en: "Sheet sync" },
+  "br.action.review":         { th: "ตรวจสอบ",               en: "Review" },
+  "br.action.viewDetail":     { th: "ดูรายละเอียด",          en: "View detail" },
+
+  // ── BR Return — KPI cards ─────────────────────────────────────
+  "br.kpi.pending":           { th: "รอตรวจสอบ",             en: "Pending" },
+  "br.kpi.approved":          { th: "อนุมัติแล้ว",           en: "Approved" },
+  "br.kpi.rejected":          { th: "แก้ไขคำขอ",             en: "Needs revision" },
+  "br.kpi.cancelled":         { th: "ยกเลิกแล้ว",            en: "Cancelled" },
+  "br.kpi.pending.sub":       { th: "คำขอรอ Admin ตรวจสอบ",  en: "Awaiting Admin review" },
+  "br.kpi.approved.sub":      { th: "รายการที่อนุมัติเรียบร้อย", en: "Successfully approved" },
+  "br.kpi.rejected.sub":      { th: "ต้องแก้ไขและส่งใหม่",   en: "Needs revision and resubmit" },
+  "br.kpi.cancelled.sub":     { th: "รายการที่ยกเลิก",        en: "Cancelled requests" },
+  "br.kpi.rejected.admin":    { th: "รอแก้ไขคำขอ",           en: "Awaiting revision" },
+
+  // ── Status — short + full labels ──────────────────────────────
+  "status.pending":           { th: "รอตรวจสอบคำขอ",         en: "Pending review" },
+  "status.pending.short":     { th: "รอตรวจสอบ",             en: "Pending" },
+  "status.approved":          { th: "อนุมัติแล้ว",           en: "Approved" },
+  "status.rejected":          { th: "แก้ไขคำขอ",             en: "Needs revision" },
+  "status.rejected.admin":    { th: "รอแก้ไขคำขอ",           en: "Awaiting revision" },
+  "status.cancelled":         { th: "ยกเลิกแล้ว",            en: "Cancelled" },
+
+  // ── Sheet sync states ─────────────────────────────────────────
+  "sync.none":                { th: "ยังไม่ Sync",            en: "Not synced" },
+  "sync.pending":             { th: "กำลัง Sync",             en: "Syncing" },
+  "sync.synced":              { th: "Sync แล้ว",             en: "Synced" },
+  "sync.failed":              { th: "Sync ล้มเหลว",          en: "Sync failed" },
+  "sync.skippedTest":         { th: "ข้าม (test)",            en: "Skipped (test)" },
+  "sync.retry":               { th: "ลอง Sync ใหม่",          en: "Retry sync" },
+
+  // ── Return-type labels ────────────────────────────────────────
+  "type.return":              { th: "คืน",                   en: "Return" },
+  "type.claim":               { th: "เคลม",                  en: "Claim" },
+  "type.sale":                { th: "ขาย",                   en: "Sale" },
+  "type.free":                { th: "ฟรี",                   en: "Free" },
+
+  // ── New-request flow (Sale create) ────────────────────────────
+  "new.title":                { th: "สร้างคำขอคืนสินค้า",    en: "Create return request" },
+  "new.step1":                { th: "เลือก BR",              en: "Select BR" },
+  "new.step2":                { th: "ระบุจำนวน",             en: "Specify qty" },
+  "new.step3":                { th: "ตรวจสอบ",               en: "Review" },
+  "new.selectCust":           { th: "เลือกลูกค้า",            en: "Select customer" },
+  "new.selectBR":             { th: "เลือกใบยืม",            en: "Select BR" },
+  "new.selectItems":          { th: "เลือกรายการที่จะคืน",   en: "Select items to return" },
+  "new.remark.placeholder":   { th: "หมายเหตุถึง Admin...",  en: "Note to Admin..." },
+  "new.submit":               { th: "ส่งคำขอ",                en: "Submit request" },
+  "new.confirmTitle":         { th: "ยืนยันส่งคำขอ?",         en: "Submit this request?" },
+  "new.confirmBody":          { th: "เมื่อส่งแล้ว Admin จะตรวจสอบและอนุมัติ", en: "Admin will review and approve once submitted" },
+
+  // ── Admin review modal ────────────────────────────────────────
+  "review.title":             { th: "ตรวจสอบคำขอ",           en: "Review request" },
+  "review.reqDate":           { th: "วันที่",                 en: "Date" },
+  "review.itemCount":         { th: "จำนวนรายการ",           en: "Item count" },
+  "review.saleRemark":        { th: "หมายเหตุจาก Sale",      en: "Note from Sale" },
+  "review.itemsHeader":       { th: "ตรวจสอบรายการสินค้า",   en: "Review items" },
+  "review.passAll":           { th: "✓ Pass All",            en: "✓ Pass All" },
+  "review.pass":              { th: "✓ PASS",                en: "✓ PASS" },
+  "review.fail":              { th: "✕ FAIL",                en: "✕ FAIL" },
+  "review.reasonPlaceholder": { th: "ระบุเหตุผล...",          en: "Enter reason..." },
+  "review.adminNoteLabel":    { th: "หมายเหตุถึง Sale (ถ้ามี)", en: "Note to Sale (optional)" },
+  "review.adminNotePlaceholder": { th: "กรอก note ถึง Sale...", en: "Write a note to Sale..." },
+  "review.attachLabel":       { th: "📎 แนบรูปภาพ (ส่งให้ Sale ดูตอนแก้ไข)", en: "📎 Attach photos (visible to Sale during revision)" },
+  "review.dzText":            { th: "คลิกเพื่อแนบรูป หรือลากรูปมาวาง", en: "Click to attach or drag images here" },
+  "review.dzHint":            { th: "รองรับ JPG / PNG (สูงสุด 5 รูป)", en: "JPG / PNG · up to 5 photos" },
+  "review.notReviewed":       { th: "— ยังไม่ได้ตรวจสอบ",    en: "— Not yet reviewed" },
+  "review.approve":           { th: "✓ อนุมัติคำขอ",          en: "✓ Approve" },
+  "review.sendBack":          { th: "↩ ส่งกลับแก้ไข",         en: "↩ Send back for revision" },
+  "review.sendBackPartial":   { th: "✓ อนุมัติที่ผ่าน / ↩ ส่งกลับที่ไม่ผ่าน", en: "✓ Approve passed / ↩ Send back failed" },
+  "review.cancelReq":         { th: "✕ ยกเลิกคำขอ",           en: "✕ Cancel request" },
+
+  // ── Toasts ────────────────────────────────────────────────────
+  "toast.approved":           { th: "อนุมัติคำขอ {id} แล้ว — กำลัง Sync Sheet...", en: "Approved {id} — syncing Sheet..." },
+  "toast.testApproved":       { th: "🧪 อนุมัติคำขอทดสอบ — ข้าม Sheet sync", en: "🧪 Test request approved — Sheet sync skipped" },
+  "toast.syncOk":             { th: "Sync Sheet สำเร็จ ✓",   en: "Sheet sync successful ✓" },
+  "toast.syncFail":           { th: "Sync Sheet ล้มเหลว: {err}", en: "Sheet sync failed: {err}" },
+  "toast.sentBack":           { th: "ส่งกลับให้ Sale แก้ไข {n} รายการ", en: "Sent back to Sale to revise {n} item(s)" },
+  "toast.sentBackPartial":    { th: "อนุมัติรายการที่ผ่าน {a} รายการ และส่งกลับให้ Sale แก้ {f} รายการ", en: "Approved {a} item(s), sent {f} back for revision" },
+  "toast.testSentBack":       { th: "🧪 ส่งกลับให้ Sale แก้ {n} รายการ — ข้าม Sheet sync (test)", en: "🧪 Sent back {n} item(s) — Sheet sync skipped (test)" },
+  "toast.cancelled":          { th: "ยกเลิกคำขอ {id} แล้ว",  en: "Cancelled {id}" },
+  "toast.saveFail":           { th: "History save failed",   en: "History save failed" },
+  "toast.loadFail":           { th: "Could not load return history", en: "Could not load return history" },
+  "toast.testRetrySkip":      { th: "🧪 คำขอทดสอบ — ไม่ retry Sync Sheet", en: "🧪 Test request — Sheet retry skipped" },
+  "toast.retrySyncStart":     { th: "กำลัง Retry Sync Sheet...", en: "Retrying Sheet sync..." },
+  "toast.retrySyncOk":        { th: "Retry Sync Sheet สำเร็จ ✓", en: "Sheet sync retry successful ✓" },
+  "toast.nothingToSync":      { th: "ไม่มีรายการที่ต้อง Sync Sheet", en: "Nothing to sync" },
+
+  // ── Test mode ─────────────────────────────────────────────────
+  "test.modeOn":              { th: "🧪 Test mode ON — แสดงเฉพาะคำขอทดสอบ", en: "🧪 Test mode ON — showing test requests only" },
+  "test.modeOff":             { th: "Test mode OFF — แสดงข้อมูลใช้งานจริง", en: "Test mode OFF — showing production data" },
+
+  // ── Revision history viewer ───────────────────────────────────
+  "rev.title":                { th: "ประวัติแก้ไขคำขอ",      en: "Correction history" },
+  "rev.openBtn":              { th: "📜 ดูประวัติแก้ไข",     en: "📜 View correction history" },
+  "rev.chip":                 { th: "แก้ไขครั้งที่ {n}",      en: "Revision {n}" },
+  "rev.current":              { th: "ปัจจุบัน",               en: "Current" },
+  "rev.tab":                  { th: "แก้ไขครั้งที่ {n}",      en: "Revision {n}" },
+  "rev.statusHeader.current": { th: "สถานะปัจจุบัน · ",       en: "Current status · " },
+  "rev.headerLabel":          { th: "แก้ไขครั้งที่",          en: "Revision" },
+  "rev.lastUpdate":           { th: "อัปเดตล่าสุด: ",         en: "Last updated: " },
+  "rev.sentBackAt":           { th: "ส่งกลับเพื่อแก้ไขเมื่อ: ", en: "Sent back for revision at: " },
+  "rev.adminNote":            { th: "หมายเหตุ Admin",        en: "Admin's note" },
+  "rev.submittedItemsLabel":  { th: "รายการที่ Sale ส่ง ({n})", en: "Items submitted by Sale ({n})" },
+  "rev.flaggedItemsLabel":    { th: "รายการที่ Admin ขอแก้ ({n})", en: "Items flagged by Admin ({n})" },
+  "rev.adminEvidenceLabel":   { th: "📷 หลักฐาน Admin ({n})", en: "📷 Admin evidence ({n})" },
+  "rev.emptyRound":           { th: "ไม่มีข้อมูลในรอบนี้",   en: "No data in this round" },
+  "rev.notFound":             { th: "ไม่พบคำขอ {id}",        en: "Request {id} not found" },
+
+  // ── Items / detail sections ───────────────────────────────────
+  "detail.title":             { th: "รายละเอียดคำขอคืนสินค้า", en: "Return request detail" },
+  "detail.reqInfo":           { th: "ข้อมูลคำขอ",            en: "Request info" },
+  "detail.cust":              { th: "ลูกค้า",                en: "Customer" },
+  "detail.custCode":          { th: "รหัสลูกค้า",            en: "Customer code" },
+  "detail.br":                { th: "เลขใบยืม",              en: "BR no." },
+  "detail.itemsHeader":       { th: "รายการสินค้า",          en: "Items" },
+  "detail.itemsToRevise":     { th: "รายการที่ต้องแก้ไข",    en: "Items to revise" },
+  "detail.itemsAllApproved":  { th: "รายการที่อนุมัติทั้งหมด", en: "All approved items" },
+  "detail.itemsAllApprovedSub": { th: "รวมรายการที่ผ่านการแก้ไขด้วย", en: "Includes corrected versions" },
+  "detail.feedbackTitle":     { th: "⚠️ มีรายการที่ต้องแก้ไข", en: "⚠️ Items need revision" },
+  "detail.feedbackNote":      { th: "หมายเหตุจาก Admin: ",   en: "Note from Admin: " },
+  "detail.feedbackPhotos":    { th: "📎 รูปประกอบจาก Admin ({n} รูป):", en: "📎 Admin photos ({n}):" },
+  "detail.cancelled":         { th: "ยกเลิกคำขอ",            en: "Request cancelled" },
+  "detail.cancelReason":      { th: "เหตุผลที่ยกเลิก",       en: "Cancel reason" },
+  "detail.printBR":           { th: "Print BR",              en: "Print BR" },
+  "detail.editAndResubmit":   { th: "↩ แก้ไขและส่งใหม่",     en: "↩ Edit and resubmit" },
+
+  // ── Cancel-request popup ──────────────────────────────────────
+  "cancel.title":             { th: "ยกเลิกคำขอ",            en: "Cancel request" },
+  "cancel.reasonLabel":       { th: "ระบุเหตุผลที่ยกเลิก",   en: "Cancel reason" },
+  "cancel.reasonPlaceholder": { th: "พิมพ์เหตุผล...",          en: "Type reason..." },
+  "cancel.confirm":           { th: "ยืนยันยกเลิก",           en: "Confirm cancel" },
+
+  // ── Admin login ───────────────────────────────────────────────
+  "login.title":              { th: "เข้าสู่ระบบ Admin",      en: "Admin sign in" },
+  "login.passwordPlaceholder":{ th: "รหัสผ่าน Admin",         en: "Admin password" },
+  "login.signIn":             { th: "เข้าสู่ระบบ",           en: "Sign in" },
+  "login.wrong":              { th: "รหัสผ่านไม่ถูกต้อง",    en: "Incorrect password" },
+
+  // ── Empty / loading states ────────────────────────────────────
+  "empty.noRequests":         { th: "ยังไม่มีคำขอคืนสินค้า", en: "No return requests yet" },
+  "empty.noBR":               { th: "ไม่พบใบยืม",            en: "No BR found" },
+  "empty.loadingMaster":      { th: "กำลังโหลดข้อมูล...",    en: "Loading data..." },
+  "empty.noItemsInBR":        { th: "ไม่มีรายการในใบยืมนี้", en: "No items in this BR" },
+};
+
+// Translate a key. If the key is missing the literal key is returned
+// so it surfaces visibly during development. Supports {placeholder}
+// substitution: _t('toast.approved', {id: 'RT-...'}).
+function _t(key, vars){
+  var entry = BR_STRINGS[key];
+  var raw = entry ? (entry[BR_LANG] || entry.th || key) : key;
+  if(vars){
+    for(var k in vars){
+      if(Object.prototype.hasOwnProperty.call(vars, k)){
+        raw = raw.replace(new RegExp('\\{'+k+'\\}', 'g'), vars[k]);
+      }
+    }
+  }
+  return raw;
+}
+
+// Flip the language and re-render everything. localStorage key is
+// 'lang' (shared with Mobile) so the choice syncs across both clients.
+function setLang(l){
+  if(l !== 'th' && l !== 'en') return;
+  BR_LANG = l;
+  try{ localStorage.setItem('lang', l); }catch(e){}
+  // Update the segmented pill chrome
+  var thBtn = el('lang-th'); var enBtn = el('lang-en');
+  if(thBtn) thBtn.className = (l === 'th') ? 'active' : '';
+  if(enBtn) enBtn.className = (l === 'en') ? 'active' : '';
+  // Re-render every section that contains user-facing strings.
+  // Each render function is defensive (typeof check) so we don't
+  // crash if one isn't loaded yet during early init.
+  if(typeof renderSalePills === 'function') renderSalePills();
+  if(typeof renderContent === 'function') renderContent();
+  if(typeof renderAdminContent === 'function') renderAdminContent();
+  if(typeof applyStaticI18n === 'function') applyStaticI18n();
+}
+
+// Apply translations to any static UI text marked with data-i18n. This
+// is the fallback for HTML strings that aren't built via JS templating.
+// Usage:  <span data-i18n="common.cancel">ยกเลิก</span>
+function applyStaticI18n(){
+  var nodes = document.querySelectorAll('[data-i18n]');
+  for(var i=0;i<nodes.length;i++){
+    var key = nodes[i].getAttribute('data-i18n');
+    if(key) nodes[i].textContent = _t(key);
+  }
+  var phNodes = document.querySelectorAll('[data-i18n-placeholder]');
+  for(var j=0;j<phNodes.length;j++){
+    var pkey = phNodes[j].getAttribute('data-i18n-placeholder');
+    if(pkey) phNodes[j].setAttribute('placeholder', _t(pkey));
+  }
+  var ttNodes = document.querySelectorAll('[data-i18n-title]');
+  for(var k=0;k<ttNodes.length;k++){
+    var tkey = ttNodes[k].getAttribute('data-i18n-title');
+    if(tkey) ttNodes[k].setAttribute('title', _t(tkey));
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // MASTER DATA
 // ═══════════════════════════════════════════════════════════════
@@ -2222,14 +2544,11 @@ function countKPI(sale, isAdmin){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CLOCK
-// ═══════════════════════════════════════════════════════════════
-function updateClock(){
-  var now = new Date();
-  el('clock').innerHTML = now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-}
-updateClock();
-setInterval(updateClock,60000);
+// CLOCK — removed 2026-05-16 (topbar redesign).
+// The visible clock and the AD user avatar were both dropped from the
+// topbar. Leaving the function defined but no-op so any legacy call
+// sites that haven't been pruned yet stay harmless.
+function updateClock(){ /* no-op — clock element removed from topbar */ }
 
 // ═══════════════════════════════════════════════════════════════
 // STEP BAR
@@ -4360,8 +4679,24 @@ function setTheme(t){
   } else {
     document.documentElement.classList.remove('light');
   }
-  el('opt-dark').className  = 'theme-opt' + (t==='dark'  ? ' active' : '');
-  el('opt-light').className = 'theme-opt' + (t==='light' ? ' active' : '');
+  // iPhone-style slider: the .theme-dark / .theme-light class drives
+  // both the gradient background and the thumb position. Thumb glyph
+  // shows the ACTIVE theme (moon when dark, sun when light) so the
+  // user always sees the state they're in.
+  var iosBtn = el('ios-theme-toggle');
+  if(iosBtn){
+    iosBtn.className = 'ios-theme-toggle theme-' + t;
+  }
+  var thumb = el('theme-thumb');
+  if(thumb){
+    thumb.innerHTML = (t === 'light') ? '☀️' : '🌙';
+  }
+}
+
+// One-click theme flip used by the iPhone toggle. Reads CURRENT_THEME
+// and swaps to the opposite.
+function toggleTheme(){
+  setTheme(CURRENT_THEME === 'light' ? 'dark' : 'light');
 }
 
 // Apply saved theme on load
@@ -4369,6 +4704,16 @@ setTheme(CURRENT_THEME);
 // Apply test-mode chrome on load so the amber border + active pill style
 // reflect the persisted br-test-mode flag immediately.
 try { applyTestModeChrome(); } catch(e) {}
+// Apply persisted language: sync the TH/EN pill's active state with
+// BR_LANG, then translate any static [data-i18n] markup. Setting the
+// language re-renders dynamic content as well, so this single call
+// brings every section to the correct locale on load.
+try {
+  var lthBtn = el('lang-th'); var lenBtn = el('lang-en');
+  if(lthBtn) lthBtn.className = (BR_LANG === 'th') ? 'active' : '';
+  if(lenBtn) lenBtn.className = (BR_LANG === 'en') ? 'active' : '';
+  applyStaticI18n();
+} catch(e) {}
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
