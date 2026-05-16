@@ -2094,6 +2094,43 @@ function reviewItemKey(it, idx){
   return requestItemKey(it, idx);
 }
 
+// Stable item identity across revisions. Tolerates Desktop-canonical
+// (itemId/lineNo/lineKey) and Mobile-alias (item_id/line_no) shapes
+// so it works on records authored by either client.
+function itemIdentity(it){
+  return it.itemId
+      || it.item_id
+      || it.lineKey
+      || ((it.code || it.product_code || '') + '-' + (it.lineNo || it.line_no || ''));
+}
+
+// Reconstruct the COMPLETE set of approved items for a request that
+// went through one or more correction rounds. Mirrors the Mobile-side
+// buildApprovedFullView() (frontend/src/components/MobilePrototypeApp.jsx)
+// so Desktop Admin sees the same full result the Sale sees on Mobile.
+//
+// After a Sale resubmits, current submittedItems contains ONLY the items
+// corrected in the latest revision. The original items live in
+// revisionHistory[0].prevSubmittedItems, intermediate corrections in
+// revisionHistory[1..N-1].prevSubmittedItems. We overlay them by item
+// identity so each item ends up at its latest version.
+function buildApprovedFullView(r){
+  var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
+  if(hist.length === 0) return Array.isArray(r.submittedItems) ? r.submittedItems : [];
+  var byId = {};
+  var original = (hist[0] && Array.isArray(hist[0].prevSubmittedItems)) ? hist[0].prevSubmittedItems : [];
+  for(var a=0;a<original.length;a++) byId[itemIdentity(original[a])] = original[a];
+  for(var i=1;i<hist.length;i++){
+    var items = (hist[i] && Array.isArray(hist[i].prevSubmittedItems)) ? hist[i].prevSubmittedItems : [];
+    for(var b=0;b<items.length;b++) byId[itemIdentity(items[b])] = items[b];
+  }
+  var cur = Array.isArray(r.submittedItems) ? r.submittedItems : [];
+  for(var c=0;c<cur.length;c++) byId[itemIdentity(cur[c])] = cur[c];
+  var out = [];
+  for(var k in byId){ if(Object.prototype.hasOwnProperty.call(byId,k)) out.push(byId[k]); }
+  return out;
+}
+
 function getItemType(si){
   if(si.retQty>0) return 'WAIT';
   if(si.clmQty>0) return 'CLAIM';
@@ -3204,11 +3241,42 @@ function openDetail(rid){
   // Items
   h += '<div class="detail-section">';
   var showRejectedOnly = (r.status==='rejected' && r.rejectedItems && r.rejectedItems.length>0);
-  h += '<div class="detail-section-title">'+(showRejectedOnly?'รายการที่ต้องแก้ไข':'รายการสินค้า')+' ('+r.items+' รายการ)</div>';
-  var items = showRejectedOnly ? r.rejectedItems : (r.submittedItems && r.submittedItems.length>0 ? r.submittedItems : []);
+  // Approved-full view: when the request is fully approved AND went
+  // through one or more correction rounds, reconstruct the complete
+  // approved set (original items + corrected versions). Without this,
+  // Desktop Admin would see only the LAST-corrected subset because
+  // submittedItems gets replaced with corrected-only items on each
+  // resubmit. Mirrors the Mobile-side approvedFull scope.
+  var showApprovedFull = (
+    r.status === 'approved'
+    && Array.isArray(r.revisionHistory)
+    && r.revisionHistory.length > 0
+  );
+  var items;
+  if(showRejectedOnly){
+    items = r.rejectedItems;
+  } else if(showApprovedFull){
+    items = buildApprovedFullView(r);
+  } else {
+    items = (r.submittedItems && r.submittedItems.length>0) ? r.submittedItems : [];
+  }
   if(items.length===0){
     items = fallbackSubmittedItems(r.br);
   }
+  // Section title — use actual rendered count so the heading number
+  // matches what the user sees (r.items is the stored count of the
+  // current revision, which is wrong when we expand to approved-full).
+  var sectionLabel;
+  if(showRejectedOnly)        sectionLabel = 'รายการที่ต้องแก้ไข';
+  else if(showApprovedFull)   sectionLabel = 'รายการที่อนุมัติทั้งหมด';
+  else                         sectionLabel = 'รายการสินค้า';
+  // Replace the stale title written earlier (we hadn't actually written
+  // it yet in this revised block, so prepend cleanly here):
+  h += '<div class="detail-section-title">' + sectionLabel + ' (' + items.length + ' รายการ)';
+  if(showApprovedFull){
+    h += '<span style="font-size:10px;font-weight:600;color:var(--sub);margin-left:8px;letter-spacing:0.3px">รวมรายการที่ผ่านการแก้ไขด้วย</span>';
+  }
+  h += '</div>';
 
   // Check which items are rejected
   var rejItems = {};
