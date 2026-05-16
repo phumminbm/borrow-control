@@ -1283,6 +1283,13 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="popup-title d-flex align-center gap8">
           <span id="detail-id" class="mono"></span>
           <span id="detail-status-badge"></span>
+          <!-- Rev N chip + "ดูประวัติแก้ไข" — visible on the detail
+               view (any status, including approved) when the request
+               has been corrected at least once. Same data source as
+               the admin-review modal's chip/button so both views are
+               in sync. -->
+          <span id="detail-rev-chip" style="display:none;font-size:10px;font-weight:700;color:#D4357A;background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.45);border-radius:5px;padding:2px 7px;letter-spacing:0.3px;"></span>
+          <button id="detail-history-btn" onclick="openRevisionHistory(_DETAIL_REQ_ID)" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
         </div>
         <div class="popup-sub">รายละเอียดคำขอคืนสินค้า</div>
       </div>
@@ -3121,13 +3128,34 @@ function doSubmit(){
 // ═══════════════════════════════════════════════════════════════
 // DETAIL POPUP
 // ═══════════════════════════════════════════════════════════════
+// Track the request currently open in the detail modal so the
+// "ดูประวัติแก้ไข" button (which is bound at HTML render time, not
+// per-open) knows which request id to pass to openRevisionHistory().
+var _DETAIL_REQ_ID = null;
+
 function openDetail(rid){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
   if(!r) return;
+  _DETAIL_REQ_ID = rid;
 
   el('detail-id').innerHTML = r.id;
   el('detail-status-badge').innerHTML = statusBadgeHTML(r.status, ACTIVE_TAB==='admin');
+
+  // Rev chip + history button on the detail (read-only) modal. Mirrors
+  // the same logic in openAdminReview so both views show the history
+  // entry point consistently — including AFTER the request is approved.
+  var dRevHistLen = (Array.isArray(r.revisionHistory) ? r.revisionHistory.length : 0);
+  var dRevNum = 1 + dRevHistLen;
+  var dChip = el('detail-rev-chip');
+  var dBtn  = el('detail-history-btn');
+  if(dRevHistLen > 0){
+    if(dChip){ dChip.style.display = 'inline-flex'; dChip.innerHTML = '↻ แก้ไขครั้งที่ ' + dRevNum; }
+    if(dBtn){  dBtn.style.display  = 'inline-flex'; }
+  } else {
+    if(dChip) dChip.style.display = 'none';
+    if(dBtn)  dBtn.style.display  = 'none';
+  }
 
   var h = '';
 
