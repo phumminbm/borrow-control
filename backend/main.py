@@ -32,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from pydantic import BaseModel, Field, validator
 from typing import Optional
 from datetime import datetime, timezone
@@ -231,23 +232,68 @@ def recalc_all_customers(db):
     db.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAULT ''"))
-    # ── Test-mode integration columns (2026-05-16) ────────────────────
-    # is_test  — flag for ?test=1 / Desktop Admin test-mode submissions;
-    #            production GET defaults to include_test=false so prod
-    #            users never see test rows. Apps Script Sheet writeback
-    #            is blocked when this is TRUE (defense in depth: both
-    #            frontend skip + backend force sheet_sync='skipped-test').
-    # revision_history — JSONB array of correction-flow snapshots so the
-    #            "แก้ไขครั้งที่ N" chip works the same on Mobile and
-    #            Desktop instead of being lost in Pydantic extra-field
-    #            drop. Default '[]' keeps legacy rows compatible.
-    # resubmitted_at   — ISO timestamp of the latest Sale resubmission.
-    #            Used by the Sale-side detail header to show
-    #            "↻ ส่งแก้ไขเมื่อ …".
-    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE"))
-    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS revision_history JSONB DEFAULT '[]'::jsonb"))
-    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS resubmitted_at TEXT DEFAULT ''"))
     db.commit()
+
+    # ── Test-mode integration columns (2026-05-16) ────────────────────
+    # Each ALTER is wrapped in its OWN try/except with its OWN commit so
+    # one statement's failure cannot poison the whole transaction (which
+    # is what apparently happened on the first deploy: ensure_tables
+    # claimed success but the new columns weren't on disk because a
+    # subsequent statement aborted the transaction silently before the
+    # block-level commit).
+    #
+    # is_test is split into the "online migration" pattern (add nullable,
+    # backfill, promote to NOT NULL) so Postgres never has to choose
+    # between adding the column AND rejecting a NULL in the same op on
+    # an existing table.
+    def _try_ddl(sql, label):
+        try:
+            db.execute(text(sql))
+            db.commit()
+            logger.info(f"ensure_tables: {label} OK")
+        except (ProgrammingError, OperationalError) as e:
+            db.rollback()
+            logger.warning(f"ensure_tables: {label} failed: {e}")
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"ensure_tables: {label} unexpected error: {e}")
+
+    # 1. Add is_test nullable first — cheap metadata-only on any PG version.
+    _try_ddl(
+        "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE",
+        "add is_test (nullable)"
+    )
+    # 2. Backfill any rows that pre-date the column with FALSE.
+    _try_ddl(
+        "UPDATE return_requests SET is_test = FALSE WHERE is_test IS NULL",
+        "backfill is_test"
+    )
+    # 3. Promote to NOT NULL (best-effort; if it fails the GET fallback
+    #    handles it). Wrapped in DO block so we don't error if the column
+    #    is already NOT NULL from a previous run.
+    _try_ddl("""
+        DO $$
+        BEGIN
+            BEGIN
+                ALTER TABLE return_requests ALTER COLUMN is_test SET NOT NULL;
+            EXCEPTION WHEN OTHERS THEN
+                -- ignore: column may already be NOT NULL or have NULLs we
+                -- couldn't backfill; either way the GET fallback handles it.
+                NULL;
+            END;
+        END$$;
+    """, "promote is_test to NOT NULL")
+    # 4. revision_history — JSONB array of correction-flow snapshots so
+    #    "แก้ไขครั้งที่ N" chips survive a round-trip through the backend.
+    _try_ddl(
+        "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS revision_history JSONB DEFAULT '[]'::jsonb",
+        "add revision_history"
+    )
+    # 5. resubmitted_at — ISO timestamp of the latest Sale resubmission.
+    _try_ddl(
+        "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS resubmitted_at TEXT DEFAULT ''",
+        "add resubmitted_at"
+    )
 
 def swap_staging_to_main(db):
     """
@@ -539,12 +585,29 @@ def get_return_requests(
         where = ""  # show everything
     else:
         where = "WHERE is_test = FALSE"
-    rows = db.execute(text(f"""
+    sql = f"""
         SELECT * FROM return_requests
         {where}
         ORDER BY date_sort DESC, updated_at DESC
         LIMIT :limit
-    """), {"limit": limit}).fetchall()
+    """
+    try:
+        rows = db.execute(text(sql), {"limit": limit}).fetchall()
+    except (ProgrammingError, OperationalError) as e:
+        # Column does not exist (schema migration didn't take). Roll
+        # back the aborted transaction and fall back to the legacy
+        # unfiltered query so the production queue stays visible. The
+        # 'only' filter has no equivalent fallback (no rows can match
+        # a missing column), so we return an empty list in that case.
+        db.rollback()
+        logger.warning(f"/return-requests: filter failed, falling back: {e}")
+        if mode == "only":
+            return []
+        rows = db.execute(text("""
+            SELECT * FROM return_requests
+            ORDER BY date_sort DESC, updated_at DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
     return [_return_request_from_row(r) for r in rows]
 
 @app.post("/return-requests")
@@ -598,7 +661,7 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         "revision_history": revision_history_json,
         "resubmitted_at": payload.resubmittedAt or "",
     }
-    row = db.execute(text("""
+    insert_full = """
         INSERT INTO return_requests (
             id, cust, cust_code, br, sale, status, request_date, date_sort,
             remark, admin_note, items_count, submitted_items, rejected_items,
@@ -636,7 +699,63 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
             resubmitted_at = EXCLUDED.resubmitted_at,
             updated_at = NOW()
         RETURNING *
-    """), params).fetchone()
+    """
+    # Legacy INSERT — used as a fallback when the new columns (is_test,
+    # revision_history, resubmitted_at) don't exist yet on disk. Same
+    # contract as the pre-test-mode code path, so production behavior is
+    # preserved while the schema catches up. If a TEST-mode POST hits
+    # this path, the request will land as a production row (because the
+    # column doesn't exist to discriminate it) — so the matching frontend
+    # guard ALSO refuses to set isTest=true unless the column is known to
+    # exist (verified by /debug-schema below). For now we error out
+    # cleanly with 503 if a test POST hits the legacy path, so we never
+    # silently mix test data into production.
+    insert_legacy = """
+        INSERT INTO return_requests (
+            id, cust, cust_code, br, sale, status, request_date, date_sort,
+            remark, admin_note, items_count, submitted_items, rejected_items,
+            attachments, sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason
+        ) VALUES (
+            :id, :cust, :cust_code, :br, :sale, :status, :request_date, :date_sort,
+            :remark, :admin_note, :items_count, CAST(:submitted_items AS jsonb), CAST(:rejected_items AS jsonb),
+            CAST(:attachments AS jsonb), :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            cust = EXCLUDED.cust,
+            cust_code = EXCLUDED.cust_code,
+            br = EXCLUDED.br,
+            sale = EXCLUDED.sale,
+            status = EXCLUDED.status,
+            request_date = EXCLUDED.request_date,
+            date_sort = EXCLUDED.date_sort,
+            remark = EXCLUDED.remark,
+            admin_note = EXCLUDED.admin_note,
+            items_count = EXCLUDED.items_count,
+            submitted_items = EXCLUDED.submitted_items,
+            rejected_items = EXCLUDED.rejected_items,
+            attachments = EXCLUDED.attachments,
+            sheet_sync = EXCLUDED.sheet_sync,
+            sheet_sync_at = EXCLUDED.sheet_sync_at,
+            sheet_sync_error = EXCLUDED.sheet_sync_error,
+            cancel_reason = EXCLUDED.cancel_reason,
+            updated_at = NOW()
+        RETURNING *
+    """
+    try:
+        row = db.execute(text(insert_full), params).fetchone()
+    except (ProgrammingError, OperationalError) as e:
+        db.rollback()
+        logger.warning(f"/return-requests POST: full insert failed, retrying legacy: {e}")
+        # Defense: never silently downgrade a TEST submission into the
+        # production queue when the discriminator column is missing.
+        # The Mobile/Desktop test flows must wait until the schema
+        # catches up. Surfaces a clear 503 so the client can retry.
+        if payload.isTest:
+            raise HTTPException(
+                status_code=503,
+                detail="Test-mode schema not ready yet. Retry in a moment.",
+            )
+        row = db.execute(text(insert_legacy), params).fetchone()
     db.commit()
     return {"success": True, "request": _return_request_from_row(row)}
 
@@ -998,6 +1117,47 @@ def debug(db: Session = Depends(get_db)):
         bs = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
         return {"customers": c, "borrows": b, "borrow_items": i, "borrows_staging": bs}
     except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/debug-schema")
+def debug_schema(db: Session = Depends(get_db)):
+    """Read-only introspection of the return_requests columns. Used to
+    verify that the test-mode migration (is_test, revision_history,
+    resubmitted_at) is actually live on disk. Safe to expose: it returns
+    only the column metadata, never row data."""
+    try:
+        rows = db.execute(text("""
+            SELECT column_name, data_type, is_nullable, column_default
+            FROM information_schema.columns
+            WHERE table_name = 'return_requests'
+            ORDER BY ordinal_position
+        """)).fetchall()
+        cols = [dict(r._mapping) for r in rows]
+        col_names = [c["column_name"] for c in cols]
+        expected_new = ["is_test", "revision_history", "resubmitted_at"]
+        missing = [c for c in expected_new if c not in col_names]
+        # Count test rows (only if column exists) to sanity-check the
+        # filter in production.
+        test_row_count = None
+        prod_row_count = None
+        if "is_test" in col_names:
+            try:
+                test_row_count = db.execute(text("SELECT COUNT(*) FROM return_requests WHERE is_test = TRUE")).fetchone()[0]
+                prod_row_count = db.execute(text("SELECT COUNT(*) FROM return_requests WHERE is_test = FALSE OR is_test IS NULL")).fetchone()[0]
+            except Exception as e:
+                logger.warning(f"/debug-schema row counts failed: {e}")
+                db.rollback()
+        return {
+            "columns": cols,
+            "test_mode_migration": {
+                "applied": len(missing) == 0,
+                "missing": missing,
+                "test_rows": test_row_count,
+                "prod_rows": prod_row_count,
+            },
+        }
+    except Exception as e:
+        db.rollback()
         return {"error": str(e)}
 
 @app.get("/debug-borrow/{cust_code}")
