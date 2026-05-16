@@ -948,7 +948,12 @@ def recalc(db: Session = Depends(get_db)):
             return {
                 "success": False,
                 "reason": "sync_in_progress",
-                "message": f"Sync กำลังทำอยู่ (staging มี {staging_count} แถว) — รอ sync เสร็จแล้วลองใหม่",
+                # API message is English-only by convention: API responses
+                # are consumed by both UI and tooling, and translation
+                # belongs at the UI layer. The Desktop / Mobile clients
+                # never display this raw text — they map `reason` to a
+                # localised string.
+                "message": f"Sync is in progress (staging has {staging_count} rows) — please wait and retry",
                 "borrows_staging": staging_count
             }
         recalc_all_customers(db)
@@ -1094,7 +1099,7 @@ def manual_swap(db: Session = Depends(get_db)):
         bs = db.execute(text("SELECT COUNT(*) FROM borrows_staging")).fetchone()[0]
         cs = db.execute(text("SELECT COUNT(*) FROM customers_staging")).fetchone()[0]
         if bs == 0 and cs == 0:
-            return {"success": False, "reason": "staging_empty", "message": "Staging ว่างเปล่า — ยังไม่มีข้อมูลรอ swap"}
+            return {"success": False, "reason": "staging_empty", "message": "Staging is empty — nothing waiting to swap"}
         swap_staging_to_main(db)
         clear_staging(db)
         recalc_all_customers(db)
@@ -1102,7 +1107,7 @@ def manual_swap(db: Session = Depends(get_db)):
         c_new = db.execute(text("SELECT COUNT(*) FROM customers")).fetchone()[0]
         return {
             "success": True,
-            "message": f"Swap เสร็จแล้ว — จาก staging ({bs} borrows, {cs} customers) → main",
+            "message": f"Swap complete — promoted from staging ({bs} borrows, {cs} customers) to main",
             "main": {"borrows": b_new, "customers": c_new}
         }
     except Exception as e:

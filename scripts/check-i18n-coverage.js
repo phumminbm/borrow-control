@@ -102,6 +102,29 @@ function stripBenign(filePath, src) {
     /\btag\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
     m => m.replace(THAI_G, '')
   );
+  // PDF rendering — c.drawString / drawRightString / drawCentredString
+  // calls that print onto generated PDF documents. The Borrowing Form
+  // is a Thai business document (legal artifact for customers), and
+  // the letterhead carries the company's own physical address. The
+  // user's i18n requirement is web-UI only; PDFs stay Thai by design.
+  out = out.replace(
+    /c\.draw(?:Right|Centred)?String\([^)]*"[^"]*"\)/g,
+    m => m.replace(THAI_G, '')
+  );
+  // PDF bilingual-label tuples in the Python code that builds the
+  // Borrowing Form table headers and totals row:
+  //   ("English", "Thai", "C", 0)   ← column header pair
+  //   "Total (รวมเงิน)"             ← bilingual single string
+  // Both forms intentionally print English alongside Thai on the
+  // document. Not UI chrome.
+  out = out.replace(
+    /\("[^"]+",\s*"[^"]+",\s*"[CL]"\s*,\s*\d+\)/g,
+    m => m.replace(THAI_G, '')
+  );
+  out = out.replace(
+    /"[A-Za-z][A-Za-z 0-9%]*\s*\([^)]*\)"/g,
+    m => m.replace(THAI_G, '')
+  );
   // HTML elements that already carry a data-i18n / data-i18n-placeholder /
   // data-i18n-title attribute are translated at render time by
   // applyStaticI18n(). The inline Thai text inside them is just a fallback
