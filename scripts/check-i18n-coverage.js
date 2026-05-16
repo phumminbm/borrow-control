@@ -55,9 +55,15 @@ function stripBenign(filePath, src) {
   out = out.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(THAI_G, ''));
   // Strip // line comments
   out = out.replace(/(^|[^:])\/\/[^\n]*/g, m => m.replace(THAI_G, ''));
-  // Strip Python # line comments
+  // Strip HTML <!-- ... --> comments
+  out = out.replace(/<!--[\s\S]*?-->/g, m => m.replace(THAI_G, ''));
+  // Python comments + docstrings
   if (filePath.endsWith('.py')) {
     out = out.replace(/#[^\n]*/g, m => m.replace(THAI_G, ''));
+    // Triple-quoted strings (docstrings + module-level """ """ blocks).
+    // Conservative: both """ ... """ and ''' ... ''' forms.
+    out = out.replace(/"""[\s\S]*?"""/g, m => m.replace(THAI_G, ''));
+    out = out.replace(/'''[\s\S]*?'''/g, m => m.replace(THAI_G, ''));
   }
   // Strip the i18n dictionary regions wholesale.
   const dictPatterns = [
@@ -80,9 +86,10 @@ function stripBenign(filePath, src) {
     /lang\s*===\s*["']th["']\s*\?\s*<>[\s\S]*?<\/>\s*:\s*<>[\s\S]*?<\/>/g,
     m => m.replace(THAI_G, '')
   );
-  // THAI_* calendar arrays — intentionally Thai (paired with EN_*).
+  // Mobile + Desktop calendar arrays — intentionally Thai, paired with
+  // EN_* siblings at lookup time (calMonths() / calDays() helpers).
   out = out.replace(
-    /(THAI_MONTHS_SHORT|THAI_DAY_HEADERS|THAI_DAY_FULL)\s*=\s*\[[^\]]*\]/g,
+    /(THAI_MONTHS_SHORT|THAI_DAY_HEADERS|THAI_DAY_FULL|TH_MONTHS_FULL|TH_MONTHS_SHORT|TH_DAYS_SHORT|TH_MONTHS|TH_MONTHS_S|TH_DAYS)\s*=\s*[^;]*?\]/g,
     m => m.replace(THAI_G, '')
   );
   // label_th / label_short_th — paired with label_en at lookup time.

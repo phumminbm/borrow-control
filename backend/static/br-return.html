@@ -1594,6 +1594,20 @@ var BR_STRINGS = {
   "toast.partialSyncFail":    { th: "Sync Sheet รายการที่ผ่านล้มเหลว: {err}", en: "Syncing approved items failed: {err}" },
   "toast.sentBackNItems":     { th: "ส่งกลับให้ Sale แก้ไข {n} รายการ", en: "Sent {n} item(s) back to Sale for revision" },
   "toast.loadingBC":          { th: "กำลังโหลดข้อมูล Borrow Control...", en: "Loading Borrow Control data..." },
+
+  // ── Sheet-sync pill labels ───────────────────────────────────
+  "syncpill.synced":          { th: "อนุมัติ · รอ snapshot คืนถัดไป", en: "Approved · awaiting next nightly snapshot" },
+  "syncpill.syncedTitle":     { th: "อัพเดต Logistics File แล้ว — Find Borrow DB จะอัพเดตในรอบ sync ถัดไป (รายคืน)", en: "Logistics File updated — Find Borrow DB will refresh on the next nightly sync" },
+  "syncpill.pending":         { th: "กำลัง sync...",          en: "Syncing..." },
+  "syncpill.retry":           { th: "retry",                 en: "retry" },
+  "syncpill.na":              { th: "ไม่ sync",              en: "no sync" },
+  "syncpill.waitApprove":     { th: "รอ approve",             en: "Awaiting approval" },
+
+  // ── Step bar (Sale flow) ─────────────────────────────────────
+  "stepbar.selectCust":       { th: "เลือกลูกค้า",            en: "Select customer" },
+  "stepbar.selectBR":         { th: "เลือกใบยืม",            en: "Select BR" },
+  "stepbar.itemsQty":         { th: "สินค้า & จำนวน",         en: "Items & quantities" },
+  "common.noReasonGiven":     { th: "ไม่ระบุเหตุผล",          en: "No reason given" },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
@@ -2292,10 +2306,10 @@ function showToast(msg,type){
 }
 
 function statusLabel(status, isAdmin){
-  if(status==='pending') return 'รอตรวจสอบคำขอ';
-  if(status==='approved') return 'อนุมัติแล้ว';
-  if(status==='rejected') return isAdmin ? 'รอแก้ไขคำขอ' : 'แก้ไขคำขอ';
-  if(status==='cancelled') return 'ยกเลิกแล้ว';
+  if(status==='pending')   return _t('status.pending');
+  if(status==='approved')  return _t('status.approved');
+  if(status==='rejected')  return isAdmin ? _t('status.rejected.admin') : _t('status.rejected');
+  if(status==='cancelled') return _t('status.cancelled');
   return status;
 }
 
@@ -2311,28 +2325,28 @@ function syncPillHTML(r){
     // The BR Return Apps Script has written BORROW → WAIT into the Logistics
     // File (source of truth). The Find Borrow DB is a nightly snapshot, so
     // the BR will continue to appear active until the next nightly swap.
-    return '<span class="sync-pill sync-ok" title="อัพเดต Logistics File แล้ว — Find Borrow DB จะอัพเดตในรอบ sync ถัดไป (รายคืน)">'
+    return '<span class="sync-pill sync-ok" title="'+_t('syncpill.syncedTitle')+'">'
       +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#4ECDA0" stroke-width="1"/><path d="M3 5l1.5 1.5L7 3.5" stroke="#4ECDA0" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      +'อนุมัติ · รอ snapshot คืนถัดไป</span>';
+      +_t('syncpill.synced')+'</span>';
   }
   if(sync==='pending'){
     return '<span class="sync-pill sync-pending">'
       +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#F0B429" stroke-width="1"/><path d="M5 3v2.2l1.2 1.2" stroke="#F0B429" stroke-width="1" stroke-linecap="round"/></svg>'
-      +'กำลัง sync...</span>';
+      +_t('syncpill.pending')+'</span>';
   }
   if(sync==='failed'){
     return '<span class="sync-pill sync-fail">'
       +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#E24B4A" stroke-width="1"/><path d="M3.5 3.5l3 3M6.5 3.5l-3 3" stroke="#E24B4A" stroke-width="1" stroke-linecap="round"/></svg>'
       +'sync failed</span>'
-      +'<button class="btn-retry" onclick="retrySheetSync(\''+r.id+'\')">↺ retry</button>';
+      +'<button class="btn-retry" onclick="retrySheetSync(\''+r.id+'\')">↺ '+_t('syncpill.retry')+'</button>';
   }
   if(sync==='na'){
-    return '<span class="sync-pill sync-na">— ไม่ sync</span>';
+    return '<span class="sync-pill sync-na">— '+_t('syncpill.na')+'</span>';
   }
-  // none = รอ approve
+  // none = waiting for approval
   return '<span class="sync-pill sync-none">'
     +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#555" stroke-width="1"/><path d="M5 3v2.2l1.2 1.2" stroke="#555" stroke-width="1" stroke-linecap="round"/></svg>'
-    +'รอ approve</span>';
+    +_t('syncpill.waitApprove')+'</span>';
 }
 
 function custBadge(s){
@@ -2406,7 +2420,7 @@ function splitReviewItems(items){
     }
     if(hasRequestQty(passItem)) approved.push(passItem);
     if(hasRequestQty(failItem)){
-      failItem.reason = ADMIN_REVIEW.reasons[ik] || 'ไม่ระบุเหตุผล';
+      failItem.reason = ADMIN_REVIEW.reasons[ik] || _t('common.noReasonGiven');
       failed.push(failItem);
     }
   }
@@ -2633,8 +2647,9 @@ function updateClock(){ /* no-op — clock element removed from topbar */ }
 // ═══════════════════════════════════════════════════════════════
 // STEP BAR
 // ═══════════════════════════════════════════════════════════════
-var STEPS3 = ['เลือกลูกค้า','เลือกใบยืม','สินค้า & จำนวน'];
+// Step bar labels resolved at render-time so they switch language live.
 function makeStepBar(n){
+  var STEPS3 = [_t('stepbar.selectCust'), _t('stepbar.selectBR'), _t('stepbar.itemsQty')];
   var h = '<div class="step-bar">';
   for(var i=0;i<STEPS3.length;i++){
     var state = i+1<n?'done':i+1===n?'active':'todo';
@@ -2692,7 +2707,7 @@ var SALE_DD_OPEN = false;
 function renderSalePills(){
   // Build label for button
   var allPend = RECENT.filter(function(r){return r.status==='pending';}).length;
-  var btnLabel = MSALE===null ? 'ทั้งหมด' : MSALE;
+  var btnLabel = MSALE===null ? _t('common.all') : MSALE;
   var btnBadge = 0;
   if(MSALE===null) btnBadge = allPend;
   else btnBadge = RECENT.filter(function(r){return r.sale===MSALE&&r.status==='pending';}).length;
@@ -2709,7 +2724,7 @@ function renderSalePills(){
   h += '<div class="sale-dd-list'+(SALE_DD_OPEN?' open':'')+'" id="sale-dd-list">';
   // ทั้งหมด option
   h += '<div class="sale-dd-item'+(MSALE===null?' active':'')+'" onclick="selectSale(null)">';
-  h += '<div class="dd-item-left"><span class="dd-check">✓</span><span>ทั้งหมด</span></div>';
+  h += '<div class="dd-item-left"><span class="dd-check">✓</span><span>'+_t('common.all')+'</span></div>';
   if(allPend>0) h += '<span class="pill-badge">'+allPend+'</span>';
   h += '</div>';
   // Divider
@@ -2768,20 +2783,20 @@ function renderContent(){
   // KPI
   var kpi = countKPI(MSALE, false);
   h += '<div class="kpi-grid">';
-  h += kpiCard('pending','kpi-yellow','รอตรวจสอบ',kpi.pending,'คำขอรอ Admin ตรวจสอบ');
-  h += kpiCard('approved','kpi-green','อนุมัติแล้ว',kpi.approved,'รายการที่อนุมัติเรียบร้อย');
-  h += kpiCard('rejected','kpi-red','แก้ไขคำขอ',kpi.rejected,'ต้องแก้ไขและส่งใหม่');
-  h += kpiCard('cancelled','kpi-gray','ยกเลิกแล้ว',kpi.cancelled,'รายการที่ยกเลิก');
+  h += kpiCard('pending','kpi-yellow',_t('br.kpi.pending'),kpi.pending,_t('br.kpi.pending.sub'));
+  h += kpiCard('approved','kpi-green',_t('br.kpi.approved'),kpi.approved,_t('br.kpi.approved.sub'));
+  h += kpiCard('rejected','kpi-red',_t('br.kpi.rejected'),kpi.rejected,_t('br.kpi.rejected.sub'));
+  h += kpiCard('cancelled','kpi-gray',_t('br.kpi.cancelled'),kpi.cancelled,_t('br.kpi.cancelled.sub'));
   h += '</div>';
 
   // Filter bar
   h += '<div class="filter-bar">';
   h += '<div class="filter-input-wrap">';
   h += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>';
-  h += '<input type="text" placeholder="ค้นหา เลขคำขอ / ลูกค้า / BR..." value="'+FILTERS.search+'" oninput="FILTERS.search=this.value;rebuildTable()" style="width:260px"/>';
+  h += '<input type="text" placeholder="'+_t('br.search.placeholder')+'" value="'+FILTERS.search+'" oninput="FILTERS.search=this.value;rebuildTable()" style="width:260px"/>';
   h += '</div>';
   h += '<select onchange="FILTERS.status=this.value;rebuildTable()">';
-  var statuses = [['all','ทุกสถานะ'],['pending','รอตรวจสอบ'],['approved','อนุมัติแล้ว'],['rejected','แก้ไขคำขอ'],['cancelled','ยกเลิกแล้ว']];
+  var statuses = [['all',_t('br.filter.allStatus')],['pending',_t('status.pending.short')],['approved',_t('status.approved')],['rejected',_t('status.rejected')],['cancelled',_t('status.cancelled')]];
   for(var si=0;si<statuses.length;si++){
     h += '<option value="'+statuses[si][0]+'"'+(FILTERS.status===statuses[si][0]?' selected':'')+'>'+statuses[si][1]+'</option>';
   }
@@ -2789,23 +2804,23 @@ function renderContent(){
   var hasSaleDate = !!FILTERS.dateFrom;
   h += '<button id="cal-btn-sale" class="btn-date-range'+(hasSaleDate?' active':'')+'" onclick="openCal(\'sale\',this)">';
   h += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
-  h += (hasSaleDate ? getDateLabel('sale')+'<span onclick="clearDateFilter(\'sale\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : 'กรองวันที่');
+  h += (hasSaleDate ? getDateLabel('sale')+'<span onclick="clearDateFilter(\'sale\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
   h += '</button>';
-  h += '<button class="btn-clear" onclick="FILTERS.status=\'all\';FILTERS.search=\'\';FILTERS.dateFrom=null;FILTERS.dateTo=null;COL_FILTERS.sale={};renderContent()">✕ ล้าง</button>';
+  h += '<button class="btn-clear" onclick="FILTERS.status=\'all\';FILTERS.search=\'\';FILTERS.dateFrom=null;FILTERS.dateTo=null;COL_FILTERS.sale={};renderContent()">✕ '+_t('common.clear')+'</button>';
   h += '</div>';
 
   // Table
   h += '<div class="table-wrap">';
-  h += '<div class="table-header"><span class="table-title">รายการคำขอคืนสินค้า</span><span class="table-count" id="sale-count"></span></div>';
+  h += '<div class="table-header"><span class="table-title">'+_t('br.section.requests')+'</span><span class="table-count" id="sale-count"></span></div>';
   h += '<table><thead><tr>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'id\')"><div class="th-inner">เลขคำขอ<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'date\')"><div class="th-inner">วันที่<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'code\')"><div class="th-inner">รหัส<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'cust\')"><div class="th-inner">ลูกค้า / สถานพยาบาล<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'br\')"><div class="th-inner">ใบยืม<span class="th-arrow">▾</span></div></th>';
-  h += '<th>รายการ</th>';
-  h += '<th onclick="openColFilter(event,\'sale\',\'status\')"><div class="th-inner">สถานะ<span class="th-arrow">▾</span></div></th>';
-  h += '<th>Action</th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'code\')"><div class="th-inner">'+_t('br.col.custCode')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'cust\')"><div class="th-inner">'+_t('br.col.customer')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'br\')"><div class="th-inner">'+_t('br.col.br')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th>'+_t('br.col.items')+'</th>';
+  h += '<th onclick="openColFilter(event,\'sale\',\'status\')"><div class="th-inner">'+_t('br.col.status')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th>'+_t('br.col.action')+'</th>';
   h += '</tr></thead><tbody id="sale-tbody"></tbody></table>';
   h += '</div>';
 
@@ -2829,9 +2844,22 @@ function toggleKpiFilter(s){
 // ═══════════════════════════════════════════════════════════════
 // DATE RANGE PICKER
 // ═══════════════════════════════════════════════════════════════
-var TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-var TH_MONTHS_S = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-var TH_DAYS = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];
+// Calendar labels — Thai used when BR_LANG==='th', English when EN.
+// Helpers below resolve to the right array at call time so date pickers
+// switch language live.
+var TH_MONTHS_FULL  = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+var TH_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+var TH_DAYS_SHORT   = ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];
+var EN_MONTHS_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var EN_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var EN_DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// Legacy aliases — kept so any unrefactored call site still works.
+var TH_MONTHS   = TH_MONTHS_FULL;
+var TH_MONTHS_S = TH_MONTHS_SHORT;
+var TH_DAYS     = TH_DAYS_SHORT;
+function calMonths()      { return BR_LANG === 'en' ? EN_MONTHS_FULL  : TH_MONTHS_FULL; }
+function calMonthsShort() { return BR_LANG === 'en' ? EN_MONTHS_SHORT : TH_MONTHS_SHORT; }
+function calDays()        { return BR_LANG === 'en' ? EN_DAYS_SHORT   : TH_DAYS_SHORT; }
 
 function dateToDs(y,m0,d){ return (y+543)*10000+(m0+1)*100+d; }
 function dsToObj(ds){
@@ -2840,7 +2868,7 @@ function dsToObj(ds){
 }
 function fmtDs(ds){
   var o=dsToObj(ds);
-  return o.d+' '+TH_MONTHS_S[o.m]+' '+(o.y+543);
+  return o.d+' '+calMonthsShort()[o.m]+' '+(BR_LANG==='en' ? o.y : o.y+543);
 }
 function getDateLabel(target){
   var f=(target==='sale')?FILTERS:ADMIN_FILTERS;
@@ -2946,9 +2974,9 @@ function renderCal(){
 }
 function buildCalMonth(y,m,fromDs,toDs,todayDs){
   var h='<div class="cal-month">';
-  h+='<div class="cal-month-title">'+TH_MONTHS[m]+' '+(y+543)+'</div>';
+  h+='<div class="cal-month-title">'+calMonths()[m]+' '+(BR_LANG==='en' ? y : y+543)+'</div>';
   h+='<div class="cal-grid">';
-  for(var i=0;i<TH_DAYS.length;i++) h+='<div class="cal-hdr">'+TH_DAYS[i]+'</div>';
+  var _days=calDays(); for(var i=0;i<_days.length;i++) h+='<div class="cal-hdr">'+_days[i]+'</div>';
   var firstDay=new Date(y,m,1).getDay(), offset=(firstDay===0)?6:firstDay-1;
   for(var e=0;e<offset;e++) h+='<div class="cal-cell empty"></div>';
   var dim=new Date(y,m+1,0).getDate();
