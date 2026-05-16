@@ -1608,6 +1608,11 @@ var BR_STRINGS = {
   "stepbar.selectBR":         { th: "เลือกใบยืม",            en: "Select BR" },
   "stepbar.itemsQty":         { th: "สินค้า & จำนวน",         en: "Items & quantities" },
   "common.noReasonGiven":     { th: "ไม่ระบุเหตุผล",          en: "No reason given" },
+
+  // ── Calendar / date picker ───────────────────────────────────
+  "cal.pickStart":            { th: "เลือกวันเริ่มต้น",      en: "Pick start date" },
+  "cal.pickEnd":              { th: "เลือกวันสิ้นสุด...",    en: "Pick end date..." },
+  "cal.clearDate":            { th: "ล้างวันที่",            en: "Clear date" },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
@@ -2877,7 +2882,7 @@ function getDateLabel(target){
     if(f.dateTo && f.dateTo!==f.dateFrom) s+=' – '+fmtDs(f.dateTo);
     return s;
   }
-  return 'กรองวันที่';
+  return _t('br.filter.dateRange');
 }
 
 function openCal(target, btn){
@@ -2943,7 +2948,7 @@ function renderFilterBtn(target){
     btn.innerHTML='<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>'+getDateLabel(target)+'<span onclick="clearDateFilter(\''+target+'\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>';
   } else {
     btn.className='btn-date-range';
-    btn.innerHTML='<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>กรองวันที่';
+    btn.innerHTML='<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>'+_t('br.filter.dateRange');
   }
 }
 function renderCal(){
@@ -2963,12 +2968,12 @@ function renderCal(){
   h+='</div>';
   h+='<div class="cal-footer">';
   if(fromDs){
-    var fs=fmtDs(fromDs), ts=toDs?fmtDs(toDs):'<span>เลือกวันสิ้นสุด...</span>';
+    var fs=fmtDs(fromDs), ts=toDs?fmtDs(toDs):'<span>'+_t('cal.pickEnd')+'</span>';
     h+='<div class="cal-range-display">'+fs+' <span>–</span> '+ts+'</div>';
   } else {
-    h+='<div class="cal-hint">เลือกวันเริ่มต้น</div>';
+    h+='<div class="cal-hint">'+_t('cal.pickStart')+'</div>';
   }
-  h+='<button class="btn-clear" onclick="CAL.from=null;CAL.to=null;CAL.step=0;clearDateFilter(\''+CAL.target+'\');closeCal()">✕ ล้างวันที่</button>';
+  h+='<button class="btn-clear" onclick="CAL.from=null;CAL.to=null;CAL.step=0;clearDateFilter(\''+CAL.target+'\');closeCal()">✕ '+_t('cal.clearDate')+'</button>';
   h+='</div></div>';
   el('cal-panel').innerHTML=h;
 }
@@ -3017,11 +3022,11 @@ function rebuildTable(){
   rows.sort(function(a,b){ return b.dateSort-a.dateSort||(a.id<b.id?1:-1); });
 
   var countEl = el('sale-count');
-  if(countEl) countEl.innerHTML = rows.length+' รายการ';
+  if(countEl) countEl.innerHTML = rows.length+' '+_t('common.items');
 
   var h = '';
   if(rows.length===0){
-    h = '<tr><td colspan="8"><div class="empty-state"><div class="empty-text">ไม่พบรายการ</div></div></td></tr>';
+    h = '<tr><td colspan="8"><div class="empty-state"><div class="empty-text">'+_t('common.noResults')+'</div></div></td></tr>';
   } else {
     for(var i=0;i<rows.length;i++){
       var r = rows[i];
@@ -3032,9 +3037,9 @@ function rebuildTable(){
       h += '<td><span class="col-code">'+r.custCode+'</span></td>';
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
-      h += '<td><span class="col-qty">'+displayItemCount(r)+' รายการ</span></td>';
+      h += '<td><span class="col-qty">'+displayItemCount(r)+' '+_t('common.items')+'</span></td>';
       h += '<td>'+statusBadgeHTML(r.status,false)+'</td>';
-      h += '<td><button class="btn-detail" onclick="openDetail(\''+r.id+'\')">ดูรายละเอียด</button></td>';
+      h += '<td><button class="btn-detail" onclick="openDetail(\''+r.id+'\')">'+_t('br.action.viewDetail')+'</button></td>';
       h += '</tr>';
     }
   }
@@ -3050,42 +3055,42 @@ function renderAdminContent(){
 
   var kpi = countKPI(null, true);
   h += '<div class="kpi-grid">';
-  h += kpiAdminCard('pending','kpi-yellow','รอตรวจสอบ',kpi.pending);
-  h += kpiAdminCard('approved','kpi-green','อนุมัติแล้ว',kpi.approved);
-  h += kpiAdminCard('rejected','kpi-red','รอแก้ไขคำขอ',kpi.rejected);
-  h += kpiAdminCard('cancelled','kpi-gray','ยกเลิกแล้ว',kpi.cancelled);
+  h += kpiAdminCard('pending','kpi-yellow',_t('br.kpi.pending'),kpi.pending);
+  h += kpiAdminCard('approved','kpi-green',_t('br.kpi.approved'),kpi.approved);
+  h += kpiAdminCard('rejected','kpi-red',_t('br.kpi.rejected.admin'),kpi.rejected);
+  h += kpiAdminCard('cancelled','kpi-gray',_t('br.kpi.cancelled'),kpi.cancelled);
   h += '</div>';
 
   // Filter
   h += '<div class="filter-bar">';
   h += '<select onchange="ADMIN_FILTERS.status=this.value;rebuildAdminTable()">';
-  var ast = [['all','ทุกสถานะ'],['pending','รอตรวจสอบ'],['approved','อนุมัติแล้ว'],['rejected','รอแก้ไข'],['cancelled','ยกเลิก']];
+  var ast = [['all',_t('br.filter.allStatus')],['pending',_t('status.pending.short')],['approved',_t('status.approved')],['rejected',_t('br.kpi.rejected')],['cancelled',_t('status.cancelled')]];
   for(var ai=0;ai<ast.length;ai++) h += '<option value="'+ast[ai][0]+'"'+(ADMIN_FILTERS.status===ast[ai][0]?' selected':'')+'>'+ast[ai][1]+'</option>';
   h += '</select>';
   h += '<select onchange="ADMIN_FILTERS.sale=this.value;rebuildAdminTable()">';
-  h += '<option value="all">ทุก Sale</option>';
+  h += '<option value="all">'+_t('br.filter.allSale')+'</option>';
   for(var sj=0;sj<SALES.length;sj++) h += '<option value="'+SALES[sj]+'"'+(ADMIN_FILTERS.sale===SALES[sj]?' selected':'')+'>'+SALES[sj]+'</option>';
   h += '</select>';
   var hasAdminDate = !!ADMIN_FILTERS.dateFrom;
   h += '<button id="cal-btn-admin" class="btn-date-range'+(hasAdminDate?' active':'')+'" onclick="openCal(\'admin\',this)">';
   h += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
-  h += (hasAdminDate ? getDateLabel('admin')+'<span onclick="clearDateFilter(\'admin\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : 'กรองวันที่');
+  h += (hasAdminDate ? getDateLabel('admin')+'<span onclick="clearDateFilter(\'admin\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
   h += '</button>';
-  h += '<button class="btn-clear" onclick="ADMIN_FILTERS={status:\'all\',sale:\'all\',dateFrom:null,dateTo:null};COL_FILTERS.admin={};renderAdminContent()">✕ ล้าง</button>';
+  h += '<button class="btn-clear" onclick="ADMIN_FILTERS={status:\'all\',sale:\'all\',dateFrom:null,dateTo:null};COL_FILTERS.admin={};renderAdminContent()">✕ '+_t('common.clear')+'</button>';
   h += '</div>';
 
   h += '<div class="table-wrap">';
-  h += '<div class="table-header"><span class="table-title">รายการทั้งหมด (Admin View)</span><span class="table-count" id="admin-count"></span></div>';
+  h += '<div class="table-header"><span class="table-title">'+_t('br.section.adminAll')+'</span><span class="table-count" id="admin-count"></span></div>';
   h += '<table><thead><tr>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'id\')"><div class="th-inner">เลขคำขอ<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'date\')"><div class="th-inner">วันที่<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'cust\')"><div class="th-inner">ลูกค้า<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'br\')"><div class="th-inner">ใบยืม<span class="th-arrow">▾</span></div></th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'sale\')"><div class="th-inner">Sale<span class="th-arrow">▾</span></div></th>';
-  h += '<th>รายการ</th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'status\')"><div class="th-inner">สถานะ<span class="th-arrow">▾</span></div></th>';
-  h += '<th>Action</th>';
-  h += '<th onclick="openColFilter(event,\'admin\',\'sheetSync\')"><div class="th-inner">Sheet Sync<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'cust\')"><div class="th-inner">'+_t('detail.cust')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'br\')"><div class="th-inner">'+_t('br.col.br')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'sale\')"><div class="th-inner">'+_t('br.col.sale')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th>'+_t('br.col.items')+'</th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'status\')"><div class="th-inner">'+_t('br.col.status')+'<span class="th-arrow">▾</span></div></th>';
+  h += '<th>'+_t('br.col.action')+'</th>';
+  h += '<th onclick="openColFilter(event,\'admin\',\'sheetSync\')"><div class="th-inner">'+_t('br.col.sheetSync')+'<span class="th-arrow">▾</span></div></th>';
   h += '</tr></thead><tbody id="admin-tbody"></tbody></table>';
   h += '</div>';
 
@@ -3116,25 +3121,25 @@ function rebuildAdminTable(){
   rows.sort(function(a,b){ return b.dateSort-a.dateSort; });
 
   var countEl = el('admin-count');
-  if(countEl) countEl.innerHTML = rows.length+' รายการ';
+  if(countEl) countEl.innerHTML = rows.length+' '+_t('common.items');
 
   var h = '';
   if(rows.length===0){
-    h = '<tr><td colspan="9"><div class="empty-state"><div class="empty-text">ไม่พบรายการ</div></div></td></tr>';
+    h = '<tr><td colspan="9"><div class="empty-state"><div class="empty-text">'+_t('common.noResults')+'</div></div></td></tr>';
   } else {
     for(var i=0;i<rows.length;i++){
       var r = rows[i];
       var cs2 = getCustStatus(r.custCode);
       var btn = r.status==='pending'
-        ? '<button class="btn-review" onclick="openAdminReview(\''+r.id+'\')">ตรวจสอบ</button>'
-        : '<button class="btn-detail" onclick="openDetail(\''+r.id+'\')">ดูรายละเอียด</button>';
+        ? '<button class="btn-review" onclick="openAdminReview(\''+r.id+'\')">'+_t('br.action.review')+'</button>'
+        : '<button class="btn-detail" onclick="openDetail(\''+r.id+'\')">'+_t('br.action.viewDetail')+'</button>';
       h += '<tr>';
       h += '<td><span class="col-id">'+r.id+'</span></td>';
       h += '<td><span class="col-date">'+r.date+'</span></td>';
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
       h += '<td><span style="font-weight:600;color:var(--green)">'+r.sale+'</span></td>';
-      h += '<td><span class="col-qty">'+displayItemCount(r)+' รายการ</span></td>';
+      h += '<td><span class="col-qty">'+displayItemCount(r)+' '+_t('common.items')+'</span></td>';
       h += '<td>'+statusBadgeHTML(r.status,true)+'</td>';
       h += '<td>'+btn+'</td>';
       h += '<td style="white-space:nowrap">'+syncPillHTML(r)+'</td>';
