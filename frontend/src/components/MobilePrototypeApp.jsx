@@ -883,7 +883,65 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px", color: text }}>
         {step === 1 && (
           <>
-            <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return"}</div>
+            {/* Header row: section label + Select-All toggle. The toggle flips
+                between "เลือกทั้งหมด" (when not everything is selected) and
+                "ล้างการเลือก" (when everything is already selected) so one
+                button covers both bulk operations. Disabled when there are
+                no items. */}
+            {(() => {
+              const allSelected = items.length > 0 && selectedIds.size === items.length;
+              const disabled = items.length === 0;
+              return (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+                    {lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return"}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (disabled) return;
+                      if (allSelected) {
+                        // Deselect everything. Keep perItem allocations
+                        // around in case the Sale re-selects later — they
+                        // are filtered through selectedIds downstream so
+                        // stale entries are ignored.
+                        setSelectedIds(new Set());
+                      } else {
+                        // Select every item. Initialize per-item allocation
+                        // for any newly-added id to a blank slate so Step 2
+                        // does not pre-fill any quantity (matches the
+                        // existing single-tap selection behavior).
+                        const allIds = items.map(it => it.item_id);
+                        setSelectedIds(new Set(allIds));
+                        setPerItem(prev => {
+                          const next = { ...prev };
+                          for (const id of allIds) {
+                            if (!next[id]) next[id] = blankAlloc();
+                          }
+                          return next;
+                        });
+                      }
+                    }}
+                    disabled={disabled}
+                    style={{
+                      fontSize: 11, fontWeight: 700,
+                      padding: "5px 11px", borderRadius: 999,
+                      border: `1px solid ${allSelected ? bdr : "#D4357A"}`,
+                      background: allSelected ? "transparent" : (dark ? "rgba(212,53,122,0.12)" : "rgba(212,53,122,0.08)"),
+                      color: allSelected ? sub : "#D4357A",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.4 : 1,
+                      fontFamily: "inherit",
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    {allSelected
+                      ? (lang === "th" ? "ล้างการเลือก" : "Clear all")
+                      : (lang === "th" ? "เลือกทั้งหมด" : "Select all")}
+                  </button>
+                </div>
+              );
+            })()}
             {items.length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: sub, fontSize: 12 }}>{lang === "th" ? "ไม่มีรายการในใบยืมนี้" : "No items in this BR"}</div>
             ) : items.map(it => {
