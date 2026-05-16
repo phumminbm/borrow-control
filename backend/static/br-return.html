@@ -1629,6 +1629,26 @@ var BR_STRINGS = {
   // ── Detail-modal extras ──────────────────────────────────────
   "detail.adminPhotos":       { th: "รูปประกอบจาก Admin ({n} รูป):", en: "Admin photos ({n}):" },
   "cancel.reason":            { th: "เหตุผลที่ยกเลิก",       en: "Cancel reason" },
+
+  // ── Action buttons (detail-modal footer) ─────────────────────
+  "action.cancelRequest":     { th: "ยกเลิกคำขอ",            en: "Cancel request" },
+  "action.editRequest":       { th: "แก้ไขคำขอ",             en: "Edit request" },
+
+  // ── Revision history (text inside the modal body) ────────────
+  "rev.requestNotFound":      { th: "ไม่พบคำขอ",              en: "Request not found" },
+
+  // ── Common review extras ─────────────────────────────────────
+  "common.pending":           { th: "รอ",                    en: "Pending" },
+  "review.approveAll":        { th: "อนุมัติทั้งหมด",         en: "Approve all" },
+
+  // ── Image-attach errors ──────────────────────────────────────
+  "err.notImage":             { th: "ไม่ใช่ไฟล์รูปภาพ",      en: "Not an image file" },
+  "err.fileReadFail":         { th: "อ่านไฟล์ไม่สำเร็จ",     en: "Could not read file" },
+  "err.imageLoadFail":        { th: "โหลดรูปไม่สำเร็จ",      en: "Could not load image" },
+
+  // ── Column filter dropdown (per-column quick filter) ─────────
+  "cf.selectAll":             { th: "เลือกทั้งหมด",          en: "Select all" },
+  "cf.filter":                { th: "กรอง",                  en: "Filter" },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
@@ -3733,14 +3753,14 @@ function openDetail(rid){
   // matches what the user sees (r.items is the stored count of the
   // current revision, which is wrong when we expand to approved-full).
   var sectionLabel;
-  if(showRejectedOnly)        sectionLabel = 'รายการที่ต้องแก้ไข';
-  else if(showApprovedFull)   sectionLabel = 'รายการที่อนุมัติทั้งหมด';
-  else                         sectionLabel = 'รายการสินค้า';
+  if(showRejectedOnly)        sectionLabel = _t('detail.itemsToRevise');
+  else if(showApprovedFull)   sectionLabel = _t('detail.itemsAllApproved');
+  else                         sectionLabel = _t('detail.itemsHeader');
   // Replace the stale title written earlier (we hadn't actually written
   // it yet in this revised block, so prepend cleanly here):
-  h += '<div class="detail-section-title">' + sectionLabel + ' (' + items.length + ' รายการ)';
+  h += '<div class="detail-section-title">' + sectionLabel + ' (' + items.length + ' '+_t('common.items')+')';
   if(showApprovedFull){
-    h += '<span style="font-size:10px;font-weight:600;color:var(--sub);margin-left:8px;letter-spacing:0.3px">รวมรายการที่ผ่านการแก้ไขด้วย</span>';
+    h += '<span style="font-size:10px;font-weight:600;color:var(--sub);margin-left:8px;letter-spacing:0.3px">'+_t('detail.itemsAllApprovedSub')+'</span>';
   }
   h += '</div>';
 
@@ -3768,14 +3788,14 @@ function openDetail(rid){
       foot += '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(r.br)+'\')">Print BR</button>';
     }
     if(r.status==='pending' || r.status==='rejected'){
-      foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>';
+      foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'admin\')">✕ '+_t('action.cancelRequest')+'</button>';
     }
   } else if(r.status==='pending'){
-    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ ยกเลิกคำขอ</button>';
-    foot += '<button class="btn btn-ghost" onclick="editRequest(\''+r.id+'\')">✏ แก้ไขคำขอ</button>';
+    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ '+_t('action.cancelRequest')+'</button>';
+    foot += '<button class="btn btn-ghost" onclick="editRequest(\''+r.id+'\')">✏ '+_t('action.editRequest')+'</button>';
   } else if(r.status==='rejected'){
-    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ ยกเลิกคำขอ</button>';
-    foot += '<button class="btn btn-primary-green" onclick="editRequest(\''+r.id+'\')">↩ แก้ไขและส่งใหม่</button>';
+    foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'sale\')">✕ '+_t('action.cancelRequest')+'</button>';
+    foot += '<button class="btn btn-primary-green" onclick="editRequest(\''+r.id+'\')">↩ '+_t('detail.editResubmit')+'</button>';
   }
   el('detail-foot').innerHTML = foot;
 
@@ -3879,7 +3899,7 @@ function openAdminReview(rid){
   var chipEl = el('ar-rev-chip');
   var histBtn = el('ar-history-btn');
   if(revHistLen > 0){
-    if(chipEl){ chipEl.style.display = 'inline-flex'; chipEl.innerHTML = '↻ แก้ไขครั้งที่ ' + revNum; }
+    if(chipEl){ chipEl.style.display = 'inline-flex'; chipEl.innerHTML = '↻ '+_t('rev.chip',{n:revNum}); }
     if(histBtn){ histBtn.style.display = 'inline-flex'; }
   } else {
     if(chipEl) chipEl.style.display = 'none';
@@ -3889,14 +3909,14 @@ function openAdminReview(rid){
   // Body
   var h = '';
   h += '<div class="detail-grid" style="margin-bottom:14px">';
-  h += '<div class="detail-field"><label>วันที่</label><span>'+r.date+'</span></div>';
-  h += '<div class="detail-field"><label>จำนวนรายการ</label><span>'+displayItemCount(r)+' รายการ</span></div>';
-  if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>หมายเหตุจาก Sale</label><span>'+r.remark+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+r.date+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('review.itemCount')+'</label><span>'+displayItemCount(r)+' '+_t('common.items')+'</span></div>';
+  if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>'+_t('review.saleRemark')+'</label><span>'+r.remark+'</span></div>';
   h += '</div><hr class="sep"/>';
 
   var items = r.submittedItems&&r.submittedItems.length>0 ? r.submittedItems : fallbackSubmittedItems(r.br);
 
-  h += '<div style="margin-bottom:8px;font-size:10px;font-weight:600;letter-spacing:1px;color:var(--sub2);text-transform:uppercase">ตรวจสอบรายการสินค้า</div>';
+  h += '<div style="margin-bottom:8px;font-size:10px;font-weight:600;letter-spacing:1px;color:var(--sub2);text-transform:uppercase">'+_t('review.itemsHeader')+'</div>';
   for(var i=0;i<items.length;i++){
     var it = items[i];
     var ik = reviewItemKey(it, i);
@@ -3920,20 +3940,20 @@ function openAdminReview(rid){
       h += '<button class="btn-fail" id="fail-'+tid+'" onclick="setReviewType(\''+ik+'\',\''+tp.key+'\',\'fail\')">✕ FAIL</button>';
       h += '</div></div>';
     }
-    h += '<textarea class="fail-reason" id="reason-'+sid+'" placeholder="ระบุเหตุผล..." style="display:none;margin-top:6px" oninput="ADMIN_REVIEW.reasons[\''+ik+'\']=this.value"></textarea>';
+    h += '<textarea class="fail-reason" id="reason-'+sid+'" placeholder="'+_t('review.reasonPlaceholder')+'" style="display:none;margin-top:6px" oninput="ADMIN_REVIEW.reasons[\''+ik+'\']=this.value"></textarea>';
     h += '</div>';
   }
 
-  h += '<div class="review-summary" id="ar-summary">— ยังไม่ได้ตรวจสอบ</div>';
+  h += '<div class="review-summary" id="ar-summary">'+_t('review.notReviewed')+'</div>';
 
-  h += '<div class="admin-note-wrap"><label>หมายเหตุถึง Sale (ถ้ามี)</label>';
-  h += '<textarea id="ar-note" placeholder="กรอก note ถึง Sale..." oninput="ADMIN_REVIEW.note=this.value"></textarea></div>';
+  h += '<div class="admin-note-wrap"><label>'+_t('review.adminNoteLabel')+'</label>';
+  h += '<textarea id="ar-note" placeholder="'+_t('review.adminNotePlaceholder')+'" oninput="ADMIN_REVIEW.note=this.value"></textarea></div>';
 
-  h += '<div class="admin-attach-wrap"><label>📎 แนบรูปภาพ (ส่งให้ Sale ดูตอนแก้ไข)</label>';
+  h += '<div class="admin-attach-wrap"><label>'+_t('review.attachLabel')+'</label>';
   h += '<div class="attach-dropzone" onclick="el(\'ar-attach-input\').click()">';
   h += '<div class="dz-icon">📷</div>';
-  h += '<div class="dz-text">คลิกเพื่อแนบรูป หรือลากรูปมาวาง</div>';
-  h += '<div class="dz-hint">รองรับ JPG / PNG (สูงสุด 5 รูป)</div>';
+  h += '<div class="dz-text">'+_t('review.dzText')+'</div>';
+  h += '<div class="dz-hint">'+_t('review.dzHint')+'</div>';
   h += '</div>';
   h += '<input type="file" id="ar-attach-input" accept="image/*" multiple style="display:none" onchange="handleAttachUpload(event)"/>';
   h += '<div class="attach-list" id="ar-attach-list"></div>';
@@ -4002,7 +4022,7 @@ function renderRevisionHistoryBody(){
   var rid = REV_HIST_STATE.rid;
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
-  if(!r) { el('rh-body').innerHTML = '<div style="padding:18px;color:var(--sub)">ไม่พบคำขอ</div>'; return; }
+  if(!r) { el('rh-body').innerHTML = '<div style="padding:18px;color:var(--sub)">'+_t('rev.requestNotFound')+'</div>'; return; }
   var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
   var totalRevs = hist.length + 1;       // includes "current"
   var sel = Math.min(Math.max(0, REV_HIST_STATE.selected), hist.length);
@@ -4012,7 +4032,7 @@ function renderRevisionHistoryBody(){
   var tabs = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
   for(var t=0;t<totalRevs;t++){
     var isCurrent = (t === hist.length);
-    var label = isCurrent ? 'ปัจจุบัน' : ('แก้ไขครั้งที่ ' + (t+1));
+    var label = isCurrent ? _t('rev.current') : _t('rev.chip',{n:t+1});
     var active = (t === sel);
     tabs += '<button onclick="selectRevisionTab(' + t + ')" style="font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;border:0.5px solid ' + (active ? '#D4357A' : 'var(--bd)') + ';background:' + (active ? 'rgba(212,53,122,0.12)' : 'transparent') + ';color:' + (active ? '#D4357A' : 'var(--fg2)') + ';">' + label + '</button>';
   }
@@ -4051,10 +4071,10 @@ function renderRevisionHistoryBody(){
 function renderRevisionSnapshot(s){
   var h = '';
   var statusLabel = (function(){
-    if(s.status === 'approved') return 'อนุมัติแล้ว';
-    if(s.status === 'rejected') return 'รอแก้ไขคำขอ';
-    if(s.status === 'cancelled') return 'ยกเลิกแล้ว';
-    return 'รอตรวจสอบคำขอ';
+    if(s.status === 'approved') return _t('status.approved');
+    if(s.status === 'rejected') return _t('status.rejected.admin');
+    if(s.status === 'cancelled') return _t('status.cancelled');
+    return _t('status.pending');
   })();
   var statusColor = (function(){
     if(s.status === 'approved') return '#639922';
@@ -4065,8 +4085,8 @@ function renderRevisionSnapshot(s){
   // Header card — revision number + timestamp + status of THAT round
   h += '<div style="background:var(--card2);border:0.5px solid var(--bd);border-radius:11px;padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">';
   h += '<div>';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--text)">' + (s.isCurrent ? 'สถานะปัจจุบัน · ' : '') + 'แก้ไขครั้งที่ ' + s.revNumber + '</div>';
-  if(s.at) h += '<div style="font-size:10px;color:var(--sub);margin-top:2px">' + (s.isCurrent ? 'อัปเดตล่าสุด: ' : 'ส่งกลับเพื่อแก้ไขเมื่อ: ') + escapeHtml(s.at) + '</div>';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--text)">' + (s.isCurrent ? _t('rev.statusHeader.current') : '') + _t('rev.chip',{n:s.revNumber}) + '</div>';
+  if(s.at) h += '<div style="font-size:10px;color:var(--sub);margin-top:2px">' + (s.isCurrent ? _t('rev.lastUpdate') : _t('rev.sentBackAt')) + escapeHtml(s.at) + '</div>';
   h += '</div>';
   h += '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;background:rgba(0,0,0,0.06);color:' + statusColor + ';border:0.5px solid ' + statusColor + '55">' + statusLabel + '</span>';
   h += '</div>';
@@ -4074,7 +4094,7 @@ function renderRevisionSnapshot(s){
   // Admin remark for this round (shown only if there was one)
   if(s.adminNote){
     h += '<div style="margin-bottom:14px">';
-    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">หมายเหตุ Admin</div>';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">'+_t('rev.adminNote')+'</div>';
     h += '<div style="background:#2a1815;border:0.5px solid #6b3a26;border-radius:9px;padding:10px 12px;font-size:12px;color:#fff;line-height:1.55;white-space:pre-line">' + escapeHtml(s.adminNote) + '</div>';
     h += '</div>';
   }
@@ -4084,7 +4104,7 @@ function renderRevisionSnapshot(s){
   // had requested vs. what Admin rejected).
   if(s.submittedItems && s.submittedItems.length > 0){
     h += '<div style="margin-bottom:14px">';
-    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">รายการที่ Sale ส่ง (' + s.submittedItems.length + ')</div>';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--sub2);text-transform:uppercase;margin-bottom:6px">'+_t('rev.submittedItemsLabel',{n:s.submittedItems.length})+'</div>';
     h += '<div style="background:var(--card2);border:0.5px solid var(--bd);border-radius:10px;overflow:hidden">';
     for(var i=0;i<s.submittedItems.length;i++){
       var it = s.submittedItems[i];
@@ -4093,7 +4113,7 @@ function renderRevisionSnapshot(s){
       var qty = it.quantity || ((it.retQty||0) + (it.clmQty||0) + (it.saleQty||0) + (it.freeQty||0));
       h += '<div style="padding:9px 12px;' + (i<s.submittedItems.length-1 ? 'border-bottom:0.5px solid var(--bd);' : '') + '">';
       h += '<div style="display:flex;justify-content:space-between;gap:10px"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--text)">' + escapeHtml(name) + '</div><div style="font-size:10px;color:var(--sub);font-family:var(--mono);margin-top:2px">' + escapeHtml(code) + '</div></div>';
-      h += '<div style="font-size:11px;color:var(--sub);text-align:right">' + qty + ' ชิ้น · ฿' + Number(it.totalPrice||0).toLocaleString() + '</div>';
+      h += '<div style="font-size:11px;color:var(--sub);text-align:right">' + qty + ' '+_t('common.pieces')+' · ฿' + Number(it.totalPrice||0).toLocaleString() + '</div>';
       h += '</div></div>';
     }
     h += '</div></div>';
@@ -4102,7 +4122,7 @@ function renderRevisionSnapshot(s){
   // Per-item rejection (Admin flagged these items at the end of this round)
   if(s.rejectedItems && s.rejectedItems.length > 0){
     h += '<div style="margin-bottom:14px">';
-    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">รายการที่ Admin ขอแก้ (' + s.rejectedItems.length + ')</div>';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">'+_t('rev.flaggedItemsLabel',{n:s.rejectedItems.length})+'</div>';
     h += '<div style="background:#2a1815;border:0.5px solid #6b3a26;border-radius:10px;overflow:hidden">';
     for(var j=0;j<s.rejectedItems.length;j++){
       var ri = s.rejectedItems[j];
@@ -4112,7 +4132,7 @@ function renderRevisionSnapshot(s){
       h += '<div style="font-size:12px;font-weight:600;color:#fff">' + escapeHtml(rname) + '</div>';
       h += '<div style="font-size:10px;color:#E89C7D;font-family:var(--mono);margin-top:2px">' + escapeHtml(rcode) + '</div>';
       if(ri.reason){
-        h += '<div style="margin-top:7px;padding:7px 9px;background:rgba(0,0,0,0.25);border-radius:6px;font-size:11px;color:#fff;line-height:1.5"><b>เหตุผล:</b> ' + escapeHtml(ri.reason) + '</div>';
+        h += '<div style="margin-top:7px;padding:7px 9px;background:rgba(0,0,0,0.25);border-radius:6px;font-size:11px;color:#fff;line-height:1.5"><b>'+_t('common.reason')+':</b> ' + escapeHtml(ri.reason) + '</div>';
       }
       h += '</div>';
     }
@@ -4122,7 +4142,7 @@ function renderRevisionSnapshot(s){
   // Photo evidence in this round
   if(s.attachments && s.attachments.length > 0){
     h += '<div style="margin-bottom:14px">';
-    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">📷 หลักฐาน Admin (' + s.attachments.length + ')</div>';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#E89C7D;text-transform:uppercase;margin-bottom:6px">'+_t('rev.adminEvidenceLabel',{n:s.attachments.length})+'</div>';
     h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">';
     for(var k=0;k<s.attachments.length;k++){
       var att = s.attachments[k];
@@ -4134,7 +4154,7 @@ function renderRevisionSnapshot(s){
   }
 
   if((!s.submittedItems || s.submittedItems.length === 0) && (!s.rejectedItems || s.rejectedItems.length === 0) && !s.adminNote){
-    h += '<div style="padding:20px;text-align:center;color:var(--sub);font-size:12px">ไม่มีข้อมูลในรอบนี้</div>';
+    h += '<div style="padding:20px;text-align:center;color:var(--sub);font-size:12px">'+_t('rev.emptyRound')+'</div>';
   }
   return h;
 }
@@ -4235,7 +4255,7 @@ function updateReviewSummary(items){
   }
   var h = '<span class="rs-item rs-pass">✓ PASS: '+pass+'</span>'
     +'<span class="rs-item rs-fail">✕ FAIL: '+fail+'</span>'
-    +'<span class="rs-item rs-pend">รอ: '+pend+'</span>';
+    +'<span class="rs-item rs-pend">'+_t('common.pending')+': '+pend+'</span>';
   var s = el('ar-summary');
   if(s) s.innerHTML = h;
 }
@@ -4256,15 +4276,15 @@ function updateReviewButtons(items){
   var printBtn = (reviewReq && isDesktopPrintAvailable())
     ? '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(reviewReq.br)+'\')">Print BR</button>'
     : '';
-  var sendBackLabel = pass>0 ? '✓ อนุมัติที่ผ่าน / ↩ ส่งกลับที่ไม่ผ่าน' : '↩ ส่งกลับแก้ไข';
+  var sendBackLabel = pass>0 ? _t('review.sendBackPartial') : _t('review.sendBack');
 
   el('ar-foot').innerHTML = ''
     +printBtn
-    +'<button class="btn btn-ghost" onclick="closeAll()">ยกเลิก</button>'
-    +'<button class="btn btn-danger" onclick="openCancelRequest(\''+ADMIN_REVIEW.id+'\',\'admin\')">✕ ยกเลิกคำขอ</button>'
-    +((!allPass&&!hasFail)||pend>0?'<button class="btn btn-ghost" style="color:var(--green);border-color:rgba(78,205,160,0.3)" onclick="approveAll()">✓✓ อนุมัติทั้งหมด</button>':'')
+    +'<button class="btn btn-ghost" onclick="closeAll()">'+_t('common.cancel')+'</button>'
+    +'<button class="btn btn-danger" onclick="openCancelRequest(\''+ADMIN_REVIEW.id+'\',\'admin\')">✕ '+_t('action.cancelRequest')+'</button>'
+    +((!allPass&&!hasFail)||pend>0?'<button class="btn btn-ghost" style="color:var(--green);border-color:rgba(78,205,160,0.3)" onclick="approveAll()">✓✓ '+_t('review.approveAll')+'</button>':'')
     +'<button class="btn btn-danger" id="ar-sendback" onclick="adminSendBack()"'+(hasFail&&pend===0?'':' disabled')+'>'+sendBackLabel+'</button>'
-    +'<button class="btn btn-primary-green" id="ar-approve" onclick="adminApprove()"'+(allPass?'':' disabled')+'>✓ อนุมัติคำขอ</button>';
+    +'<button class="btn btn-primary-green" id="ar-approve" onclick="adminApprove()"'+(allPass?'':' disabled')+'>'+_t('review.approve')+'</button>';
 }
 
 function approveAll(){
@@ -4439,14 +4459,14 @@ var ATTACH_JPEG_QUALITY = 0.78;
 function compressImage(file){
   return new Promise(function(resolve, reject){
     if(!file || !file.type || file.type.indexOf('image/')!==0){
-      reject(new Error('ไม่ใช่ไฟล์รูปภาพ'));
+      reject(new Error(_t('err.notImage')));
       return;
     }
     var reader = new FileReader();
-    reader.onerror = function(){ reject(new Error('อ่านไฟล์ไม่สำเร็จ')); };
+    reader.onerror = function(){ reject(new Error(_t('err.fileReadFail'))); };
     reader.onload = function(e){
       var img = new Image();
-      img.onerror = function(){ reject(new Error('โหลดรูปไม่สำเร็จ')); };
+      img.onerror = function(){ reject(new Error(_t('err.imageLoadFail'))); };
       img.onload = function(){
         var w = img.naturalWidth, h = img.naturalHeight;
         var scale = Math.min(1, ATTACH_MAX_DIM / Math.max(w, h));
@@ -4655,7 +4675,16 @@ function getFieldVal(r, field){
 }
 
 function getFieldLabel(field){
-  var m={id:'เลขคำขอ',date:'วันที่',code:'รหัส',cust:'ลูกค้า',br:'ใบยืม',sale:'Sale',status:'สถานะ',sheetSync:'Sheet Sync'};
+  var m={
+    id: _t('br.col.id'),
+    date: _t('br.col.date'),
+    code: _t('br.col.custCode'),
+    cust: _t('detail.cust'),
+    br: _t('br.col.br'),
+    sale: _t('br.col.sale'),
+    status: _t('br.col.status'),
+    sheetSync: _t('br.col.sheetSync'),
+  };
   return m[field]||field;
 }
 
@@ -4675,16 +4704,16 @@ function openColFilter(e, target, field){
   drop.className = 'col-filter-drop';
   var listId = 'cf-list-'+target+'-'+field;
   var allId  = 'cf-all-'+target+'-'+field;
-  var html = '<input class="col-filter-search" placeholder="ค้นหา '+getFieldLabel(field)+'..." oninput="filterColOptions(\''+listId+'\',this.value)">';
+  var html = '<input class="col-filter-search" placeholder="'+_t('common.search')+' '+getFieldLabel(field)+'..." oninput="filterColOptions(\''+listId+'\',this.value)">';
   html += '<div class="col-filter-options" id="'+listId+'">';
-  html += '<label class="col-filter-opt select-all"><input type="checkbox" id="'+allId+'" '+(selected===null?'checked':'')+' onchange="toggleAllCf(this,\''+listId+'\')"> เลือกทั้งหมด</label>';
+  html += '<label class="col-filter-opt select-all"><input type="checkbox" id="'+allId+'" '+(selected===null?'checked':'')+' onchange="toggleAllCf(this,\''+listId+'\')"> '+_t('cf.selectAll')+'</label>';
   for(var j=0;j<allVals.length;j++){
     var v2  = allVals[j];
     var chk = (selected===null||(selected&&selected[v2]))?'checked':'';
     html += '<label class="col-filter-opt" data-val="'+v2+'"><input type="checkbox" value="'+v2+'" '+chk+' onchange="syncAllCfCheckbox(\''+listId+'\',\''+allId+'\')"> '+v2+'</label>';
   }
   html += '</div>';
-  html += '<div class="col-filter-footer"><button class="col-filter-btn clear" onclick="clearColFilter()">ล้าง</button><button class="col-filter-btn apply" onclick="applyColFilter(\''+listId+'\')">กรอง</button></div>';
+  html += '<div class="col-filter-footer"><button class="col-filter-btn clear" onclick="clearColFilter()">'+_t('common.clear')+'</button><button class="col-filter-btn apply" onclick="applyColFilter(\''+listId+'\')">'+_t('cf.filter')+'</button></div>';
   drop.innerHTML = html;
   document.body.appendChild(drop);
   _cfDrop = drop;
