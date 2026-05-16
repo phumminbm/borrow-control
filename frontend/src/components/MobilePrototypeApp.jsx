@@ -1,18 +1,38 @@
 // =============================================================================
-// MobilePrototypeApp — Full mobile prototype with BR Return flow (Sale-side)
+// MobilePrototypeApp — Sale-side BR Return flow (connected-test mode)
 //
 // SAFETY INVARIANTS (do not violate without explicit user approval):
-//   1. This file is PROTOTYPE-ONLY. Activated via `?prototype=1` URL flag.
-//   2. Reads real data from production endpoints (read-only).
-//   3. Writes return requests to localStorage ONLY — NEVER to /return-requests,
-//      NEVER to Logistics File, NEVER to Apps Script. Submissions are
-//      physically incapable of leaking into Admin Desktop's real queue.
-//   4. Uses a separate localStorage cache key from real MobileApp so the two
-//      cannot pollute each other.
-//   5. RT IDs use prefix "RT-P-" for visual distinction from production.
+//   1. This file is TEST-ONLY. Activated via `?prototype=1` URL flag
+//      (legacy alias: `?test=1`). The bare URL serves the real
+//      MobileApp untouched.
+//   2. Reads real data from production endpoints (read-only): /customers,
+//      /customers/{cc}/brs, /sync-logs, /analytics/customer-value.
+//   3. Writes return requests to /return-requests with isTest=true.
+//      The backend filters these OUT of the production Admin queue by
+//      default — they're visible only when Desktop Admin toggles
+//      🧪 TEST mode ON. Cleanup is a single SQL:
+//         DELETE FROM return_requests WHERE is_test = TRUE
+//   4. The Apps Script Sheet writeback is BLOCKED for isTest=true rows
+//      via two independent guards: Desktop frontend skip + backend
+//      force-set sheet_sync='skipped-test'. The real Logistics File
+//      is never touched by anything this file submits.
+//   5. RT IDs use prefix "RT-T-" so test IDs are visually distinct
+//      from production RT-* IDs even when both queues are viewed
+//      side-by-side.
 //   6. Status taxonomy matches Desktop BR Return exactly:
 //      pending / approved / rejected / cancelled
 //      (Thai: รอตรวจสอบคำขอ / อนุมัติแล้ว / แก้ไขคำขอ / ยกเลิกแล้ว)
+//
+// HISTORY:
+//   - Before 2026-05-16: this file supported two parallel modes —
+//     `?prototype=1` (localStorage-only, RT-P-*) for visual review and
+//     `?test=1` (backend-connected, RT-T-*) for integration testing.
+//     The two-mode setup caused reviewer confusion because the UIs
+//     looked identical but the data lived in different places.
+//   - 2026-05-16: collapsed to a single mode. `?prototype=1` and
+//     `?test=1` both now activate the same backend-connected flow.
+//     Legacy localStorage RT-P-* records are cleared on first boot
+//     via a sentinel-gated `clearLegacyPrototypeStorage()`.
 //
 // This file copies (rather than imports) shared components from MobileApp.jsx
 // on purpose — to preserve isolation. Changes here do not ripple to the real
@@ -95,31 +115,48 @@ import { TEAMS, TEAM_COLORS } from "../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const PROTO_DATA_CACHE  = "borrow-control:prototype-mobile-cache";
-const PROTO_RETURNS_KEY = "borrow-control:prototype-mobile-returns";
-const PROTO_RT_PREFIX   = "RT-P-";   // localStorage-only visual prototype prefix
-const TEST_RT_PREFIX    = "RT-T-";   // ?test=1 backend-connected test prefix
+const PROTO_RETURNS_KEY_LEGACY = "borrow-control:prototype-mobile-returns";  // legacy localStorage key — cleared on boot
+const TEST_RT_PREFIX    = "RT-T-";   // backend-connected test prefix (RT-P-* retired)
 
-// ── Activation modes (mutually exclusive) ─────────────────────────────
-// Both flags drop the user into MobilePrototypeApp instead of the real
-// MobileApp. They differ in where the data lives:
+// ── Activation mode (single, simplified 2026-05-16) ────────────────────
+// `?prototype=1` (legacy alias `?test=1`) drops the user into this
+// MobilePrototypeApp. It is now a SINGLE connected-test mode — there is
+// no separate localStorage-only branch anymore. Every submission goes to
+// the real /return-requests endpoint with isTest=true so the request is:
+//   - invisible from the production Admin queue (filtered out by default)
+//   - visible only when Desktop Admin toggles 🧪 TEST mode ON
+//   - blocked from Apps Script writeback (defense in depth at frontend
+//     guard + backend force-set sheet_sync='skipped-test')
+//   - cleanly removable via DELETE FROM return_requests WHERE is_test = TRUE
 //
-//   ?prototype=1 → localStorage-only visual review. Zero backend writes.
-//                  The default historical behavior; safe for screenshots.
-//   ?test=1      → connected E2E test mode. Reads & writes the real
-//                  /return-requests endpoint with isTest=true so test
-//                  rows sit alongside (but invisible to) production
-//                  data. The Desktop Admin "🧪 TEST" toggle is the
-//                  matching counterpart on the reviewer side.
-//
-// `?test=1` wins if both are present.
-function isTestMode() {
-  try { return new URLSearchParams(window.location.search).get("test") === "1"; }
-  catch { return false; }
+// The old `RT-P-*` localStorage-only path was retired because it caused
+// confusion: two parallel UIs displaying different data, and reviewers
+// couldn't tell which mode they were in. Now there is one mode.
+function isPrototypeMode() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    return q.get("prototype") === "1" || q.get("test") === "1";
+  } catch { return false; }
 }
-function isLocalPrototypeMode() {
-  if (isTestMode()) return false;
-  try { return new URLSearchParams(window.location.search).get("prototype") === "1"; }
-  catch { return false; }
+// Backward-compat alias kept so existing call sites don't all need
+// renaming. Both names return the same boolean.
+function isTestMode() { return isPrototypeMode(); }
+function isLocalPrototypeMode() { return false; }  // retired
+
+// One-time cleanup of any leftover localStorage submissions from the
+// pre-merge `RT-P-*` era. Runs once per browser per session — the
+// sentinel prevents repeated removal calls. Read-only data caches
+// (PROTO_DATA_CACHE for customers/BRs) are intentionally NOT cleared
+// because they're still useful as a read-through cache for the new
+// connected mode.
+const LEGACY_CLEAR_SENTINEL = "borrow-control:prototype-legacy-cleared-v1";
+function clearLegacyPrototypeStorage() {
+  try {
+    if (!localStorage.getItem(LEGACY_CLEAR_SENTINEL)) {
+      localStorage.removeItem(PROTO_RETURNS_KEY_LEGACY);
+      localStorage.setItem(LEGACY_CLEAR_SENTINEL, "1");
+    }
+  } catch {}
 }
 
 // ── localStorage helpers ──────────────────────────────────────────────
@@ -181,34 +218,25 @@ async function postTestReturnToBackend(req){
   }
 }
 
+// ── Return-request storage (single connected-test path, 2026-05-16) ───
+// loadProtoReturns / saveProtoReturns / upsertProtoReturn / replaceProtoReturn
+// all read & write the real /return-requests backend with isTest=true.
+// The optimistic local cache (_TEST_CACHE) gives instant UI feedback;
+// the 30s background poll + post-write fetch reconcile with the server.
 function loadProtoReturns() {
-  if (isTestMode()) return getTestCache();
-  try {
-    const raw = localStorage.getItem(PROTO_RETURNS_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
-  } catch { return []; }
+  return getTestCache();
 }
 function saveProtoReturns(list) {
-  if (isTestMode()) { setTestCache(list); return; }
-  try { localStorage.setItem(PROTO_RETURNS_KEY, JSON.stringify(list)); } catch {}
+  setTestCache(list);
 }
 function upsertProtoReturn(req) {
-  if (isTestMode()) {
-    // Optimistic local insert so the React tree updates immediately;
-    // fire the backend POST in the background. Polling reconciles state.
-    upsertTestCacheLocal({ ...req, isTest: true });
-    postTestReturnToBackend(req).catch(() => {
-      // Surface the failure visibly so a stuck test session is obvious.
-      try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "บันทึกคำขอลง backend ไม่สำเร็จ" } })); } catch {}
-    });
-    return getTestCache();
-  }
-  const list = loadProtoReturns();
-  const idx = list.findIndex(r => r.id === req.id);
-  if (idx >= 0) list[idx] = req; else list.unshift(req);
-  saveProtoReturns(list);
-  return list;
+  // Optimistic local insert so the React tree updates immediately;
+  // fire the backend POST in the background. Polling reconciles state.
+  upsertTestCacheLocal({ ...req, isTest: true });
+  postTestReturnToBackend(req).catch(() => {
+    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "บันทึกคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+  });
+  return getTestCache();
 }
 
 // In-place update of an existing return record by id. Used by:
@@ -220,22 +248,13 @@ function upsertProtoReturn(req) {
 //      same request id is preserved and rejection metadata is cleared.
 // Returns the updated record (or null if not found).
 function replaceProtoReturn(id, patch) {
-  if (isTestMode()) {
-    const cur = _TEST_CACHE.find(r => r.id === id);
-    if (!cur) return null;
-    const next = { ...cur, ...patch, isTest: true };
-    upsertTestCacheLocal(next);
-    postTestReturnToBackend(next).catch(() => {
-      try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "อัปเดตคำขอลง backend ไม่สำเร็จ" } })); } catch {}
-    });
-    return next;
-  }
-  const list = loadProtoReturns();
-  const idx = list.findIndex(r => r.id === id);
-  if (idx < 0) return null;
-  const next = { ...list[idx], ...patch };
-  list[idx] = next;
-  saveProtoReturns(list);
+  const cur = _TEST_CACHE.find(r => r.id === id);
+  if (!cur) return null;
+  const next = { ...cur, ...patch, isTest: true };
+  upsertTestCacheLocal(next);
+  postTestReturnToBackend(next).catch(() => {
+    try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "อัปเดตคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+  });
   return next;
 }
 
@@ -322,38 +341,22 @@ function approxAttachmentBytes(att) {
 }
 
 // ── ID generator ──────────────────────────────────────────────────────
-// Two formats:
-//
-//   ?prototype=1 (localStorage)   → RT-P-YYYYMMDD### (sequential, scoped
-//                                   to the local cache; collisions are
-//                                   impossible because there's a single
-//                                   writer)
-//   ?test=1      (backend)        → RT-T-YYYYMMDDhhmmss-RR (timestamp
-//                                   to the second + 2 random hex chars).
-//                                   No client-side counter, so Mobile
-//                                   and a future Desktop test client can
-//                                   POST concurrently with vanishingly
-//                                   small collision probability.
+// Single format now: RT-T-YYYYMMDDhhmmss-RR (timestamp-to-the-second
+// plus 2 random hex chars). No client-side counter, so concurrent
+// submissions from Mobile + a future Desktop test client cannot
+// collide on a shared counter. The RT-T- prefix visually distinguishes
+// test IDs from real RT-* production IDs even when both queues are
+// viewed side-by-side.
 function genProtoReturnId() {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm   = String(now.getMonth() + 1).padStart(2, "0");
   const dd   = String(now.getDate()).padStart(2, "0");
-  if (isTestMode()) {
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mi = String(now.getMinutes()).padStart(2, "0");
-    const ss = String(now.getSeconds()).padStart(2, "0");
-    const rand = Math.floor(Math.random() * 256).toString(16).padStart(2, "0").toUpperCase();
-    return `${TEST_RT_PREFIX}${yyyy}${mm}${dd}${hh}${mi}${ss}-${rand}`;
-  }
-  const prefix = `${PROTO_RT_PREFIX}${yyyy}${mm}${dd}`;
-  const existing = loadProtoReturns()
-    .map(r => r.id)
-    .filter(id => typeof id === "string" && id.startsWith(prefix))
-    .map(id => parseInt(id.slice(prefix.length), 10))
-    .filter(n => !isNaN(n));
-  const seq = existing.length ? Math.max(...existing) + 1 : 1;
-  return prefix + String(seq).padStart(3, "0");
+  const hh   = String(now.getHours()).padStart(2, "0");
+  const mi   = String(now.getMinutes()).padStart(2, "0");
+  const ss   = String(now.getSeconds()).padStart(2, "0");
+  const rand = Math.floor(Math.random() * 256).toString(16).padStart(2, "0").toUpperCase();
+  return `${TEST_RT_PREFIX}${yyyy}${mm}${dd}${hh}${mi}${ss}-${rand}`;
 }
 
 // ── HTTP fetch ────────────────────────────────────────────────────────
@@ -641,33 +644,19 @@ function TeamPill({ team, size = "sm" }) {
 }
 
 function PrototypeBadge() {
-  // In `?test=1` mode we render a distinct "TEST" pill so the Sale (and
-  // the developer reviewing screenshots) can always tell which mode
-  // they're in. Test mode writes to the real backend with isTest=true;
-  // the prototype mode writes localStorage only. Visually distinct
-  // colors prevent confusion.
-  if (isTestMode()) {
-    return (
-      <span style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        fontSize: 9, fontWeight: 700, color: "#FAC775",
-        background: "#3D2A00", border: "0.5px solid #FAC775",
-        borderRadius: 4, padding: "2px 6px", letterSpacing: 1, textTransform: "uppercase",
-      }}>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#FAC775" }}/>
-        🧪 Test
-      </span>
-    );
-  }
+  // Single-mode badge: this UI now always writes to the real backend
+  // with isTest=true and shows up only in Desktop Admin's 🧪 TEST queue.
+  // The amber-with-yellow-outline style flags it visually as test data
+  // so screenshots / users can never confuse it with the production app.
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
-      fontSize: 9, fontWeight: 700, color: "#EF9F27",
-      background: "#3D2A00", border: "0.5px solid #7A5500",
+      fontSize: 9, fontWeight: 700, color: "#FAC775",
+      background: "#3D2A00", border: "0.5px solid #FAC775",
       borderRadius: 4, padding: "2px 6px", letterSpacing: 1, textTransform: "uppercase",
     }}>
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#EF9F27" }}/>
-      Prototype
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#FAC775" }}/>
+      🧪 Test
     </span>
   );
 }
@@ -3464,6 +3453,14 @@ export default function MobilePrototypeApp() {
 
   useEffect(() => { localStorage.setItem("mobile-theme", dark ? "dark" : "light"); }, [dark]);
   useEffect(() => { localStorage.setItem("lang", lang); }, [lang]);
+
+  // ── One-time cleanup of legacy localStorage prototype submissions ──
+  // Pre-merge, `?prototype=1` wrote RT-P-* return-requests to localStorage.
+  // After the merge, the single mode is backend-connected with RT-T-* IDs,
+  // so the old key is dead weight that would confuse a session that
+  // mixed both eras. Clear it once per browser (sentinel-gated so we
+  // don't fire the removeItem every render).
+  useEffect(() => { clearLegacyPrototypeStorage(); }, []);
 
   // ── Test mode: initial fetch + 30s background poll + visibilitychange ──
   // The poll is paused while the document is hidden so we don't drain
