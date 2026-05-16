@@ -1120,11 +1120,16 @@ def debug(db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 @app.get("/debug-schema")
-def debug_schema(db: Session = Depends(get_db)):
+def debug_schema(db: Session = Depends(get_db), attempt_migration: bool = False):
     """Read-only introspection of the return_requests columns. Used to
     verify that the test-mode migration (is_test, revision_history,
     resubmitted_at) is actually live on disk. Safe to expose: it returns
-    only the column metadata, never row data."""
+    only the column metadata, never row data.
+
+    When ?attempt_migration=true is passed, also attempts each migration
+    ALTER inline and captures the exact Postgres error message for each,
+    so we can diagnose silently-failing DDL without poking Render logs.
+    """
     try:
         rows = db.execute(text("""
             SELECT column_name, data_type, is_nullable, column_default
@@ -1147,7 +1152,7 @@ def debug_schema(db: Session = Depends(get_db)):
             except Exception as e:
                 logger.warning(f"/debug-schema row counts failed: {e}")
                 db.rollback()
-        return {
+        result = {
             "columns": cols,
             "test_mode_migration": {
                 "applied": len(missing) == 0,
@@ -1156,6 +1161,39 @@ def debug_schema(db: Session = Depends(get_db)):
                 "prod_rows": prod_row_count,
             },
         }
+        if attempt_migration and missing:
+            # Try each ALTER individually and capture the exact error.
+            # Each runs in its own transaction so one failure doesn't
+            # cascade. NOT NULL is split out (online migration pattern).
+            attempts = []
+            steps = [
+                ("add is_test (nullable)",
+                 "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE"),
+                ("backfill is_test",
+                 "UPDATE return_requests SET is_test = FALSE WHERE is_test IS NULL"),
+                ("add revision_history",
+                 "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS revision_history JSONB DEFAULT '[]'::jsonb"),
+                ("add resubmitted_at",
+                 "ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS resubmitted_at TEXT DEFAULT ''"),
+            ]
+            for label, sql in steps:
+                try:
+                    db.execute(text(sql))
+                    db.commit()
+                    attempts.append({"step": label, "ok": True})
+                except Exception as e:
+                    db.rollback()
+                    # Capture the full chain so we see the PG-level error.
+                    err_chain = []
+                    cur = e
+                    while cur:
+                        err_chain.append(f"{type(cur).__name__}: {str(cur)[:300]}")
+                        cur = getattr(cur, "__cause__", None) or getattr(cur, "orig", None)
+                        # Avoid infinite loops on self-referential causes.
+                        if cur is e: break
+                    attempts.append({"step": label, "ok": False, "error_chain": err_chain})
+            result["migration_attempts"] = attempts
+        return result
     except Exception as e:
         db.rollback()
         return {"error": str(e)}
