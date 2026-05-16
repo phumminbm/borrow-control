@@ -1052,6 +1052,19 @@ tbody tr:last-child td{border-bottom:none;}
       <button class="theme-opt active" id="opt-dark" onclick="setTheme('dark')" title="Dark Mode">🌙</button>
       <button class="theme-opt" id="opt-light" onclick="setTheme('light')" title="Light Mode">☀️</button>
     </div>
+    <!-- Test Mode toggle (2026-05-16). When ON, the Admin queue and the
+         Sale list both load with ?include_test=only so production rows are
+         hidden. Apps Script writeback is BLOCKED for test rows (the
+         adminApprove() guard checks `r.isTest` before calling
+         updateSheetStatus). State persists in localStorage['br-test-mode'].
+         Visual cue: amber border + 🧪 TEST badge sit on the topbar so
+         no one can mistake which queue they are looking at. -->
+    <button id="btn-test-mode"
+            onclick="toggleTestMode()"
+            title="Toggle test-mode queue (hides production data)"
+            style="margin-left:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);background:transparent;color:var(--fg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.3px;">
+      🧪 TEST
+    </button>
     <div class="topbar-user">
       <div class="user-avatar">AD</div>
     </div>
@@ -1408,13 +1421,66 @@ function hasOpenWorkflowOverlay(){
   return false;
 }
 
+// ── Test-mode integration (2026-05-16) ──────────────────────────────
+// When TEST_MODE is on, /return-requests queries are filtered to test
+// rows only (include_test=only). When off, production rows only
+// (include_test=false). Production users see ZERO test rows in their
+// queue unless they explicitly toggle this on.
+var TEST_MODE = localStorage.getItem('br-test-mode') === '1';
+
+function isTestMode(){ return TEST_MODE; }
+
+function applyTestModeChrome(){
+  // Visual cue: amber border on the topbar + active style on the toggle
+  // pill. Without this, an Admin could approve a test request thinking
+  // it's real (or vice versa).
+  var btn = el('btn-test-mode');
+  if(btn){
+    if(TEST_MODE){
+      btn.style.background = '#3D2A00';
+      btn.style.color = '#FAC775';
+      btn.style.borderColor = '#7A5500';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--fg2)';
+      btn.style.borderColor = 'var(--bd)';
+    }
+  }
+  var topbar = el('topbar');
+  if(topbar){
+    if(TEST_MODE){
+      topbar.style.boxShadow = 'inset 0 -2px 0 0 #EF9F27';
+    } else {
+      topbar.style.boxShadow = '';
+    }
+  }
+}
+
+function toggleTestMode(){
+  TEST_MODE = !TEST_MODE;
+  if(TEST_MODE) localStorage.setItem('br-test-mode','1');
+  else          localStorage.removeItem('br-test-mode');
+  applyTestModeChrome();
+  // Reload the queue so the new filter takes effect immediately.
+  RECENT = [];
+  loadReturnRequests();
+  showToast(TEST_MODE ? '🧪 Test mode ON — แสดงเฉพาะคำขอทดสอบ' : 'Test mode OFF — แสดงข้อมูลใช้งานจริง', TEST_MODE ? 'warn' : 'success');
+}
+
+function returnRequestsQueryUrl(limit){
+  // Default is hide-test. Production users hitting the bare URL see
+  // exactly the same queue they always saw.
+  var inc = TEST_MODE ? 'only' : 'false';
+  return brReturnApi('/return-requests?limit=' + (limit||5000) + '&include_test=' + inc);
+}
+
 function loadReturnRequests(opts){
   opts = opts || {};
   if(RETURN_HISTORY_LOADING) return Promise.resolve();
   if(opts.silent && document.hidden) return Promise.resolve();
   if(opts.silent && hasOpenWorkflowOverlay()) return Promise.resolve();
   RETURN_HISTORY_LOADING = true;
-  return fetch(brReturnApi('/return-requests?limit=5000'))
+  return fetch(returnRequestsQueryUrl(5000))
     .then(function(r){ if(!r.ok) throw new Error('return-requests '+r.status); return r.json(); })
     .then(function(rows){
       RECENT = Array.isArray(rows) ? rows : [];
@@ -3404,6 +3470,26 @@ function adminApprove(){
 
   // Sheet sync
   if(r && r.submittedItems && r.submittedItems.length>0){
+    // ── Test-mode guard ──────────────────────────────────────────────
+    // Blocks the Apps Script Sheet writeback for test rows. Without
+    // this, approving a test request would push fake changes to the
+    // real Logistics File. The backend also force-sets
+    // sheet_sync='skipped-test' on POST, so even if this line were
+    // ever bypassed, the audit trail stays correct.
+    if(r.isTest){
+      for(var jt=0;jt<RECENT.length;jt++){
+        if(RECENT[jt].id===rid){
+          RECENT[jt].sheetSync='skipped-test';
+          RECENT[jt].sheetSyncAt=new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
+          RECENT[jt].sheetSyncError='';
+          saveReturnRequest(RECENT[jt]);
+          break;
+        }
+      }
+      renderAdminContent();
+      showToast('🧪 อนุมัติคำขอทดสอบ — ข้าม Sheet sync','warn');
+      return;
+    }
     updateSheetStatus(
       {action:'approve', br:r.br, submittedItems:r.submittedItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
       function(resp){
@@ -3439,6 +3525,17 @@ function retrySheetSync(rid){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
   if(!r) return;
+  // Test-mode guard: a test request should never be able to retry into
+  // the real Logistics File. Mark it skipped-test and bail.
+  if(r.isTest){
+    r.sheetSync='skipped-test';
+    r.sheetSyncAt=new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
+    r.sheetSyncError='';
+    saveReturnRequest(r);
+    renderAdminContent();
+    showToast('🧪 คำขอทดสอบ — ไม่ retry Sync Sheet','warn');
+    return;
+  }
   var syncItems = sheetSyncItemsForRequest(r);
   if(!syncItems.length){
     showToast('ไม่มีรายการที่ต้อง Sync Sheet','warn');
@@ -3642,6 +3739,22 @@ function adminSendBack(){
   renderSalePills();
   renderAdminContent();
   if(approvedItems.length>0){
+    // Test-mode guard for partial-approve: same rule as adminApprove —
+    // never call Apps Script for a test request.
+    if(r.isTest){
+      for(var pt=0;pt<RECENT.length;pt++){
+        if(RECENT[pt].id===rid){
+          RECENT[pt].sheetSync='skipped-test';
+          RECENT[pt].sheetSyncAt=new Date().toLocaleString('th-TH',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short',year:'numeric'});
+          RECENT[pt].sheetSyncError='';
+          saveReturnRequest(RECENT[pt]);
+          break;
+        }
+      }
+      renderAdminContent();
+      showToast('🧪 ส่งกลับให้ Sale แก้ '+failedItems.length+' รายการ — ข้าม Sheet sync (test)','warn');
+      return;
+    }
     showToast('อนุมัติรายการที่ผ่าน '+approvedItems.length+' รายการ และส่งกลับให้ Sale แก้ '+failedItems.length+' รายการ','warn');
     updateSheetStatus(
       {action:'approve', br:r.br, submittedItems:approvedItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
@@ -3858,6 +3971,9 @@ function setTheme(t){
 
 // Apply saved theme on load
 setTheme(CURRENT_THEME);
+// Apply test-mode chrome on load so the amber border + active pill style
+// reflect the persisted br-test-mode flag immediately.
+try { applyTestModeChrome(); } catch(e) {}
 
 // ═══════════════════════════════════════════════════════════════
 // INIT

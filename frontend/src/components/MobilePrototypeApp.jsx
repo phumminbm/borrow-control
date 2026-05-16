@@ -96,13 +96,93 @@ import { TEAMS, TEAM_COLORS } from "../App";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const PROTO_DATA_CACHE  = "borrow-control:prototype-mobile-cache";
 const PROTO_RETURNS_KEY = "borrow-control:prototype-mobile-returns";
-const PROTO_RT_PREFIX   = "RT-P-";  // distinguishes prototype IDs from real RT-
+const PROTO_RT_PREFIX   = "RT-P-";   // localStorage-only visual prototype prefix
+const TEST_RT_PREFIX    = "RT-T-";   // ?test=1 backend-connected test prefix
+
+// ── Activation modes (mutually exclusive) ─────────────────────────────
+// Both flags drop the user into MobilePrototypeApp instead of the real
+// MobileApp. They differ in where the data lives:
+//
+//   ?prototype=1 → localStorage-only visual review. Zero backend writes.
+//                  The default historical behavior; safe for screenshots.
+//   ?test=1      → connected E2E test mode. Reads & writes the real
+//                  /return-requests endpoint with isTest=true so test
+//                  rows sit alongside (but invisible to) production
+//                  data. The Desktop Admin "🧪 TEST" toggle is the
+//                  matching counterpart on the reviewer side.
+//
+// `?test=1` wins if both are present.
+function isTestMode() {
+  try { return new URLSearchParams(window.location.search).get("test") === "1"; }
+  catch { return false; }
+}
+function isLocalPrototypeMode() {
+  if (isTestMode()) return false;
+  try { return new URLSearchParams(window.location.search).get("prototype") === "1"; }
+  catch { return false; }
+}
 
 // ── localStorage helpers ──────────────────────────────────────────────
 function readCache(key)  { try { return JSON.parse(localStorage.getItem(key) || "null") || {}; } catch { return {}; } }
 function writeCache(key, data) { try { localStorage.setItem(key, JSON.stringify({ ...data, savedAt: Date.now() })); } catch {} }
 
+// ── Local cache of test-mode return requests ──────────────────────────
+// In test mode we still keep a thin in-memory mirror of the backend list
+// so the React tree has something to render between fetches. The mirror
+// is reseeded from /return-requests?include_test=only on every poll +
+// after every write. It is NEVER persisted to localStorage so the
+// `?prototype=1` cache stays isolated.
+let _TEST_CACHE = [];
+function getTestCache()        { return _TEST_CACHE.slice(); }
+function setTestCache(arr)     { _TEST_CACHE = Array.isArray(arr) ? arr : []; }
+function upsertTestCacheLocal(req){
+  const i = _TEST_CACHE.findIndex(r => r.id === req.id);
+  if (i >= 0) _TEST_CACHE[i] = { ..._TEST_CACHE[i], ...req };
+  else        _TEST_CACHE = [req, ..._TEST_CACHE];
+}
+
+// Backend-shim helpers — used only in test mode (isTestMode() === true).
+// They return Promises but the existing call sites are synchronous; for
+// optimistic UI we update the in-memory cache first, then fire the POST
+// in the background. Failures show a toast via window dispatch.
+async function fetchTestReturnsFromBackend(){
+  try {
+    const res = await fetch(`${API_BASE}/return-requests?limit=2000&include_test=only`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`return-requests ${res.status}`);
+    const arr = await res.json();
+    setTestCache(Array.isArray(arr) ? arr : []);
+    return getTestCache();
+  } catch (err) {
+    console.warn("[test-mode] fetch failed:", err);
+    return getTestCache();
+  }
+}
+async function postTestReturnToBackend(req){
+  try {
+    const res = await fetch(`${API_BASE}/return-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...req, isTest: true }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`POST /return-requests ${res.status} ${text.slice(0, 120)}`);
+    }
+    const data = await res.json().catch(() => null);
+    if (data && data.request) {
+      upsertTestCacheLocal(data.request);
+      return data.request;
+    }
+    upsertTestCacheLocal(req);
+    return req;
+  } catch (err) {
+    console.warn("[test-mode] POST failed:", err);
+    throw err;
+  }
+}
+
 function loadProtoReturns() {
+  if (isTestMode()) return getTestCache();
   try {
     const raw = localStorage.getItem(PROTO_RETURNS_KEY);
     const arr = raw ? JSON.parse(raw) : [];
@@ -110,9 +190,20 @@ function loadProtoReturns() {
   } catch { return []; }
 }
 function saveProtoReturns(list) {
+  if (isTestMode()) { setTestCache(list); return; }
   try { localStorage.setItem(PROTO_RETURNS_KEY, JSON.stringify(list)); } catch {}
 }
 function upsertProtoReturn(req) {
+  if (isTestMode()) {
+    // Optimistic local insert so the React tree updates immediately;
+    // fire the backend POST in the background. Polling reconciles state.
+    upsertTestCacheLocal({ ...req, isTest: true });
+    postTestReturnToBackend(req).catch(() => {
+      // Surface the failure visibly so a stuck test session is obvious.
+      try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "บันทึกคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    });
+    return getTestCache();
+  }
   const list = loadProtoReturns();
   const idx = list.findIndex(r => r.id === req.id);
   if (idx >= 0) list[idx] = req; else list.unshift(req);
@@ -129,6 +220,16 @@ function upsertProtoReturn(req) {
 //      same request id is preserved and rejection metadata is cleared.
 // Returns the updated record (or null if not found).
 function replaceProtoReturn(id, patch) {
+  if (isTestMode()) {
+    const cur = _TEST_CACHE.find(r => r.id === id);
+    if (!cur) return null;
+    const next = { ...cur, ...patch, isTest: true };
+    upsertTestCacheLocal(next);
+    postTestReturnToBackend(next).catch(() => {
+      try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "อัปเดตคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    });
+    return next;
+  }
   const list = loadProtoReturns();
   const idx = list.findIndex(r => r.id === id);
   if (idx < 0) return null;
@@ -220,12 +321,31 @@ function approxAttachmentBytes(att) {
   return (att && typeof att.data === "string") ? att.data.length : 0;
 }
 
-// ── ID generator: RT-P-YYYYMMDD### ────────────────────────────────────
+// ── ID generator ──────────────────────────────────────────────────────
+// Two formats:
+//
+//   ?prototype=1 (localStorage)   → RT-P-YYYYMMDD### (sequential, scoped
+//                                   to the local cache; collisions are
+//                                   impossible because there's a single
+//                                   writer)
+//   ?test=1      (backend)        → RT-T-YYYYMMDDhhmmss-RR (timestamp
+//                                   to the second + 2 random hex chars).
+//                                   No client-side counter, so Mobile
+//                                   and a future Desktop test client can
+//                                   POST concurrently with vanishingly
+//                                   small collision probability.
 function genProtoReturnId() {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm   = String(today.getMonth() + 1).padStart(2, "0");
-  const dd   = String(today.getDate()).padStart(2, "0");
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm   = String(now.getMonth() + 1).padStart(2, "0");
+  const dd   = String(now.getDate()).padStart(2, "0");
+  if (isTestMode()) {
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const rand = Math.floor(Math.random() * 256).toString(16).padStart(2, "0").toUpperCase();
+    return `${TEST_RT_PREFIX}${yyyy}${mm}${dd}${hh}${mi}${ss}-${rand}`;
+  }
   const prefix = `${PROTO_RT_PREFIX}${yyyy}${mm}${dd}`;
   const existing = loadProtoReturns()
     .map(r => r.id)
@@ -521,6 +641,24 @@ function TeamPill({ team, size = "sm" }) {
 }
 
 function PrototypeBadge() {
+  // In `?test=1` mode we render a distinct "TEST" pill so the Sale (and
+  // the developer reviewing screenshots) can always tell which mode
+  // they're in. Test mode writes to the real backend with isTest=true;
+  // the prototype mode writes localStorage only. Visually distinct
+  // colors prevent confusion.
+  if (isTestMode()) {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 9, fontWeight: 700, color: "#FAC775",
+        background: "#3D2A00", border: "0.5px solid #FAC775",
+        borderRadius: 4, padding: "2px 6px", letterSpacing: 1, textTransform: "uppercase",
+      }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#FAC775" }}/>
+        🧪 Test
+      </span>
+    );
+  }
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
@@ -2671,7 +2809,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           )}
         </div>
 
-        <div style={{ fontSize: 10, color: sub, marginTop: 8 }}>{filtered.length} {lang === "th" ? "รายการ" : "results"} · {lang === "th" ? "แตะค้างเพื่อจำลองสถานะ Admin" : "Long-press to simulate Admin"}</div>
+        <div style={{ fontSize: 10, color: sub, marginTop: 8 }}>
+          {filtered.length} {lang === "th" ? "รายการ" : "results"}
+          {isTestMode()
+            ? " · " + (lang === "th" ? "🧪 เชื่อม Backend จริง — Admin ใช้งาน Desktop" : "🧪 Connected to backend — review on Desktop")
+            : " · " + (lang === "th" ? "แตะค้างเพื่อจำลองสถานะ Admin" : "Long-press to simulate Admin")}
+        </div>
       </div>
 
       {/* List */}
@@ -2996,9 +3139,19 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   <span style={{ fontSize: 17, color: "#D4357A", fontWeight: 700 }}>฿{total.toLocaleString()}</span>
                 </div>
 
-                <button onClick={() => setSimReq(selectedReq)} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 11, border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, background: "transparent", color: dark ? "#FAC775" : "#854F0B", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  ⚠ {lang === "th" ? "จำลองสถานะ Admin (Prototype)" : "Simulate Admin status (Prototype)"}
-                </button>
+                {isTestMode() ? (
+                  // In test mode, real Admin operates on Desktop — the
+                  // sim button would just confuse the workflow.
+                  <div style={{ marginTop: 14, padding: "10px 12px", background: dark ? "#1a1500" : "#FEFAEE", border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, borderRadius: 9, fontSize: 11, color: dark ? "#FAC775" : "#854F0B", lineHeight: 1.55, textAlign: "center" }}>
+                    🧪 {lang === "th"
+                      ? "โหมดทดสอบ — ให้ Admin บน Desktop เปิด /br-return ดูคำขอนี้"
+                      : "Test mode — Admin reviews this on Desktop /br-return"}
+                  </div>
+                ) : (
+                  <button onClick={() => setSimReq(selectedReq)} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 11, border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, background: "transparent", color: dark ? "#FAC775" : "#854F0B", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    ⚠ {lang === "th" ? "จำลองสถานะ Admin (Prototype)" : "Simulate Admin status (Prototype)"}
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -3289,10 +3442,69 @@ export default function MobilePrototypeApp() {
   // and bottom tab bar with a success-confirmation view + two destination
   // buttons. Driven by RequestReturnSheet.onSubmitted bubble-up.
   const [submittedRequest, setSubmittedRequest] = useState(null);
-  const refreshReturns = useCallback(() => setReturns(loadProtoReturns()), []);
+  // Toast for test-mode backend errors. Listens for the custom event
+  // dispatched by postTestReturnToBackend() failure paths.
+  const [testToast, setTestToast] = useState("");
+  // Track whether at least one /return-requests fetch has succeeded in
+  // test mode, so we know when to stop showing an empty list as "no
+  // requests yet" vs "still loading".
+  const [testReady, setTestReady] = useState(!isTestMode());
+
+  const refreshReturns = useCallback(() => {
+    if (isTestMode()) {
+      // Backend-backed: pull fresh, then mirror into local state.
+      return fetchTestReturnsFromBackend().then(arr => {
+        setReturns(arr);
+        setTestReady(true);
+      });
+    }
+    setReturns(loadProtoReturns());
+    return Promise.resolve();
+  }, []);
 
   useEffect(() => { localStorage.setItem("mobile-theme", dark ? "dark" : "light"); }, [dark]);
   useEffect(() => { localStorage.setItem("lang", lang); }, [lang]);
+
+  // ── Test mode: initial fetch + 30s background poll + visibilitychange ──
+  // The poll is paused while the document is hidden so we don't drain
+  // battery on a backgrounded phone. Pull-to-refresh (refreshReturns) is
+  // wired separately via the existing refresh button on the topbar.
+  useEffect(() => {
+    if (!isTestMode()) return undefined;
+    let cancelled = false;
+    let timerId = null;
+    const tick = () => {
+      if (document.hidden) return;
+      fetchTestReturnsFromBackend().then(arr => {
+        if (cancelled) return;
+        setReturns(arr);
+        setTestReady(true);
+      });
+    };
+    tick(); // initial
+    timerId = setInterval(tick, 30000);
+    const onVis = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      if (timerId) clearInterval(timerId);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  // Surface test-mode backend errors via a small toast. The optimistic
+  // local cache means the UI keeps moving even when a write fails, so
+  // this is the only visible signal of a stuck POST.
+  useEffect(() => {
+    if (!isTestMode()) return undefined;
+    const onErr = (e) => {
+      const msg = (e && e.detail && e.detail.msg) || "Backend error";
+      setTestToast(msg);
+      setTimeout(() => setTestToast(""), 3500);
+    };
+    window.addEventListener("proto-test-error", onErr);
+    return () => window.removeEventListener("proto-test-error", onErr);
+  }, []);
 
   const load = useCallback((isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -3340,6 +3552,21 @@ export default function MobilePrototypeApp() {
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: phoneBg, fontFamily: '"Inter", "IBM Plex Sans Thai", -apple-system, sans-serif', WebkitTapHighlightColor: "transparent", overscrollBehavior: "none" }}>
       <SplashScreen visible={splashVisible} />
+
+      {/* Test-mode backend-error toast. Sits above the topbar so it's
+          impossible to miss when a /return-requests POST fails. */}
+      {testToast && (
+        <div style={{
+          position: "fixed", left: "50%", top: 14,
+          transform: "translateX(-50%)",
+          background: "#3D1212", color: "#F09595",
+          border: "0.5px solid #7A2020", borderRadius: 999,
+          padding: "8px 16px", fontSize: 12, fontWeight: 700,
+          boxShadow: "0 8px 24px rgba(226,75,74,0.3)",
+          zIndex: 9999, letterSpacing: 0.3, maxWidth: "92vw",
+          textAlign: "center",
+        }}>⚠ {testToast}</div>
+      )}
 
       {selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderBottom: `0.5px solid ${navBdr}`, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>

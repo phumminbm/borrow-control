@@ -231,6 +231,22 @@ def recalc_all_customers(db):
     db.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE customers_staging ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''"))
     db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAULT ''"))
+    # ── Test-mode integration columns (2026-05-16) ────────────────────
+    # is_test  — flag for ?test=1 / Desktop Admin test-mode submissions;
+    #            production GET defaults to include_test=false so prod
+    #            users never see test rows. Apps Script Sheet writeback
+    #            is blocked when this is TRUE (defense in depth: both
+    #            frontend skip + backend force sheet_sync='skipped-test').
+    # revision_history — JSONB array of correction-flow snapshots so the
+    #            "แก้ไขครั้งที่ N" chip works the same on Mobile and
+    #            Desktop instead of being lost in Pydantic extra-field
+    #            drop. Default '[]' keeps legacy rows compatible.
+    # resubmitted_at   — ISO timestamp of the latest Sale resubmission.
+    #            Used by the Sale-side detail header to show
+    #            "↻ ส่งแก้ไขเมื่อ …".
+    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE"))
+    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS revision_history JSONB DEFAULT '[]'::jsonb"))
+    db.execute(text("ALTER TABLE return_requests ADD COLUMN IF NOT EXISTS resubmitted_at TEXT DEFAULT ''"))
     db.commit()
 
 def swap_staging_to_main(db):
@@ -420,6 +436,10 @@ class ReturnRequestPayload(BaseModel):
     sheetSync: Optional[str] = "none"
     sheetSyncAt: Optional[str] = ""
     sheetSyncError: Optional[str] = ""
+    # Test-mode integration fields (see ensure_tables for column docs):
+    isTest: Optional[bool] = False
+    revisionHistory: Optional[list[dict]] = Field(default_factory=list)
+    resubmittedAt: Optional[str] = ""
 
 # ── Endpoints ─────────────────────────────────────────────────────────
 
@@ -491,13 +511,37 @@ def _return_request_from_row(row):
         "sheetSync": data.get("sheet_sync", "none"),
         "sheetSyncAt": data.get("sheet_sync_at", ""),
         "sheetSyncError": data.get("sheet_sync_error", ""),
+        # Test-mode integration fields. Always returned so clients can
+        # render the Rev chip / resubmittedAt line / TEST badge uniformly.
+        "isTest": bool(data.get("is_test", False)),
+        "revisionHistory": data.get("revision_history") or [],
+        "resubmittedAt": data.get("resubmitted_at", ""),
     }
 
+# ── Soft size limit for return-request payloads ───────────────────────
+# Base64-encoded photos can balloon a single record. Reject anything
+# > ~2 MB of serialized JSON so a runaway test upload never makes it to
+# Postgres. The error code 413 (Payload Too Large) keeps the client
+# message clear.
+RETURN_REQUEST_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
 @app.get("/return-requests")
-def get_return_requests(limit: int = 500, db: Session = Depends(get_db)):
+def get_return_requests(
+    limit: int = 500,
+    include_test: str = "false",   # "false" (default — hide test) | "only" | "true"
+    db: Session = Depends(get_db),
+):
     ensure_tables(db)
-    rows = db.execute(text("""
+    mode = (include_test or "false").lower()
+    if mode == "only":
+        where = "WHERE is_test = TRUE"
+    elif mode == "true":
+        where = ""  # show everything
+    else:
+        where = "WHERE is_test = FALSE"
+    rows = db.execute(text(f"""
         SELECT * FROM return_requests
+        {where}
         ORDER BY date_sort DESC, updated_at DESC
         LIMIT :limit
     """), {"limit": limit}).fetchall()
@@ -506,6 +550,31 @@ def get_return_requests(limit: int = 500, db: Session = Depends(get_db)):
 @app.post("/return-requests")
 def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(get_db)):
     ensure_tables(db)
+    # ── Defense-in-depth: block Apps Script Sheet writeback for test
+    # rows. The Desktop frontend also has an `if (r.isTest) skip;` guard
+    # inside adminApprove(); if it ever forgets, this enforces a clear
+    # audit trail by stamping sheet_sync='skipped-test' on approval so
+    # no one downstream can confuse a test approval for a real one.
+    sheet_sync_val = payload.sheetSync or "none"
+    sheet_sync_at_val = payload.sheetSyncAt or ""
+    if payload.isTest and (payload.status or "") == "approved":
+        sheet_sync_val = "skipped-test"
+        if not sheet_sync_at_val:
+            sheet_sync_at_val = datetime.utcnow().isoformat() + "Z"
+    submitted_items_json = json.dumps(payload.submittedItems or [], ensure_ascii=False)
+    rejected_items_json  = json.dumps(payload.rejectedItems  or [], ensure_ascii=False)
+    attachments_json     = json.dumps(payload.attachments     or [], ensure_ascii=False)
+    revision_history_json = json.dumps(payload.revisionHistory or [], ensure_ascii=False)
+    # Reject runaway payloads (mostly photo bloat) before they hit DB.
+    total_bytes = (
+        len(submitted_items_json) + len(rejected_items_json)
+        + len(attachments_json) + len(revision_history_json)
+    )
+    if total_bytes > RETURN_REQUEST_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Payload too large ({total_bytes} bytes). Reduce photos or items."
+        )
     params = {
         "id": payload.id,
         "cust": payload.cust or "",
@@ -519,22 +588,27 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
         "admin_note": payload.adminNote or "",
         "cancel_reason": payload.cancelReason or "",
         "items_count": payload.items or 0,
-        "submitted_items": json.dumps(payload.submittedItems or [], ensure_ascii=False),
-        "rejected_items": json.dumps(payload.rejectedItems or [], ensure_ascii=False),
-        "attachments": json.dumps(payload.attachments or [], ensure_ascii=False),
-        "sheet_sync": payload.sheetSync or "none",
-        "sheet_sync_at": payload.sheetSyncAt or "",
+        "submitted_items": submitted_items_json,
+        "rejected_items": rejected_items_json,
+        "attachments": attachments_json,
+        "sheet_sync": sheet_sync_val,
+        "sheet_sync_at": sheet_sync_at_val,
         "sheet_sync_error": payload.sheetSyncError or "",
+        "is_test": bool(payload.isTest),
+        "revision_history": revision_history_json,
+        "resubmitted_at": payload.resubmittedAt or "",
     }
     row = db.execute(text("""
         INSERT INTO return_requests (
             id, cust, cust_code, br, sale, status, request_date, date_sort,
             remark, admin_note, items_count, submitted_items, rejected_items,
-            attachments, sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason
+            attachments, sheet_sync, sheet_sync_at, sheet_sync_error, cancel_reason,
+            is_test, revision_history, resubmitted_at
         ) VALUES (
             :id, :cust, :cust_code, :br, :sale, :status, :request_date, :date_sort,
             :remark, :admin_note, :items_count, CAST(:submitted_items AS jsonb), CAST(:rejected_items AS jsonb),
-            CAST(:attachments AS jsonb), :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason
+            CAST(:attachments AS jsonb), :sheet_sync, :sheet_sync_at, :sheet_sync_error, :cancel_reason,
+            :is_test, CAST(:revision_history AS jsonb), :resubmitted_at
         )
         ON CONFLICT (id) DO UPDATE SET
             cust = EXCLUDED.cust,
@@ -554,6 +628,12 @@ def upsert_return_request(payload: ReturnRequestPayload, db: Session = Depends(g
             sheet_sync_at = EXCLUDED.sheet_sync_at,
             sheet_sync_error = EXCLUDED.sheet_sync_error,
             cancel_reason = EXCLUDED.cancel_reason,
+            -- is_test is intentionally NOT updated on ON CONFLICT: once
+            -- a row is created as test (or prod), it stays that way.
+            -- Prevents a later POST without isTest=true from accidentally
+            -- promoting a test row into the production queue.
+            revision_history = EXCLUDED.revision_history,
+            resubmitted_at = EXCLUDED.resubmitted_at,
             updated_at = NOW()
         RETURNING *
     """), params).fetchone()
