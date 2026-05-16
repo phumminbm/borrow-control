@@ -1613,6 +1613,22 @@ var BR_STRINGS = {
   "cal.pickStart":            { th: "เลือกวันเริ่มต้น",      en: "Pick start date" },
   "cal.pickEnd":              { th: "เลือกวันสิ้นสุด...",    en: "Pick end date..." },
   "cal.clearDate":            { th: "ล้างวันที่",            en: "Clear date" },
+
+  // ── Empty states ─────────────────────────────────────────────
+  "empty.noCustomer":         { th: "ไม่พบลูกค้า",            en: "No customers found" },
+  "empty.noBR":               { th: "ไม่มีใบยืม",             en: "No BRs available" },
+  "empty.noBRMatch":          { th: 'ไม่พบใบยืมที่ตรงกับ "{q}"', en: 'No BR matches "{q}"' },
+
+  // ── Product list (Step 3) ────────────────────────────────────
+  "prod.outstanding":         { th: "ค้างอยู่",               en: "Outstanding" },
+
+  // ── Summary bar (Step 3 footer counts) ───────────────────────
+  "summary.selectedN1":       { th: "เลือก",                 en: "Selected" },
+  "summary.selectedN2":       { th: "รายการ",                en: "item(s)" },
+
+  // ── Detail-modal extras ──────────────────────────────────────
+  "detail.adminPhotos":       { th: "รูปประกอบจาก Admin ({n} รูป):", en: "Admin photos ({n}):" },
+  "cancel.reason":            { th: "เหตุผลที่ยกเลิก",       en: "Cancel reason" },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
@@ -3189,10 +3205,10 @@ function renderCustList(){
     h += '<div class="'+cls+'" onclick="selectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)" ondblclick="quickSelectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)">';
     h += '<div class="cust-info"><div class="cust-name">'+c.name+' '+custBadge(c.status)+'</div>';
     h += '<div class="cust-meta">'+c.code+' · '+c.addr.slice(0,40)+'...</div></div>';
-    h += '<div class="cust-right"><div class="cust-days '+daysCls+'">'+c.days+'<span style="font-size:9px;font-weight:400;margin-left:2px">วัน</span></div><div class="cust-days-label">ค้างสูงสุด</div></div>';
+    h += '<div class="cust-right"><div class="cust-days '+daysCls+'">'+c.days+'<span style="font-size:9px;font-weight:400;margin-left:2px">'+_t('common.day')+'</span></div><div class="cust-days-label">'+_t('common.daysMax')+'</div></div>';
     h += '</div>';
   }
-  if(h==='') h = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">ไม่พบลูกค้า</div></div>';
+  if(h==='') h = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">'+_t('empty.noCustomer')+'</div></div>';
   el('ov1-list').innerHTML = h;
 }
 
@@ -3239,13 +3255,13 @@ function renderBRList(){
     var brDaysCls = b.status==='BLOCK'?'days-block':b.status==='WARNING'?'days-warning':'days-normal';
     var brCls = 'br-item'+(brStCls?' '+brStCls:'')+(sel?' selected':'');
     h += '<div class="'+brCls+'" onclick="selectBR(\''+jsArg(b.br)+'\',this)" ondblclick="quickSelectBR(\''+jsArg(b.br)+'\',this)">';
-    h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' วัน</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
+    h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' '+_t('common.day')+'</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
     h += '<div class="br-val">'+fmtFullBaht(b.value)+'</div>';
     h += '</div>';
   }
   if(h===''){
-    if(q) h = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">ไม่พบใบยืมที่ตรงกับ "'+q+'"</div></div>';
-    else h = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">ไม่มีใบยืม</div></div>';
+    if(q) h = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">'+_t('empty.noBRMatch',{q:q})+'</div></div>';
+    else h = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">'+_t('empty.noBR')+'</div></div>';
   }
   el('ov2-list').innerHTML = h;
 }
@@ -3263,7 +3279,7 @@ function quickSelectBR(br, node){
 
 function goStep3(){
   if(!ST.br) return;
-  el('ov3-br-label').innerHTML = 'ใบยืม: <span class="br-tag">'+ST.br+'</span>';
+  el('ov3-br-label').innerHTML = _t('br.col.br')+': <span class="br-tag">'+ST.br+'</span>';
   el('ov3-stepbar').innerHTML = makeStepBar(3);
   ST.items = {}; ST.retQtys = {}; ST.clmQtys = {}; ST.saleQtys = {}; ST.freeQtys = {}; ST.bulkType = null; ST.editOnlyKeys = null; ST.editQtyByKey = null;
 
@@ -3288,11 +3304,11 @@ function renderProductList(){
   h += '<th class="th-l" style="width:28px"></th>';
   h += '<th class="th-l" style="width:110px">Product Code</th>';
   h += '<th class="th-l">Product Name</th>';
-  h += '<th class="th-c" style="width:72px">ค้างอยู่</th>';
-  h += '<th class="th-c" style="color:var(--green);width:100px">↩ คืน (ชิ้น)</th>';
-  h += '<th class="th-c" style="color:var(--yellow);width:100px">⚠ เคลม (ชิ้น)</th>';
-  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 SALE (ชิ้น)</th>';
-  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 FREE (ชิ้น)</th>';
+  h += '<th class="th-c" style="width:72px">'+_t('prod.outstanding')+'</th>';
+  h += '<th class="th-c" style="color:var(--green);width:100px">↩ '+_t('type.return')+' ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--yellow);width:100px">⚠ '+_t('type.claim')+' ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 SALE ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 FREE ('+_t('common.pieces')+')</th>';
   h += '</tr></thead><tbody>';
 
   for(var i=0;i<prods.length;i++){
@@ -3312,7 +3328,7 @@ function renderProductList(){
     // name
     h += '<td><span class="product-name">'+p.name+'</span></td>';
     // stock
-    h += '<td><div class="stock-qty">'+p.qty+' ชิ้น</div>'+(checked?'<div class="stock-rem">เหลือ '+rem+'</div>':'')+'</td>';
+    h += '<td><div class="stock-qty">'+p.qty+' '+_t('common.pieces')+'</div>'+(checked?'<div class="stock-rem">'+_t('common.remaining')+' '+rem+'</div>':'')+'</td>';
 
     // 4 spinners
     var spTypes=[
@@ -3458,7 +3474,7 @@ function updateSummary(){
   var sumEl = el('ov3-summary');
   if(sel>0 && total>0){
     sumEl.style.display = 'flex';
-    sumEl.innerHTML = '<span class="summary-item">เลือก <span class="summary-val" style="color:var(--text)">'+sel+'</span> รายการ</span>'
+    sumEl.innerHTML = '<span class="summary-item">'+_t('summary.selectedN1')+' <span class="summary-val" style="color:var(--text)">'+sel+'</span> '+_t('summary.selectedN2')+'</span>'
       +'<span style="color:var(--sub2)">|</span>'
       +'<span class="summary-item">↩ <span class="summary-val sv-wait">'+wait+'</span></span>'
       +'<span class="summary-item">⚠ <span class="summary-val sv-claim">'+claim+'</span></span>'
@@ -3480,8 +3496,8 @@ function showConfirm(){
   var h = '';
   // Info bar
   h += '<div style="display:flex;gap:20px;margin-bottom:14px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">';
-  h += '<div style="font-size:11px;color:var(--sub)">ลูกค้า<br><span style="font-size:13px;color:var(--text);font-weight:600">'+ST.custName+'</span></div>';
-  h += '<div style="font-size:11px;color:var(--sub)">ใบยืม<br><span class="br-tag" style="font-size:13px">'+ST.br+'</span></div>';
+  h += '<div style="font-size:11px;color:var(--sub)">'+_t('detail.cust')+'<br><span style="font-size:13px;color:var(--text);font-weight:600">'+ST.custName+'</span></div>';
+  h += '<div style="font-size:11px;color:var(--sub)">'+_t('br.col.br')+'<br><span class="br-tag" style="font-size:13px">'+ST.br+'</span></div>';
   h += '<div style="font-size:11px;color:var(--sub)">Sale<br><span style="font-size:13px;color:var(--green);font-weight:700">'+ST.sale+'</span></div>';
   h += '</div>';
 
@@ -3490,8 +3506,8 @@ function showConfirm(){
   h += '<thead class="prod-thead"><tr>';
   h += '<th class="th-l" style="width:110px">Product Code</th>';
   h += '<th class="th-l">Product Name</th>';
-  h += '<th class="th-c" style="color:var(--green);width:72px">↩ คืน</th>';
-  h += '<th class="th-c" style="color:var(--yellow);width:72px">⚠ เคลม</th>';
+  h += '<th class="th-c" style="color:var(--green);width:72px">↩ '+_t('type.return')+'</th>';
+  h += '<th class="th-c" style="color:var(--yellow);width:72px">⚠ '+_t('type.claim')+'</th>';
   h += '<th class="th-c" style="color:var(--pink);width:72px">💰 SALE</th>';
   h += '<th class="th-c" style="color:var(--purple);width:72px">🎁 FREE</th>';
   h += '</tr></thead><tbody>';
@@ -3517,7 +3533,7 @@ function showConfirm(){
   var remark = el('ov3-remark') && el('ov3-remark').value;
   if(remark){
     h += '<div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">';
-    h += '<span style="font-size:10px;color:var(--sub2);margin-right:8px">หมายเหตุ</span>';
+    h += '<span style="font-size:10px;color:var(--sub2);margin-right:8px">'+_t('common.note')+'</span>';
     h += '<span style="font-size:12px;color:var(--sub)">'+remark+'</span>';
     h += '</div>';
   }
@@ -3555,7 +3571,10 @@ function doSubmit(){
 
   var remark = el('ov3-remark').value||'';
   var now = new Date();
-  var thDate = (now.getDate())+' '+['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][now.getMonth()]+' '+(now.getFullYear()+543);
+  // Format the request date in the active locale: Thai uses Buddhist
+  // year + Thai month abbreviation; English uses Gregorian year + EN
+  // month abbreviation. calMonthsShort() returns the right array.
+  var thDate = (now.getDate())+' '+calMonthsShort()[now.getMonth()]+' '+(BR_LANG==='en' ? now.getFullYear() : (now.getFullYear()+543));
   var dateSort = (now.getFullYear()+543)*10000+(now.getMonth()+1)*100+now.getDate();
 
   if(ST.editId){
@@ -3634,7 +3653,7 @@ function openDetail(rid){
   var dChip = el('detail-rev-chip');
   var dBtn  = el('detail-history-btn');
   if(dRevHistLen > 0){
-    if(dChip){ dChip.style.display = 'inline-flex'; dChip.innerHTML = '↻ แก้ไขครั้งที่ ' + dRevNum; }
+    if(dChip){ dChip.style.display = 'inline-flex'; dChip.innerHTML = '↻ '+_t('rev.chip',{n:dRevNum}); }
     if(dBtn){  dBtn.style.display  = 'inline-flex'; }
   } else {
     if(dChip) dChip.style.display = 'none';
@@ -3646,15 +3665,15 @@ function openDetail(rid){
   // Feedback box for rejected
   if(r.status==='rejected' && r.rejectedItems && r.rejectedItems.length>0){
     h += '<div class="feedback-box">';
-    h += '<div class="feedback-title">⚠️ มีรายการที่ต้องแก้ไข</div>';
-    if(r.adminNote) h += '<div class="feedback-note">หมายเหตุจาก Admin: '+r.adminNote+'</div>';
+    h += '<div class="feedback-title">⚠️ '+_t('detail.banner.needsRevision')+'</div>';
+    if(r.adminNote) h += '<div class="feedback-note">'+_t('detail.banner.adminNote')+r.adminNote+'</div>';
     for(var j=0;j<r.rejectedItems.length;j++){
       var ri = r.rejectedItems[j];
       h += '<div class="rejected-item">✕ <strong>'+ri.code+'</strong> — '+ri.reason+'</div>';
     }
     if(r.attachments && r.attachments.length>0){
       window._DETAIL_ATTACHMENTS = r.attachments;
-      h += '<div class="feedback-note" style="margin-top:8px"><strong>📎 รูปประกอบจาก Admin ('+r.attachments.length+' รูป):</strong></div>';
+      h += '<div class="feedback-note" style="margin-top:8px"><strong>📎 '+_t('detail.adminPhotos',{n:r.attachments.length})+'</strong></div>';
       h += '<div class="attach-view-list">';
       for(var ai=0;ai<r.attachments.length;ai++){
         var att = r.attachments[ai];
@@ -3667,22 +3686,22 @@ function openDetail(rid){
 
   if(r.status==='cancelled' && r.cancelReason){
     h += '<div class="feedback-box" style="background:rgba(85,85,85,0.10);border-color:rgba(85,85,85,0.28)">';
-    h += '<div class="feedback-title" style="color:var(--sub)">ยกเลิกคำขอ</div>';
+    h += '<div class="feedback-title" style="color:var(--sub)">'+_t('detail.cancelled')+'</div>';
     h += '<div class="feedback-note">'+r.cancelReason+'</div>';
     h += '</div>';
   }
 
   // Info
   h += '<div class="detail-section">';
-  h += '<div class="detail-section-title">ข้อมูลคำขอ</div>';
+  h += '<div class="detail-section-title">'+_t('detail.reqInfo')+'</div>';
   h += '<div class="detail-grid">';
-  h += '<div class="detail-field"><label>วันที่</label><span>'+r.date+'</span></div>';
-  h += '<div class="detail-field"><label>Sale</label><span style="color:var(--green);font-weight:700">'+r.sale+'</span></div>';
-  h += '<div class="detail-field"><label>ลูกค้า</label><span>'+r.cust+'</span></div>';
-  h += '<div class="detail-field mono"><label>รหัสลูกค้า</label><span>'+r.custCode+'</span></div>';
-  h += '<div class="detail-field mono"><label>เลขใบยืม</label><span><span class="br-tag">'+r.br+'</span></span></div>';
-  if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>หมายเหตุ</label><span>'+r.remark+'</span></div>';
-  if(r.cancelReason) h += '<div class="detail-field" style="grid-column:span 2"><label>เหตุผลที่ยกเลิก</label><span>'+r.cancelReason+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+r.date+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('br.col.sale')+'</label><span style="color:var(--green);font-weight:700">'+r.sale+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('detail.cust')+'</label><span>'+r.cust+'</span></div>';
+  h += '<div class="detail-field mono"><label>'+_t('detail.custCode')+'</label><span>'+r.custCode+'</span></div>';
+  h += '<div class="detail-field mono"><label>'+_t('detail.br')+'</label><span><span class="br-tag">'+r.br+'</span></span></div>';
+  if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>'+_t('common.note')+'</label><span>'+r.remark+'</span></div>';
+  if(r.cancelReason) h += '<div class="detail-field" style="grid-column:span 2"><label>'+_t('cancel.reason')+'</label><span>'+r.cancelReason+'</span></div>';
   h += '</div></div>';
 
   // Items
@@ -3826,7 +3845,7 @@ function editRequest(rid){
   }
 
   closeAll();
-  el('ov3-br-label').innerHTML = 'ใบยืม: <span class="br-tag">'+ST.br+'</span>';
+  el('ov3-br-label').innerHTML = _t('br.col.br')+': <span class="br-tag">'+ST.br+'</span>';
   el('ov3-stepbar').innerHTML = makeStepBar(3);
   el('ov3-remark').value = r.remark||'';
   show('ov3');
