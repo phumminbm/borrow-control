@@ -2104,6 +2104,21 @@ function itemIdentity(it){
       || ((it.code || it.product_code || '') + '-' + (it.lineNo || it.line_no || ''));
 }
 
+// Display count to render in tables / info cards: the stored
+// items_count (r.items) is the CURRENT revision's count and is stale
+// for an approved request that went through corrections (because
+// submittedItems was replaced with corrected-only items on each
+// resubmit). For an approved request with revisionHistory > 0 we
+// rebuild the full set and use its length. Otherwise fall back to
+// r.items (or submittedItems.length if r.items is missing).
+function displayItemCount(r){
+  if(r && r.status === 'approved' && Array.isArray(r.revisionHistory) && r.revisionHistory.length > 0){
+    return buildApprovedFullView(r).length;
+  }
+  if(typeof r.items === 'number') return r.items;
+  return Array.isArray(r.submittedItems) ? r.submittedItems.length : 0;
+}
+
 // Reconstruct the COMPLETE set of approved items for a request that
 // went through one or more correction rounds. Mirrors the Mobile-side
 // buildApprovedFullView() (frontend/src/components/MobilePrototypeApp.jsx)
@@ -2590,7 +2605,7 @@ function rebuildTable(){
       h += '<td><span class="col-code">'+r.custCode+'</span></td>';
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
-      h += '<td><span class="col-qty">'+r.items+' รายการ</span></td>';
+      h += '<td><span class="col-qty">'+displayItemCount(r)+' รายการ</span></td>';
       h += '<td>'+statusBadgeHTML(r.status,false)+'</td>';
       h += '<td><button class="btn-detail" onclick="openDetail(\''+r.id+'\')">ดูรายละเอียด</button></td>';
       h += '</tr>';
@@ -2692,7 +2707,7 @@ function rebuildAdminTable(){
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
       h += '<td><span style="font-weight:600;color:var(--green)">'+r.sale+'</span></td>';
-      h += '<td><span class="col-qty">'+r.items+' รายการ</span></td>';
+      h += '<td><span class="col-qty">'+displayItemCount(r)+' รายการ</span></td>';
       h += '<td>'+statusBadgeHTML(r.status,true)+'</td>';
       h += '<td>'+btn+'</td>';
       h += '<td style="white-space:nowrap">'+syncPillHTML(r)+'</td>';
@@ -3424,7 +3439,7 @@ function openAdminReview(rid){
   var h = '';
   h += '<div class="detail-grid" style="margin-bottom:14px">';
   h += '<div class="detail-field"><label>วันที่</label><span>'+r.date+'</span></div>';
-  h += '<div class="detail-field"><label>จำนวนรายการ</label><span>'+r.items+' รายการ</span></div>';
+  h += '<div class="detail-field"><label>จำนวนรายการ</label><span>'+displayItemCount(r)+' รายการ</span></div>';
   if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>หมายเหตุจาก Sale</label><span>'+r.remark+'</span></div>';
   h += '</div><hr class="sep"/>';
 

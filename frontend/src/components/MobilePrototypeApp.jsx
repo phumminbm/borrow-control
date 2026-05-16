@@ -3019,6 +3019,14 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           const revCount = 1 + (Array.isArray(r.revisionHistory) ? r.revisionHistory.length : 0);
           const photoCount = Array.isArray(r.attachments) ? r.attachments.length : 0;
           const rejItemCount = Array.isArray(r.rejectedItems) ? r.rejectedItems.length : 0;
+          // For approved requests with a correction history, the stored
+          // r.items count is stale (it reflects only the latest revision's
+          // submittedItems). Expand to the full approved-set length so
+          // the row count matches what the detail view + Desktop table show.
+          const rowItemCount =
+            (r.status === "approved" && Array.isArray(r.revisionHistory) && r.revisionHistory.length > 0)
+              ? buildApprovedFullView(r).length
+              : (typeof r.items === "number" ? r.items : (Array.isArray(r.submittedItems) ? r.submittedItems.length : 0));
           return (
             <div
               key={r.id}
@@ -3039,7 +3047,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
               </div>
               <div style={{ fontSize: 12, color: text, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.cust} <span style={{ color: sub }}>·</span> <span style={{ color: sub, fontFamily: "ui-monospace,monospace" }}>{r.br}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
-                <span style={{ color: sub }}>{r.items} {lang === "th" ? "รายการ" : "items"}{typeSummary ? ` · ${typeSummary}` : ""}</span>
+                <span style={{ color: sub }}>{rowItemCount} {lang === "th" ? "รายการ" : "items"}{typeSummary ? ` · ${typeSummary}` : ""}</span>
                 <span style={{ fontWeight: 700, color: text }}>฿{total.toLocaleString()}</span>
               </div>
               {r.status === "rejected" && (
