@@ -29,12 +29,18 @@
 // (A) THINGS TO ADD INTO MobileApp.jsx (additive, in this order):
 //     1. Constants: STATUS_META, RETURN_TYPES, genReturnId helper
 //        (rename PROTO_* keys, drop the "RT-P-" prefix, drop _prototype flag)
-//     2. Components: ReturnStatusPill, RequestReturnSheet, ReturnsScreen
-//        (lift them verbatim from this file, drop any "Prototype" badges)
+//     2. Components: ReturnStatusPill, RevisionChip, RequestReturnSheet
+//        (incl. editingRequest path), ReturnsScreen, ImageLightbox.
+//        Lift them verbatim from this file, drop any "Prototype" badges.
 //     3. New "returns" entry in the bottom-tab `tabs` array
 //     4. New "ขอคืนสินค้า" CTA button in the BR Detail header (inside
 //        CustomerDetailSheet, next to the Back button)
 //     5. Optional: a "Quick Action" tile on Home linking to the returns tab
+//     6. Edit-and-resubmit CTA on the Return Detail sheet for rejected
+//        requests (already wired here in ReturnsScreen). Backend POST to
+//        the same /return-requests endpoint with the merged submittedItems
+//        and cleared adminNote/rejectedItems/attachments — see Desktop
+//        br-return.html:2960-2963 for parity reference.
 //
 // (B) THINGS TO PRESERVE in MobileApp.jsx after merge (parity audit):
 //     - GET /brs/{borrow_no}/pdf  → single-BR PDF Export button (BR Detail)
@@ -48,13 +54,22 @@
 //     - 4-min sync indicator + last-sync timestamp on Home + Profile
 //
 // (C) THINGS TO REMOVE before merge (prototype-only scaffolding):
-//     - loadProtoReturns / saveProtoReturns / upsertProtoReturn
-//       → replace with fetch('/return-requests') calls (GET + POST)
+//     - loadProtoReturns / saveProtoReturns / upsertProtoReturn /
+//       replaceProtoReturn → replace with fetch('/return-requests') calls
+//       (GET + POST). The Desktop already accepts the same payload shape
+//       used by upsertProtoReturn / the Sale resubmit path.
 //     - "RT-P-" prefix in genReturnId → drop prefix to align with desktop
 //     - "_prototype: true" flag on submitted requests → remove
 //     - PROTOTYPE badge component + all its render sites
-//     - Long-press "Simulate Admin status" handler in ReturnsScreen
-//       → drop entirely (real status comes from Admin Desktop)
+//     - Long-press "Simulate Admin status" handler in ReturnsScreen → drop
+//       entirely (real status comes from Admin Desktop)
+//     - AdminFeedbackComposer component → drop entirely (real Admin
+//       composes feedback on Desktop; Sale-side mobile only receives it)
+//     - Demo-photo path (genDemoPhoto) → drop; the real picker remains
+//     - revisionHistory field on requests → decide before merge:
+//       (a) keep as a prototype-only convenience and let backend ignore
+//       it, or (b) implement a real revisions table in the backend.
+//       Either way, the Rev N chip is a UX-only display.
 //     - Delete-request action in admin sim sheet → drop
 //     - Separate localStorage cache key (PROTO_DATA_CACHE) → use the
 //       existing MOBILE_DATA_CACHE
@@ -103,6 +118,106 @@ function upsertProtoReturn(req) {
   if (idx >= 0) list[idx] = req; else list.unshift(req);
   saveProtoReturns(list);
   return list;
+}
+
+// In-place update of an existing return record by id. Used by:
+//   1. The admin-feedback composer (apply rejection + per-item reasons +
+//      attachments to the same record without changing its id).
+//   2. The Sale-side "edit and resubmit" flow (replace submittedItems +
+//      clear adminNote/rejectedItems/attachments, status → pending). This
+//      mirrors the Desktop behavior at br-return.html:2960-2963 where the
+//      same request id is preserved and rejection metadata is cleared.
+// Returns the updated record (or null if not found).
+function replaceProtoReturn(id, patch) {
+  const list = loadProtoReturns();
+  const idx = list.findIndex(r => r.id === id);
+  if (idx < 0) return null;
+  const next = { ...list[idx], ...patch };
+  list[idx] = next;
+  saveProtoReturns(list);
+  return next;
+}
+
+// ── Image helpers (prototype-only photo evidence in localStorage) ────
+//
+// Real photo path: <input type="file" accept="image/*" capture> → File ->
+// canvas downscale to MAX_EDGE → base64 PNG. The Desktop equivalent stores
+// the same {name, data, uploadedAt} shape in a JSONB column, so the data
+// format here is forward-compatible with the existing schema. Stays
+// physically inside localStorage — never POSTed anywhere.
+//
+// Demo photo path: synthesises a labeled SVG placeholder (no real file
+// needed). Useful for demos where the reviewer doesn't have a real photo
+// handy. The SVG is encoded into a data URL the same way a downscaled
+// real photo would be, so the rest of the lightbox / thumbnail UI doesn't
+// need to special-case it.
+const PHOTO_MAX_EDGE = 600;          // px — keeps base64 well under 800 KB
+const PHOTO_QUALITY  = 0.78;          // JPEG quality
+const PHOTO_MAX_PER_REQUEST = 5;
+
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type || !file.type.startsWith("image/")) {
+      reject(new Error("not an image"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        try {
+          const ratio = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width  * ratio));
+          const h = Math.max(1, Math.round(img.height * ratio));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const data = canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+          resolve({
+            name: file.name || `photo-${Date.now()}.jpg`,
+            data,
+            uploadedAt: new Date().toISOString(),
+            _demo: false,
+          });
+        } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function genDemoPhoto(idx) {
+  // Hash-style picks so each generated photo looks visually different.
+  // Inline SVG → encoded as a data URL so it slots into the same {data}
+  // slot as a real compressed JPEG.
+  const palettes = [
+    { bg: "#1A2E0A", fg: "#C0DD97", tag: "✓ ตัวอย่างหลักฐาน" },
+    { bg: "#3D2A00", fg: "#FAC775", tag: "⚠ ภาพประกอบ" },
+    { bg: "#2a1815", fg: "#E89C7D", tag: "📷 รูปจำลอง" },
+    { bg: "#2D0F1A", fg: "#D4357A", tag: "🔍 ตัวอย่าง" },
+  ];
+  const p = palettes[idx % palettes.length];
+  const label = `Demo #${(idx % 99) + 1}`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='400' height='300' fill='${p.bg}'/><circle cx='200' cy='130' r='52' fill='none' stroke='${p.fg}' stroke-width='6'/><path d='M178 130 l16 18 l30 -32' stroke='${p.fg}' stroke-width='8' fill='none' stroke-linecap='round' stroke-linejoin='round'/><text x='200' y='220' font-family='-apple-system,Inter,sans-serif' font-size='22' font-weight='700' fill='${p.fg}' text-anchor='middle'>${p.tag}</text><text x='200' y='252' font-family='ui-monospace,monospace' font-size='14' fill='${p.fg}' text-anchor='middle' opacity='0.7'>${label}</text></svg>`;
+  const data = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  return {
+    name: `demo-${Date.now()}.svg`,
+    data,
+    uploadedAt: new Date().toISOString(),
+    _demo: true,
+  };
+}
+
+// Approx storage size of a single attachment object — base64 strings are
+// ~1.37× the raw byte count so this is a rough but useful budget signal.
+function approxAttachmentBytes(att) {
+  return (att && typeof att.data === "string") ? att.data.length : 0;
 }
 
 // ── ID generator: RT-P-YYYYMMDD### ────────────────────────────────────
@@ -301,6 +416,102 @@ function ReturnStatusPill({ status, size = "sm", lang = "th" }) {
       <span style={{ width: sz.dot, height: sz.dot, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
       {lang === "th" ? m.label_short_th : m.label_en}
     </span>
+  );
+}
+
+// Small chip used next to the request id to indicate the request has been
+// corrected at least once. Driven by revisionHistory.length on the record.
+function RevisionChip({ rev, lang = "th" }) {
+  if (!rev || rev < 2) return null;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      fontSize: 9, fontWeight: 700, color: "#D4357A",
+      background: "rgba(212,53,122,0.12)",
+      border: "0.5px solid rgba(212,53,122,0.45)",
+      borderRadius: 5, padding: "1px 6px",
+      letterSpacing: 0.4, textTransform: "uppercase",
+      whiteSpace: "nowrap",
+    }}>
+      ↻ {lang === "th" ? "แก้ไขครั้งที่" : "Rev"} {rev}
+    </span>
+  );
+}
+
+// Fixed full-screen image viewer. Tap anywhere (outside the prev/next zones)
+// to close. When there are multiple attachments, taps on the left/right
+// third advance through the gallery. Stays mounted as a portal-like fixed
+// element so it sits above bottom sheets.
+function ImageLightbox({ open, sources, startIndex = 0, onClose }) {
+  const [idx, setIdx] = useState(startIndex);
+  useEffect(() => { if (open) setIdx(startIndex); }, [open, startIndex]);
+  if (!open || !Array.isArray(sources) || sources.length === 0) return null;
+  const safeIdx = Math.max(0, Math.min(idx, sources.length - 1));
+  const cur = sources[safeIdx];
+  const multi = sources.length > 1;
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.92)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        WebkitTapHighlightColor: "transparent",
+      }}
+      onClick={onClose}
+    >
+      {multi && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setIdx((safeIdx - 1 + sources.length) % sources.length); }}
+          style={{
+            position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+            width: 44, height: 44, borderRadius: 22,
+            border: "0.5px solid rgba(255,255,255,0.25)",
+            background: "rgba(0,0,0,0.45)", color: "#fff",
+            fontSize: 22, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >‹</button>
+      )}
+      <img
+        src={cur?.data}
+        alt={cur?.name || ""}
+        style={{
+          maxWidth: "92vw", maxHeight: "82vh",
+          objectFit: "contain", borderRadius: 8,
+          boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+        }}
+      />
+      {multi && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setIdx((safeIdx + 1) % sources.length); }}
+          style={{
+            position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+            width: 44, height: 44, borderRadius: 22,
+            border: "0.5px solid rgba(255,255,255,0.25)",
+            background: "rgba(0,0,0,0.45)", color: "#fff",
+            fontSize: 22, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >›</button>
+      )}
+      <button
+        onClick={onClose}
+        style={{
+          position: "absolute", top: 16, right: 16,
+          width: 40, height: 40, borderRadius: 20,
+          border: "0.5px solid rgba(255,255,255,0.25)",
+          background: "rgba(0,0,0,0.45)", color: "#fff",
+          fontSize: 16, cursor: "pointer", fontFamily: "inherit",
+        }}
+      >✕</button>
+      {multi && (
+        <div style={{
+          position: "absolute", bottom: 18, left: 0, right: 0,
+          textAlign: "center", color: "rgba(255,255,255,0.7)",
+          fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+        }}>
+          {safeIdx + 1} / {sources.length}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -694,23 +905,70 @@ function AlertsScreen({ customers, custValues, lang, setSelectedCustomer, dark }
 // REQUEST RETURN FLOW (4 steps inside a BottomSheet)
 // =============================================================================
 
-function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onSubmitted }) {
+function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onSubmitted, editingRequest = null }) {
+  const isEditing = !!editingRequest;
   const [step, setStep] = useState(1);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [perItem, setPerItem] = useState({}); // item_id -> {qty, type}
+  const [perItem, setPerItem] = useState({}); // item_id -> { retQty, clmQty, saleQty, freeQty }
   const [remark, setRemark] = useState("");
 
+  // ── Editing mode: synthesise br/customer/items from the rejected record ──
+  // The Sale-side resubmission path reads everything it needs straight off
+  // the existing return record — no fresh /customers/{cc}/brs fetch. The
+  // "items" surface for Step 1 is the set of rejected items only, matching
+  // Desktop br-return.html:3156-3167 (editRejectedOnly = true). Approved
+  // items pass through untouched at submit-time.
+  const editCustomer = isEditing
+    ? { customer_name: editingRequest.cust, cust_code: editingRequest.custCode }
+    : null;
+  const editBr = isEditing
+    ? {
+        borrow_no: editingRequest.br,
+        items: (editingRequest.rejectedItems || []).map(r => ({
+          item_id: r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`,
+          line_no: r.lineNo || r.line_no,
+          product_code: r.code || r.product_code,
+          product_name: r.name || r.product_name,
+          price: Number(r.price) || 0,
+          // In edit mode, the max re-allocatable qty is the qty originally
+          // submitted for this row (Sale cannot suddenly inflate the count).
+          quantity: Number(r.quantity) || 0,
+          _rejectReason: r.reason || "",
+        })),
+      }
+    : null;
+
+  const effectiveCustomer = isEditing ? editCustomer : customer;
+  const effectiveBr       = isEditing ? editBr       : br;
+
   useEffect(() => {
-    if (open) {
-      setStep(1);
+    if (!open) return;
+    setStep(1);
+    if (isEditing) {
+      // Pre-select every rejected row (Sale needs to address all of them
+      // to fix the request) but leave qty allocation BLANK — Sale must
+      // re-enter the corrected numbers explicitly, exactly like Desktop
+      // (br-return.html:3167 has no qty pre-fill).
+      const ids = new Set();
+      const initAlloc = {};
+      for (const r of (editingRequest.rejectedItems || [])) {
+        const id = r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`;
+        ids.add(id);
+        initAlloc[id] = { retQty: 0, clmQty: 0, saleQty: 0, freeQty: 0 };
+      }
+      setSelectedIds(ids);
+      setPerItem(initAlloc);
+      setRemark(editingRequest.remark || "");
+    } else {
       setSelectedIds(new Set());
       setPerItem({});
       setRemark("");
     }
-  }, [open, br?.borrow_no]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, br?.borrow_no, editingRequest?.id]);
 
-  if (!br || !customer) {
-    return <BottomSheet open={open} onClose={onClose} height="92%" dark={dark} title={lang === "th" ? "ขอคืนสินค้า" : "Request Return"} />;
+  if (!effectiveBr || !effectiveCustomer) {
+    return <BottomSheet open={open} onClose={onClose} height="92%" dark={dark} title={lang === "th" ? (isEditing ? "แก้ไขคำขอ" : "ขอคืนสินค้า") : (isEditing ? "Edit Request" : "Request Return")} />;
   }
 
   const text = dark ? "#eee" : "#111";
@@ -718,8 +976,20 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   const card = dark ? "#141414" : "#fff";
   const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
 
-  const items = Array.isArray(br.items) ? br.items : [];
+  const items = Array.isArray(effectiveBr.items) ? effectiveBr.items : [];
   const selectedItems = items.filter(it => selectedIds.has(it.item_id));
+
+  // Items previously approved by Admin — shown as a read-only summary above
+  // Step 1's editable list so the Sale has full context of the request.
+  const approvedPassthroughItems = isEditing
+    ? (editingRequest.submittedItems || []).filter(si => {
+        const wasRejected = (editingRequest.rejectedItems || []).some(r =>
+          (r.itemId && r.itemId === si.item_id)
+          || ((r.code || r.product_code) === si.product_code && (r.lineNo || r.line_no) === si.line_no)
+        );
+        return !wasRejected;
+      })
+    : [];
 
   // ── Per-item allocation model ────────────────────────────────────────
   // perItem[id] = { retQty, clmQty, saleQty, freeQty }
@@ -810,11 +1080,44 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   });
 
   function submit() {
+    if (isEditing) {
+      // Resubmit corrected request — keep the same id, preserve approved
+      // items unchanged, replace the rejected items with the re-allocated
+      // versions, clear all rejection metadata, and push a snapshot to
+      // revisionHistory so the Sale-side UI can mark this as Rev N.
+      // Mirrors Desktop br-return.html:2960-2963 exactly (status='pending',
+      // adminNote='', rejectedItems=[], attachments=[]) plus the
+      // prototype-only revisionHistory extension.
+      const orig = editingRequest;
+      const merged = [...approvedPassthroughItems, ...submittedItems];
+      const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
+      const snapshot = {
+        at: new Date().toISOString(),
+        prevStatus: orig.status || "rejected",
+        prevAdminNote: orig.adminNote || "",
+        prevRejectedItemCount: (orig.rejectedItems || []).length,
+        prevAttachmentCount: (orig.attachments || []).length,
+      };
+      const updated = replaceProtoReturn(orig.id, {
+        status: "pending",
+        submittedItems: merged,
+        items: merged.length,
+        adminNote: "",
+        rejectedItems: [],
+        attachments: [],
+        remark: remark.trim() || orig.remark || "",
+        dateSort: Date.now(),       // bump so the resubmitted request rises in the list
+        resubmittedAt: new Date().toISOString(),
+        revisionHistory: [...prevHistory, snapshot],
+      });
+      if (onSubmitted) onSubmitted(updated || orig);
+      return;
+    }
     const newReq = {
       id: genProtoReturnId(),
-      cust: customer.customer_name,
-      custCode: customer.cust_code,
-      br: br.borrow_no,
+      cust: effectiveCustomer.customer_name,
+      custCode: effectiveCustomer.cust_code,
+      br: effectiveBr.borrow_no,
       items: submittedItems.length,
       sale,
       status: "pending",
@@ -829,6 +1132,7 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       sheetSync: "none",
       sheetSyncAt: "",
       sheetSyncError: "",
+      revisionHistory: [],
       _prototype: true,
     };
     upsertProtoReturn(newReq);
@@ -848,7 +1152,11 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       <div style={{ padding: "4px 20px 12px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: sub }}>{lang === "th" ? "ขอคืนสินค้า" : "Request Return"}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: isEditing ? "#D4357A" : sub }}>
+              {isEditing
+                ? (lang === "th" ? `📝 แก้ไขคำขอ · ${editingRequest.id}` : `📝 Edit · ${editingRequest.id}`)
+                : (lang === "th" ? "ขอคืนสินค้า" : "Request Return")}
+            </div>
             <PrototypeBadge />
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -856,9 +1164,9 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
           </button>
         </div>
         <div style={{ display: "flex", gap: 6, fontSize: 11, color: sub, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{br.borrow_no}</span>·
-          <span>{customer.customer_name}</span>·
-          <span style={{ fontFamily: "ui-monospace,monospace" }}>{customer.cust_code}</span>
+          <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{effectiveBr.borrow_no}</span>·
+          <span>{effectiveCustomer.customer_name}</span>·
+          <span style={{ fontFamily: "ui-monospace,monospace" }}>{effectiveCustomer.cust_code}</span>
         </div>
         {/* Steps */}
         <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 12 }}>
@@ -883,6 +1191,52 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px", color: text }}>
         {step === 1 && (
           <>
+            {/* Editing-mode context banner. Reminds the Sale that they are
+                revising a request, points at the Admin's global remark, and
+                lets them know that approved items pass through untouched. */}
+            {isEditing && (
+              <div style={{
+                background: STATUS_META.rejected.bg,
+                border: `0.5px solid ${STATUS_META.rejected.border}`,
+                borderRadius: 11, padding: "11px 13px", marginBottom: 12,
+                color: STATUS_META.rejected.color,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                  ↻ {lang === "th" ? "กำลังแก้ไขคำขอ" : "Editing request"}
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: dark ? "#ddd" : "#333" }}>
+                  {lang === "th"
+                    ? `แก้ไขเฉพาะรายการที่ Admin ขอแก้ ${editingRequest.rejectedItems?.length || 0} รายการ — รายการอื่นจะคงเดิม`
+                    : `Edit only the ${editingRequest.rejectedItems?.length || 0} item(s) Admin flagged. The rest are kept as-is.`}
+                </div>
+                {editingRequest.adminNote && (
+                  <div style={{ marginTop: 7, fontSize: 11, color: STATUS_META.rejected.color, lineHeight: 1.5, whiteSpace: "pre-line" }}>
+                    <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{editingRequest.adminNote}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Approved-passthrough summary — read-only so Sale sees the full
+                picture but cannot accidentally re-touch items Admin already
+                accepted. */}
+            {isEditing && approvedPassthroughItems.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: STATUS_META.approved.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
+                  ✓ {lang === "th" ? `อนุมัติแล้ว (คงเดิม)` : "Approved (kept)"} ({approvedPassthroughItems.length})
+                </div>
+                <div style={{ background: card, border: `0.5px dashed ${STATUS_META.approved.border}`, borderRadius: 11, overflow: "hidden" }}>
+                  {approvedPassthroughItems.map((si, i) => (
+                    <div key={i} style={{ padding: "9px 12px", borderBottom: i < approvedPassthroughItems.length - 1 ? `0.5px solid ${bdr}` : "none", opacity: 0.85 }}>
+                      <div style={{ fontSize: 10, color: sub, fontFamily: "ui-monospace,monospace" }}>{si.product_code || si.code}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: text }}>{si.product_name}</div>
+                      <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>
+                        {si.quantity} {lang === "th" ? "ชิ้น" : "pcs"} · ฿{Number(si.totalPrice || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Header row: section label + Select-All toggle. The toggle flips
                 between "เลือกทั้งหมด" (when not everything is selected) and
                 "ล้างการเลือก" (when everything is already selected) so one
@@ -893,8 +1247,10 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
               const disabled = items.length === 0;
               return (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
-                    {lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return"}
+                  <div style={{ fontSize: 11, color: isEditing ? STATUS_META.rejected.color : sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+                    {isEditing
+                      ? (lang === "th" ? "ส่วนที่ต้องแก้ไข" : "Items to revise")
+                      : (lang === "th" ? "เลือกรายการที่จะคืน" : "Select items to return")}
                   </div>
                   <button
                     onClick={() => {
@@ -946,18 +1302,31 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
               <div style={{ padding: 24, textAlign: "center", color: sub, fontSize: 12 }}>{lang === "th" ? "ไม่มีรายการในใบยืมนี้" : "No items in this BR"}</div>
             ) : items.map(it => {
               const checked = selectedIds.has(it.item_id);
+              const rejectReason = isEditing ? (it._rejectReason || "") : "";
               return (
                 // Selected state distinguished ONLY by pink border + outer ring + filled checkbox.
                 // Card background and all text colors stay identical to the unselected state so
                 // the content remains clearly readable per user feedback.
-                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: card, border: `1px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer", boxShadow: checked ? "0 0 0 1px #D4357A55" : "none" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${checked ? "#D4357A" : "rgba(255,255,255,0.15)"}`, background: checked ? "#D4357A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div key={it.item_id} onClick={() => togglePick(it.item_id)} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "13px 14px", background: card, border: `1px solid ${checked ? "#D4357A" : bdr}`, borderRadius: 12, marginBottom: 8, cursor: "pointer", boxShadow: checked ? "0 0 0 1px #D4357A55" : "none" }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1, border: `1.5px solid ${checked ? "#D4357A" : "rgba(255,255,255,0.15)"}`, background: checked ? "#D4357A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {checked && <Icon name="check" size={14} color="#fff" />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 11, color: sub, fontWeight: 600, fontFamily: "ui-monospace,monospace" }}>{it.product_code}</div>
+                      {isEditing && (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: STATUS_META.rejected.color, background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 4, padding: "1px 5px", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                          {lang === "th" ? "ต้องแก้ไข" : "Revise"}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 13, fontWeight: 600, margin: "2px 0 4px", color: text }}>{it.product_name}</div>
                     <div style={{ fontSize: 10, color: sub }}>{it.quantity} {lang === "th" ? "ชิ้น" : "pcs"} × ฿{Number(it.price).toLocaleString()} = ฿{(Number(it.price) * it.quantity).toLocaleString()}</div>
+                    {rejectReason && (
+                      <div style={{ marginTop: 6, padding: "6px 9px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 6, fontSize: 10, color: STATUS_META.rejected.color, lineHeight: 1.45 }}>
+                        <b>{lang === "th" ? "เหตุผล: " : "Reason: "}</b>{rejectReason}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1113,22 +1482,39 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
 
         {step === 4 && (
           <>
+            {isEditing && (
+              <div style={{
+                background: "#2D0F1A",
+                border: "1px solid #D4357A44",
+                borderRadius: 11, padding: "11px 13px", marginBottom: 12,
+                color: "#D4357A",
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                  📝 {lang === "th" ? "กำลังแก้ไขคำขอ" : "Editing request"} · {editingRequest.id}
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: dark ? "#ddd" : "#333" }}>
+                  {lang === "th"
+                    ? `${approvedPassthroughItems.length} รายการที่ Admin อนุมัติแล้วจะคงเดิม · ${submittedItems.length} รายการแก้ไขใหม่จะถูกส่งให้ Admin ตรวจอีกครั้ง`
+                    : `${approvedPassthroughItems.length} approved item(s) will be kept as-is · ${submittedItems.length} revised item(s) will be re-sent for Admin review.`}
+                </div>
+              </div>
+            )}
             <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "ตรวจสอบก่อนส่ง" : "Review before submit"}</div>
             <div style={{ background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, overflow: "hidden", marginBottom: 10 }}>
               <div style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}`, display: "flex", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 10, color: sub }}>{lang === "th" ? "ลูกค้า" : "Customer"}</div>
-                  <div style={{ fontSize: 13, marginTop: 2 }}>{customer.customer_name}</div>
+                  <div style={{ fontSize: 13, marginTop: 2 }}>{effectiveCustomer.customer_name}</div>
                 </div>
-                <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 10, color: sub }}>{customer.cust_code}</span>
+                <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 10, color: sub }}>{effectiveCustomer.cust_code}</span>
               </div>
               <div style={{ padding: "11px 14px", borderBottom: `0.5px solid ${bdr}` }}>
                 <div style={{ fontSize: 10, color: sub }}>BR</div>
-                <div style={{ fontSize: 13, marginTop: 2, fontFamily: "ui-monospace,monospace" }}>{br.borrow_no}</div>
+                <div style={{ fontSize: 13, marginTop: 2, fontFamily: "ui-monospace,monospace" }}>{effectiveBr.borrow_no}</div>
               </div>
               <div style={{ padding: "11px 14px" }}>
                 <div style={{ fontSize: 10, color: sub }}>Sale</div>
-                <div style={{ fontSize: 13, marginTop: 2 }}>{sale}</div>
+                <div style={{ fontSize: 13, marginTop: 2 }}>{sale || editingRequest?.sale || "—"}</div>
               </div>
             </div>
 
@@ -1201,7 +1587,9 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
           </button>
         ) : (
           <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-            {lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit"}
+            {isEditing
+              ? (lang === "th" ? "↩ ส่งคำขอแก้ไข" : "↩ Resubmit")
+              : (lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit")}
           </button>
         )}
       </div>
@@ -1665,6 +2053,406 @@ function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) 
 }
 
 // =============================================================================
+// ADMIN FEEDBACK COMPOSER (prototype-only)
+// =============================================================================
+//
+// Replaces the one-tap "rejected" status flip in the admin sim. Mirrors the
+// Desktop reviewer flow at br-return.html:3231-3347:
+//   - Per-item "needs revision" toggle with per-item reason text
+//   - Global admin remark
+//   - Photo attachments via real file picker (compressed to base64) plus a
+//     "demo photo" generator for quick demos
+//   - "Send back to Sale" applies the rejection to the existing record via
+//     replaceProtoReturn — same id, status → rejected
+//
+// Storage isolation: every byte of attachment data stays inside
+// localStorage["borrow-control:prototype-mobile-returns"]. No POST to
+// /return-requests, no script.google.com, no /sync writes.
+
+function AdminFeedbackComposer({ open, request, onClose, onApply, onOpenLightbox, dark, lang }) {
+  const [rejectMap, setRejectMap] = useState({}); // item-key -> { rejected: bool, reason: string }
+  const [adminNote, setAdminNote] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+  const fileInputRef = useRef(null);
+
+  // Derive a stable key per submitted item so toggles survive renders.
+  const itemKey = (si) => si.item_id || `${si.product_code || si.code}-${si.line_no || si.lineNo || ""}`;
+
+  useEffect(() => {
+    if (!open || !request) return;
+    // Reset state, then pre-populate from any prior rejection so the
+    // composer feels like "continue editing" if the same request is
+    // re-flagged. Pre-existing rejectedItems and attachments come back in
+    // so the reviewer can refine, not start from scratch.
+    setAdminNote(request.adminNote || "");
+    setAttachments(Array.isArray(request.attachments) ? [...request.attachments] : []);
+    const next = {};
+    const prevRejected = Array.isArray(request.rejectedItems) ? request.rejectedItems : [];
+    for (const si of (request.submittedItems || [])) {
+      const key = itemKey(si);
+      const prior = prevRejected.find(r =>
+        (r.itemId && r.itemId === si.item_id)
+        || ((r.code || r.product_code) === si.product_code && (r.lineNo || r.line_no) === si.line_no)
+      );
+      next[key] = { rejected: !!prior, reason: prior?.reason || "" };
+    }
+    setRejectMap(next);
+    setErrMsg("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, request?.id]);
+
+  if (!open || !request) return null;
+
+  const text = dark ? "#eee" : "#111";
+  const sub = dark ? "#888" : "#666";
+  const card = dark ? "#141414" : "#fff";
+  const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
+
+  const submittedItems = Array.isArray(request.submittedItems) ? request.submittedItems : [];
+  const rejectedCount = submittedItems.filter(si => rejectMap[itemKey(si)]?.rejected).length;
+  const totalAttachmentBytes = attachments.reduce((s, a) => s + approxAttachmentBytes(a), 0);
+
+  function toggleItemReject(si) {
+    const key = itemKey(si);
+    setRejectMap(prev => {
+      const cur = prev[key] || { rejected: false, reason: "" };
+      return { ...prev, [key]: { ...cur, rejected: !cur.rejected } };
+    });
+  }
+  function setItemReason(si, reason) {
+    const key = itemKey(si);
+    setRejectMap(prev => ({ ...prev, [key]: { ...(prev[key] || { rejected: false }), reason } }));
+  }
+
+  function addAttachment(att) {
+    setAttachments(prev => {
+      if (prev.length >= PHOTO_MAX_PER_REQUEST) {
+        setErrMsg(lang === "th"
+          ? `แนบได้สูงสุด ${PHOTO_MAX_PER_REQUEST} รูปต่อคำขอ`
+          : `Max ${PHOTO_MAX_PER_REQUEST} photos per request`);
+        return prev;
+      }
+      setErrMsg("");
+      return [...prev, att];
+    });
+  }
+  function removeAttachment(idx) {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handleFileChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setBusy(true); setErrMsg("");
+    // Slice the picker batch to whatever cap is left before we even decode.
+    const room = Math.max(0, PHOTO_MAX_PER_REQUEST - attachments.length);
+    const accepted = files.slice(0, room);
+    if (accepted.length < files.length) {
+      setErrMsg(lang === "th"
+        ? `แนบได้สูงสุด ${PHOTO_MAX_PER_REQUEST} รูปต่อคำขอ`
+        : `Max ${PHOTO_MAX_PER_REQUEST} photos per request`);
+    }
+    try {
+      for (const f of accepted) {
+        try {
+          const att = await compressImageFile(f);
+          // Re-check via functional setter so we never exceed the cap even
+          // if multiple decodes race with each other.
+          setAttachments(prev => prev.length >= PHOTO_MAX_PER_REQUEST ? prev : [...prev, att]);
+        } catch (err) {
+          setErrMsg(lang === "th" ? `ไฟล์ "${f.name}" ใช้ไม่ได้` : `Could not process "${f.name}"`);
+        }
+      }
+    } finally {
+      setBusy(false);
+      // Reset the input so picking the same file twice still fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function handleDemoPhoto() {
+    if (attachments.length >= PHOTO_MAX_PER_REQUEST) {
+      setErrMsg(lang === "th"
+        ? `แนบได้สูงสุด ${PHOTO_MAX_PER_REQUEST} รูปต่อคำขอ`
+        : `Max ${PHOTO_MAX_PER_REQUEST} photos per request`);
+      return;
+    }
+    addAttachment(genDemoPhoto(attachments.length));
+  }
+
+  function handleSend() {
+    const reasonsByKey = rejectMap;
+    const rejectedItems = submittedItems
+      .filter(si => reasonsByKey[itemKey(si)]?.rejected)
+      .map(si => ({
+        code: si.product_code || si.code,
+        product_code: si.product_code || si.code,
+        name: si.product_name,
+        product_name: si.product_name,
+        price: Number(si.price) || 0,
+        quantity: Number(si.quantity) || 0,
+        totalPrice: Number(si.totalPrice) || 0,
+        retQty:  Number(si.retQty)  || 0,
+        clmQty:  Number(si.clmQty)  || 0,
+        saleQty: Number(si.saleQty) || 0,
+        freeQty: Number(si.freeQty) || 0,
+        reason: (reasonsByKey[itemKey(si)]?.reason || "").trim(),
+        itemId: si.item_id,
+        lineNo: si.line_no,
+      }));
+    if (rejectedItems.length === 0) {
+      setErrMsg(lang === "th"
+        ? "เลือกอย่างน้อย 1 รายการที่ต้องแก้"
+        : "Pick at least one item to flag");
+      return;
+    }
+    // Try the write; if localStorage is too full, surface a clear message.
+    try {
+      onApply({
+        adminNote: adminNote.trim(),
+        rejectedItems,
+        attachments,
+      });
+    } catch (e) {
+      setErrMsg(lang === "th"
+        ? "พื้นที่ไม่พอ ลดรูปหรือลบรูปก่อน"
+        : "Storage full — remove a photo or reduce size");
+    }
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} height="94%" dark={dark}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ padding: "4px 20px 12px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: STATUS_META.rejected.color, letterSpacing: 0.3 }}>
+                🎭 {lang === "th" ? "จำลอง Admin · ส่งกลับแก้ไข" : "Sim Admin · Send back"}
+              </div>
+              <PrototypeBadge />
+            </div>
+            <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="close" size={14} color={sub} />
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: sub, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "ui-monospace,monospace", color: text, fontWeight: 600 }}>{request.id}</span>·
+            <span>{request.cust}</span>·
+            <span style={{ fontFamily: "ui-monospace,monospace" }}>{request.br}</span>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px 20px", color: text }}>
+          {/* Per-item rejection rows */}
+          <div style={{ fontSize: 11, color: sub, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+            {lang === "th" ? `เลือกรายการที่ต้องแก้ (${rejectedCount}/${submittedItems.length})` : `Select items to flag (${rejectedCount}/${submittedItems.length})`}
+          </div>
+          {submittedItems.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: sub, fontSize: 12 }}>
+              {lang === "th" ? "คำขอนี้ไม่มีรายการ" : "No items in this request"}
+            </div>
+          ) : submittedItems.map(si => {
+            const key = itemKey(si);
+            const st = rejectMap[key] || { rejected: false, reason: "" };
+            const tb = breakdownFor(si);
+            return (
+              <div key={key} style={{
+                background: card,
+                border: `1px solid ${st.rejected ? STATUS_META.rejected.border : bdr}`,
+                borderRadius: 12, padding: "11px 13px", marginBottom: 8,
+                boxShadow: st.rejected ? `0 0 0 1px ${STATUS_META.rejected.border}` : "none",
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <button
+                    onClick={() => toggleItemReject(si)}
+                    style={{
+                      width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 2,
+                      border: `1.5px solid ${st.rejected ? STATUS_META.rejected.color : "rgba(255,255,255,0.15)"}`,
+                      background: st.rejected ? STATUS_META.rejected.color : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", padding: 0,
+                    }}
+                  >
+                    {st.rejected && <Icon name="check" size={14} color="#1a1a1a" />}
+                  </button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{si.product_code || si.code}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1, color: text }}>{si.product_name}</div>
+                    {tb.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+                        {tb.map(b => (
+                          <span key={b.key} style={{ fontSize: 9, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 5, padding: "1px 6px", letterSpacing: 0.3 }}>
+                            {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {st.rejected && (
+                  <textarea
+                    value={st.reason}
+                    onChange={(e) => setItemReason(si, e.target.value.slice(0, 240))}
+                    placeholder={lang === "th" ? "ระบุเหตุผลที่ต้องแก้ไข..." : "Reason this item needs revision..."}
+                    style={{
+                      width: "100%", marginTop: 8, minHeight: 56,
+                      borderRadius: 8, padding: "8px 10px",
+                      background: dark ? "#0a0a0a" : "#fafaf8",
+                      border: `0.5px solid ${STATUS_META.rejected.border}`,
+                      color: text, fontFamily: "inherit", fontSize: 12, lineHeight: 1.5,
+                      resize: "none", outline: "none",
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          {/* Global admin remark */}
+          <div style={{ fontSize: 11, color: sub, marginTop: 14, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+            {lang === "th" ? "หมายเหตุ Admin (ทั้งคำขอ)" : "Admin remark (whole request)"}
+          </div>
+          <textarea
+            value={adminNote}
+            onChange={(e) => setAdminNote(e.target.value.slice(0, 500))}
+            maxLength={500}
+            placeholder={lang === "th" ? "ระบุภาพรวมที่ Sale ต้องแก้ไข..." : "Overall message Sale should see..."}
+            style={{
+              width: "100%", minHeight: 90, borderRadius: 12, padding: "12px 14px",
+              background: card, border: `0.5px solid ${bdr}`,
+              color: text, fontFamily: "inherit", fontSize: 13, lineHeight: 1.55,
+              resize: "none", outline: "none",
+            }}
+          />
+          <div style={{ textAlign: "right", fontSize: 10, color: sub, marginTop: 4 }}>{adminNote.length} / 500</div>
+
+          {/* Attachments */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+              📷 {lang === "th" ? `หลักฐาน (${attachments.length}/${PHOTO_MAX_PER_REQUEST})` : `Evidence (${attachments.length}/${PHOTO_MAX_PER_REQUEST})`}
+            </div>
+            <div style={{ fontSize: 9, color: sub }}>
+              {(totalAttachmentBytes / 1024).toFixed(0)} KB
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy || attachments.length >= PHOTO_MAX_PER_REQUEST}
+              style={{
+                flex: 1, padding: 11, borderRadius: 10,
+                border: `0.5px solid ${bdr}`,
+                background: dark ? "#1a1a1a" : "#fafaf8",
+                color: attachments.length >= PHOTO_MAX_PER_REQUEST ? sub : text,
+                fontSize: 12, fontWeight: 600,
+                cursor: (busy || attachments.length >= PHOTO_MAX_PER_REQUEST) ? "not-allowed" : "pointer",
+                opacity: busy ? 0.6 : 1, fontFamily: "inherit",
+              }}
+            >
+              📷 {busy ? (lang === "th" ? "กำลังประมวลผล..." : "Processing...") : (lang === "th" ? "เลือกรูป" : "Pick image")}
+            </button>
+            <button
+              onClick={handleDemoPhoto}
+              disabled={attachments.length >= PHOTO_MAX_PER_REQUEST}
+              style={{
+                flex: 1, padding: 11, borderRadius: 10,
+                border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`,
+                background: "transparent",
+                color: dark ? "#FAC775" : "#854F0B",
+                fontSize: 12, fontWeight: 600,
+                cursor: attachments.length >= PHOTO_MAX_PER_REQUEST ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              🎨 {lang === "th" ? "รูปจำลอง" : "Demo photo"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+          </div>
+
+          {attachments.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+              {attachments.map((att, i) => (
+                <div key={i} style={{ position: "relative", aspectRatio: "1 / 1" }}>
+                  <button
+                    onClick={() => onOpenLightbox && onOpenLightbox(attachments, i)}
+                    style={{
+                      width: "100%", height: "100%", padding: 0,
+                      border: `0.5px solid ${bdr}`, borderRadius: 9,
+                      background: dark ? "#0a0a0a" : "#fafaf8",
+                      cursor: "pointer", overflow: "hidden",
+                    }}
+                  >
+                    <img src={att.data} alt={att.name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeAttachment(i); }}
+                    style={{
+                      position: "absolute", top: 4, right: 4,
+                      width: 22, height: 22, borderRadius: 11,
+                      border: "none", background: "rgba(0,0,0,0.7)", color: "#fff",
+                      fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >✕</button>
+                  {att._demo && (
+                    <span style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, fontWeight: 700, background: "rgba(0,0,0,0.65)", color: "#fff", padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3 }}>DEMO</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {errMsg && (
+            <div style={{ marginTop: 10, padding: "8px 10px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 8, fontSize: 11, color: STATUS_META.rejected.color }}>
+              ⚠ {errMsg}
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, padding: "10px 12px", background: dark ? "#1a1500" : "#FEFAEE", border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, borderRadius: 9, fontSize: 10, color: dark ? "#FAC775" : "#854F0B", lineHeight: 1.55 }}>
+            ⚠ {lang === "th"
+              ? "Prototype: รูปและหมายเหตุนี้เก็บใน localStorage บนเครื่องเท่านั้น — ไม่ส่งไป Admin/Database จริง"
+              : "Prototype: Photos and notes are stored in localStorage only — not sent to real Admin/DB"}
+          </div>
+        </div>
+
+        {/* Bottom action bar */}
+        <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            {lang === "th" ? "ยกเลิก" : "Cancel"}
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={rejectedCount === 0}
+            style={{
+              flex: 2, padding: 14, borderRadius: 12, border: "none",
+              background: rejectedCount === 0 ? "#333" : STATUS_META.rejected.border,
+              color: rejectedCount === 0 ? "#666" : "#fff",
+              fontSize: 14, fontWeight: 700,
+              cursor: rejectedCount === 0 ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            ↩ {lang === "th" ? `ส่งกลับให้ Sale (${rejectedCount})` : `Send back to Sale (${rejectedCount})`}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// =============================================================================
 // RETURNS SCREEN (new bottom tab)
 // =============================================================================
 
@@ -1676,6 +2464,18 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
   const [dateOpen, setDateOpen] = useState(false);  // calendar sheet visibility
   const [selectedReq, setSelectedReq] = useState(null);
   const [simReq, setSimReq] = useState(null); // for admin sim long-press
+  // ── Correction-flow state (prototype-only) ──────────────────────────
+  // composerReq: when set, the AdminFeedbackComposer opens to compose a
+  //   per-item rejection + admin note + attachments for that request.
+  // editingReq: when set, RequestReturnSheet opens in edit-and-resubmit
+  //   mode pre-loaded from that rejected request.
+  // lightboxImages / lightboxStart: opens the fullscreen ImageLightbox.
+  // editToast: brief on-screen confirmation after a successful resubmit.
+  const [composerReq, setComposerReq] = useState(null);
+  const [editingReq, setEditingReq]   = useState(null);
+  const [lightboxImages, setLightboxImages] = useState(null);
+  const [lightboxStart,  setLightboxStart]  = useState(0);
+  const [editToast, setEditToast] = useState(null);
   const text = dark ? "#eee" : "#111";
   const sub = dark ? "#888" : "#666";
   const card = dark ? "#141414" : "#fff";
@@ -1714,13 +2514,56 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
   const hasAnyFilter = !!(search || statusFilter || dateFrom);
 
   function simulateStatusChange(req, newStatus) {
+    // The "rejected" path now opens the AdminFeedbackComposer so the
+    // reviewer can pick which items fail, write per-item reasons, attach
+    // photos, and write a global admin remark — matching the Desktop flow
+    // at br-return.html:3231-3347. All other statuses remain one-tap.
+    if (newStatus === "rejected") {
+      setSimReq(null);
+      setComposerReq(req);
+      return;
+    }
     const updated = { ...req, status: newStatus };
-    if (newStatus === "approved") { updated.sheetSync = "synced"; updated.sheetSyncAt = new Date().toISOString(); }
-    if (newStatus === "rejected") { updated.adminNote = "(Simulated) please revise quantities or types."; }
-    if (newStatus === "cancelled") { updated.cancelReason = "(Simulated) request cancelled."; }
+    if (newStatus === "approved") {
+      updated.sheetSync = "synced";
+      updated.sheetSyncAt = new Date().toISOString();
+      // Approving clears any prior rejection state so the request becomes
+      // truly clean. revisionHistory is retained as audit trail.
+      updated.adminNote = "";
+      updated.rejectedItems = [];
+      updated.attachments = [];
+    }
+    if (newStatus === "cancelled") {
+      updated.cancelReason = "(Simulated) request cancelled.";
+    }
+    if (newStatus === "pending") {
+      updated.adminNote = "";
+      updated.rejectedItems = [];
+      updated.attachments = [];
+    }
     upsertProtoReturn(updated);
     refreshReturns();
     setSimReq(null);
+  }
+
+  // Called by the composer when the reviewer hits "Send back to Sale".
+  // Writes the full rejection payload onto the existing record without
+  // changing its id (Desktop parity).
+  function applyAdminRejection(req, payload) {
+    const updated = replaceProtoReturn(req.id, {
+      status: "rejected",
+      adminNote: payload.adminNote || "",
+      rejectedItems: payload.rejectedItems || [],
+      attachments: payload.attachments || [],
+      // Don't bump dateSort — Admin actions should not push the request
+      // to the top of the Sale's list; the Sale already saw it. Only the
+      // Sale's resubmit bumps dateSort.
+    });
+    refreshReturns();
+    setComposerReq(null);
+    if (selectedReq && selectedReq.id === req.id) {
+      setSelectedReq(updated || { ...req, ...(payload || {}) });
+    }
   }
 
   function deleteRequest(req) {
@@ -1852,6 +2695,9 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           };
           const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
 
+          const revCount = 1 + (Array.isArray(r.revisionHistory) ? r.revisionHistory.length : 0);
+          const photoCount = Array.isArray(r.attachments) ? r.attachments.length : 0;
+          const rejItemCount = Array.isArray(r.rejectedItems) ? r.rejectedItems.length : 0;
           return (
             <div
               key={r.id}
@@ -1860,9 +2706,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
               onTouchStart={startPress} onTouchEnd={cancelPress} onTouchMove={cancelPress} onTouchCancel={cancelPress}
               style={{ background: card, border: `0.5px solid ${bdr}`, borderLeft: `3px solid ${m.color}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer", userSelect: "none" }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{r.id}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{r.id}</div>
+                    <RevisionChip rev={revCount} lang={lang} />
+                  </div>
                   <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{fmtDateTime(r.date)}</div>
                 </div>
                 <ReturnStatusPill status={r.status} size="xs" lang={lang} />
@@ -1872,8 +2721,17 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                 <span style={{ color: sub }}>{r.items} {lang === "th" ? "รายการ" : "items"}{typeSummary ? ` · ${typeSummary}` : ""}</span>
                 <span style={{ fontWeight: 700, color: text }}>฿{total.toLocaleString()}</span>
               </div>
-              {r.adminNote && r.status === "rejected" && (
-                <div style={{ marginTop: 7, padding: "6px 9px", background: "#2a1815", border: "0.5px solid #6b3a26", borderRadius: 6, fontSize: 10, color: "#E89C7D" }}>{lang === "th" ? "ขอแก้ไข" : "Revise"}: {r.adminNote}</div>
+              {r.status === "rejected" && (
+                <div style={{ marginTop: 7, padding: "7px 9px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 6, fontSize: 10, color: STATUS_META.rejected.color, lineHeight: 1.45 }}>
+                  <div style={{ fontWeight: 700, marginBottom: r.adminNote ? 2 : 0 }}>
+                    ⚠ {lang === "th" ? "ต้องแก้ไข" : "Needs revision"}
+                    {rejItemCount > 0 ? ` · ${rejItemCount} ${lang === "th" ? "รายการ" : "item(s)"}` : ""}
+                    {photoCount > 0 ? ` · ${photoCount} 📷` : ""}
+                  </div>
+                  {r.adminNote && (
+                    <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.adminNote}</div>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -1897,8 +2755,16 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "เลขที่คำขอ" : "Request ID"}</div>
-                    <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "ui-monospace,monospace", marginTop: 2 }}>{selectedReq.id}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                      <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "ui-monospace,monospace" }}>{selectedReq.id}</div>
+                      <RevisionChip rev={1 + (Array.isArray(selectedReq.revisionHistory) ? selectedReq.revisionHistory.length : 0)} lang={lang} />
+                    </div>
                     <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>{fmtDateTime(selectedReq.date)} · <b style={{ color: "#D4357A" }}>{selectedReq.sale}</b></div>
+                    {selectedReq.resubmittedAt && (
+                      <div style={{ fontSize: 10, color: "#D4357A", marginTop: 2 }}>
+                        ↻ {lang === "th" ? "ส่งแก้ไขเมื่อ" : "Resubmitted"} {fmtDateTime(selectedReq.resubmittedAt)}
+                      </div>
+                    )}
                   </div>
                   <ReturnStatusPill status={selectedReq.status} size="sm" lang={lang} />
                 </div>
@@ -1958,11 +2824,107 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   </>
                 )}
 
-                {selectedReq.adminNote && selectedReq.status === "rejected" && (
-                  <>
-                    <div style={{ fontSize: 11, color: STATUS_META.rejected.color, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{lang === "th" ? "ขอแก้ไขจาก Admin" : "Admin asks revision"}</div>
-                    <div style={{ background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 11, padding: "12px 14px", fontSize: 12, lineHeight: 1.55, color: STATUS_META.rejected.color, whiteSpace: "pre-line", marginBottom: 12 }}>{selectedReq.adminNote}</div>
-                  </>
+                {selectedReq.status === "rejected" && (
+                  <div style={{ marginBottom: 14 }}>
+                    {/* Headline banner */}
+                    <div style={{
+                      background: STATUS_META.rejected.bg,
+                      border: `0.5px solid ${STATUS_META.rejected.border}`,
+                      borderRadius: 11, padding: "12px 14px", marginBottom: 10,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: STATUS_META.rejected.color, marginBottom: selectedReq.adminNote ? 6 : 0, letterSpacing: 0.3 }}>
+                        ⚠ {lang === "th" ? "มีรายการที่ต้องแก้ไข" : "Items need revision"}
+                      </div>
+                      {selectedReq.adminNote && (
+                        <div style={{ fontSize: 12, lineHeight: 1.55, color: STATUS_META.rejected.color, whiteSpace: "pre-line" }}>
+                          <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{selectedReq.adminNote}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Per-item rejection list */}
+                    {Array.isArray(selectedReq.rejectedItems) && selectedReq.rejectedItems.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: STATUS_META.rejected.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
+                          {lang === "th" ? `รายการที่ Admin ขอแก้ (${selectedReq.rejectedItems.length})` : `Flagged items (${selectedReq.rejectedItems.length})`}
+                        </div>
+                        <div style={{ background: card, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 11, overflow: "hidden" }}>
+                          {selectedReq.rejectedItems.map((ri, idx) => {
+                            const arr = selectedReq.rejectedItems;
+                            const tb = breakdownFor({
+                              retQty: ri.retQty || 0, clmQty: ri.clmQty || 0, saleQty: ri.saleQty || 0, freeQty: ri.freeQty || 0,
+                            });
+                            return (
+                              <div key={idx} style={{ padding: "11px 13px", borderBottom: idx < arr.length - 1 ? `0.5px solid ${bdr}` : "none" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>{ri.code || ri.product_code}</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1, color: text }}>{ri.name || ri.product_name}</div>
+                                    {tb.length > 0 && (
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+                                        {tb.map(b => (
+                                          <span key={b.key} style={{ fontSize: 9, fontWeight: 700, color: b.color, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${b.color}55`, borderRadius: 5, padding: "1px 6px", letterSpacing: 0.3 }}>
+                                            {b.icon} {b.qty} {b.label_th.toUpperCase()}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                {ri.reason && (
+                                  <div style={{ marginTop: 7, padding: "7px 9px", background: STATUS_META.rejected.bg, border: `0.5px solid ${STATUS_META.rejected.border}`, borderRadius: 6, fontSize: 11, color: STATUS_META.rejected.color, lineHeight: 1.5 }}>
+                                    <b>{lang === "th" ? "เหตุผล: " : "Reason: "}</b>{ri.reason}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Photo evidence grid */}
+                    {Array.isArray(selectedReq.attachments) && selectedReq.attachments.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: STATUS_META.rejected.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
+                          📷 {lang === "th" ? `หลักฐานจาก Admin (${selectedReq.attachments.length})` : `Admin evidence (${selectedReq.attachments.length})`}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                          {selectedReq.attachments.map((att, i) => (
+                            <button
+                              key={i}
+                              onClick={(e) => { e.stopPropagation(); setLightboxImages(selectedReq.attachments); setLightboxStart(i); }}
+                              style={{
+                                border: `0.5px solid ${bdr}`, borderRadius: 9, overflow: "hidden",
+                                aspectRatio: "1 / 1", background: dark ? "#0a0a0a" : "#fafaf8",
+                                padding: 0, cursor: "pointer", position: "relative",
+                              }}
+                            >
+                              <img src={att.data} alt={att.name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                              {att._demo && (
+                                <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8, fontWeight: 700, background: "rgba(0,0,0,0.65)", color: "#fff", padding: "1px 5px", borderRadius: 4, letterSpacing: 0.3 }}>DEMO</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit-and-resubmit CTA */}
+                    <button
+                      onClick={() => setEditingReq(selectedReq)}
+                      style={{
+                        width: "100%", padding: 14, borderRadius: 12, border: "none",
+                        background: "linear-gradient(135deg, #D4357A, #9A1A56)",
+                        color: "#fff", fontSize: 14, fontWeight: 700,
+                        cursor: "pointer", fontFamily: "inherit",
+                        boxShadow: "0 6px 20px rgba(212,53,122,0.3)",
+                        marginTop: 4,
+                      }}
+                    >
+                      ↩ {lang === "th" ? "แก้ไขและส่งใหม่" : "Edit and resubmit"}
+                    </button>
+                  </div>
                 )}
 
                 {selectedReq.cancelReason && selectedReq.status === "cancelled" && (
@@ -2013,6 +2975,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
             {["pending", "approved", "rejected", "cancelled"].map(st => {
               const sm = STATUS_META[st];
               const current = simReq.status === st;
+              const isReject = st === "rejected";
               return (
                 <button key={st} onClick={() => simulateStatusChange(simReq, st)} disabled={current} style={{
                   width: "100%", padding: "12px 14px", borderRadius: 11, marginBottom: 8,
@@ -2021,7 +2984,10 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   cursor: current ? "default" : "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
                   opacity: current ? 1 : 0.95,
                 }}>
-                  <span>{sm.label_th}</span>
+                  <span>
+                    {sm.label_th}
+                    {isReject && !current && <span style={{ marginLeft: 6, fontSize: 10, color: sub, fontWeight: 500 }}>({lang === "th" ? "เปิดตัวแก้คำขอ" : "opens composer"})</span>}
+                  </span>
                   {current ? <span style={{ fontSize: 10, color: sm.color }}>{lang === "th" ? "ปัจจุบัน" : "current"}</span> : <Icon name="chevron" size={12} color={sub} />}
                 </button>
               );
@@ -2032,6 +2998,66 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           </div>
         )}
       </BottomSheet>
+
+      {/* Admin feedback composer — opens when "rejected" is chosen in the
+          admin sim. Lets the reviewer pick which items fail, write per-item
+          reasons, attach photos (real picker or demo placeholder), and a
+          global admin remark. Writes back via replaceProtoReturn. */}
+      <AdminFeedbackComposer
+        open={!!composerReq}
+        request={composerReq}
+        onClose={() => setComposerReq(null)}
+        onApply={(payload) => composerReq && applyAdminRejection(composerReq, payload)}
+        onOpenLightbox={(imgs, start) => { setLightboxImages(imgs); setLightboxStart(start || 0); }}
+        dark={dark}
+        lang={lang}
+      />
+
+      {/* Edit-and-resubmit sheet — reuses RequestReturnSheet in editing
+          mode. On submit, replaceProtoReturn updates the existing record
+          in place and pushes a snapshot to revisionHistory. */}
+      <RequestReturnSheet
+        open={!!editingReq}
+        onClose={() => setEditingReq(null)}
+        editingRequest={editingReq}
+        sale={editingReq?.sale}
+        lang={lang}
+        dark={dark}
+        onSubmitted={(updated) => {
+          refreshReturns();
+          setEditingReq(null);
+          // Reflect new state in the detail sheet (still open behind),
+          // then surface a small toast so Sale knows the resubmit landed.
+          if (updated) setSelectedReq(updated);
+          setEditToast(lang === "th" ? "ส่งคำขอแก้ไขสำเร็จ" : "Resubmitted successfully");
+          setTimeout(() => setEditToast(null), 2200);
+        }}
+      />
+
+      {/* Fullscreen image viewer — used by both the rejection-panel photo
+          grid (Sale view) and the composer's preview thumbnails (Admin). */}
+      <ImageLightbox
+        open={Array.isArray(lightboxImages) && lightboxImages.length > 0}
+        sources={lightboxImages || []}
+        startIndex={lightboxStart}
+        onClose={() => setLightboxImages(null)}
+      />
+
+      {/* Lightweight success toast after a resubmit. Sits above sheets, fades
+          out automatically after ~2.2s. */}
+      {editToast && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: 90,
+          transform: "translateX(-50%)",
+          background: "linear-gradient(135deg, #639922, #3A6014)",
+          color: "#fff", fontSize: 13, fontWeight: 700,
+          padding: "10px 18px", borderRadius: 999,
+          boxShadow: "0 8px 24px rgba(99,153,34,0.4)",
+          zIndex: 9998, letterSpacing: 0.3,
+        }}>
+          ✓ {editToast}
+        </div>
+      )}
     </div>
   );
 }
