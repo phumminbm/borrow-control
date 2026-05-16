@@ -1564,6 +1564,36 @@ var BR_STRINGS = {
   "login.remember":           { th: "จดจำการเข้าสู่ระบบ",    en: "Remember me" },
   "login.wrongCreds":         { th: "รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง", en: "Incorrect employee ID or password" },
   "login.demoHint":           { th: "ใช้รหัสได้ + รหัสผ่านได้", en: "Any user ID + password works in demo" },
+
+  // ── Additional toast messages (Phase 3 chunk 3) ──────────────
+  "toast.pleaseSelectSale":   { th: "กรุณาเลือก Sale ก่อน",  en: "Please select a Sale first" },
+  "toast.maxQty":             { th: "จำนวนรวมเต็มแล้ว — ค้างอยู่เพียง {max} ชิ้น", en: "Maximum quantity reached — only {max} pcs available" },
+  "toast.noItemsInBR":        { th: "ไม่มีรายการสินค้าในใบยืมนี้", en: "No items in this BR" },
+  "toast.editTargetNotFound": { th: "ไม่พบคำขอที่ต้องการแก้ไข", en: "Could not find the request to edit" },
+  "toast.editResubmitted":    { th: "แก้ไขและส่งใหม่แล้ว",    en: "Edited and resubmitted" },
+  "toast.submitted":          { th: "ส่งคำขอสำเร็จ",          en: "Request submitted" },
+  "toast.pleaseGiveReason":   { th: "กรุณาระบุเหตุผลที่ยกเลิก", en: "Please provide a cancel reason" },
+  "toast.cancelled":          { th: "ยกเลิกคำขอแล้ว",         en: "Request cancelled" },
+  "toast.reqNotFound":        { th: "ไม่พบคำขอ {id}",         en: "Request {id} not found" },
+  "toast.approvedSyncing":    { th: "อนุมัติคำขอ {id} แล้ว — กำลัง Sync Sheet...", en: "Approved {id} — syncing to Sheet..." },
+  "toast.testApprovedSkip":   { th: "🧪 อนุมัติคำขอทดสอบ — ข้าม Sheet sync", en: "🧪 Test request approved — Sheet sync skipped" },
+  "toast.syncOkCheck":        { th: "Sync Sheet สำเร็จ ✓",   en: "Sheet sync successful ✓" },
+  "toast.syncFailErr":        { th: "Sync Sheet ล้มเหลว: {err}", en: "Sheet sync failed: {err}" },
+  "toast.testRetryNoSync":    { th: "🧪 คำขอทดสอบ — ไม่ retry Sync Sheet", en: "🧪 Test request — sync retry skipped" },
+  "toast.nothingNeedSync":    { th: "ไม่มีรายการที่ต้อง Sync Sheet", en: "Nothing needs syncing" },
+  "toast.retrySyncStarting":  { th: "กำลัง Retry Sync Sheet...", en: "Retrying Sheet sync..." },
+  "toast.retrySyncOkCheck":   { th: "Retry Sync Sheet สำเร็จ ✓", en: "Sheet sync retry successful ✓" },
+  "toast.syncAlreadyOk":      { th: "ตรวจพบว่า Sheet ได้ sync ไว้แล้ว — อัปเดตสถานะเรียบร้อย ✓", en: "Sheet was already synced — status updated ✓" },
+  "toast.retryFailErr":       { th: "Retry ล้มเหลว: {err}",  en: "Retry failed: {err}" },
+  "toast.attachMax":          { th: "แนบได้สูงสุด {n} รูป", en: "Maximum {n} photos can be attached" },
+  "toast.attachExceeded":     { th: "แนบเกิน {max} รูป — รับแค่ {n} ไฟล์แรก", en: "Exceeded {max} photos — only the first {n} were accepted" },
+  "toast.attachFailErr":      { th: "แนบรูปล้มเหลว: {err}",  en: "Photo attachment failed: {err}" },
+  "toast.testSentBackSkip":   { th: "🧪 ส่งกลับให้ Sale แก้ {n} รายการ — ข้าม Sheet sync (test)", en: "🧪 Sent {n} item(s) back to Sale — Sheet sync skipped (test)" },
+  "toast.partialApproveSendBack": { th: "อนุมัติรายการที่ผ่าน {a} รายการ และส่งกลับให้ Sale แก้ {f} รายการ", en: "Approved {a} item(s) and sent {f} item(s) back to Sale for revision" },
+  "toast.partialSyncOk":      { th: "Sync Sheet รายการที่ผ่านสำเร็จ ✓", en: "Approved items synced to Sheet ✓" },
+  "toast.partialSyncFail":    { th: "Sync Sheet รายการที่ผ่านล้มเหลว: {err}", en: "Syncing approved items failed: {err}" },
+  "toast.sentBackNItems":     { th: "ส่งกลับให้ Sale แก้ไข {n} รายการ", en: "Sent {n} item(s) back to Sale for revision" },
+  "toast.loadingBC":          { th: "กำลังโหลดข้อมูล Borrow Control...", en: "Loading Borrow Control data..." },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
@@ -1881,7 +1911,7 @@ function toggleTestMode(){
   // Reload the queue so the new filter takes effect immediately.
   RECENT = [];
   loadReturnRequests();
-  showToast(TEST_MODE ? '🧪 Test mode ON — แสดงเฉพาะคำขอทดสอบ' : 'Test mode OFF — แสดงข้อมูลใช้งานจริง', TEST_MODE ? 'warn' : 'success');
+  showToast(TEST_MODE ? _t('test.modeOn') : _t('test.modeOff'), TEST_MODE ? 'warn' : 'success');
 }
 
 function returnRequestsQueryUrl(limit){
@@ -3092,7 +3122,7 @@ function rebuildAdminTable(){
 // ═══════════════════════════════════════════════════════════════
 function openStep1(){
   if(MASTER_LOADING){ showToast('Loading Borrow Control data...', 'warn'); return; }
-  if(!MSALE){ showToast('กรุณาเลือก Sale ก่อน','warn'); return; }
+  if(!MSALE){ showToast(_t('toast.pleaseSelectSale'),'warn'); return; }
   ST = {sale:MSALE,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
   // Clear remark textarea at the start of every fresh new-request flow.
   // Belt-and-suspenders with the clears in closeAll() and goStep3() — guarantees
@@ -3321,7 +3351,7 @@ function spinQty(type, code, delta, max){
   if(delta>0){
     var used=(ST.retQtys[code]||0)+(ST.clmQtys[code]||0)+(ST.saleQtys[code]||0)+(ST.freeQtys[code]||0);
     if(used>=max){
-      showToast('จำนวนรวมเต็มแล้ว — ค้างอยู่เพียง '+max+' ชิ้น','warn');
+      showToast(_t('toast.maxQty',{max:max}),'warn');
       return;
     }
   }
@@ -3331,7 +3361,7 @@ function spinQty(type, code, delta, max){
 function applyBulkType(type){
   var prods = stepProducts();
   if(!prods.length){
-    showToast('ไม่มีรายการสินค้าในใบยืมนี้','warn');
+    showToast(_t('toast.noItemsInBR'),'warn');
     return;
   }
   if(ST.bulkType === type){
@@ -3517,13 +3547,13 @@ function doSubmit(){
       }
     }
     if(!editedRequest){
-      showToast('ไม่พบคำขอที่ต้องการแก้ไข','warn');
+      showToast(_t('toast.editTargetNotFound'),'warn');
       return;
     }
     el('ok-id').innerHTML = ST.editId;
     saveReturnRequest(editedRequest).then(function(res){
       if(res && res.success){
-        showToast('แก้ไขและส่งใหม่แล้ว','success');
+        showToast(_t('toast.editResubmitted'),'success');
         loadReturnRequests({silent:true});
       }
     });
@@ -3538,7 +3568,7 @@ function doSubmit(){
     RECENT.unshift(newRequest);
     el('ok-id').innerHTML = newId;
     saveReturnRequest(newRequest);
-    showToast('ส่งคำขอสำเร็จ','success');
+    showToast(_t('toast.submitted'),'success');
   }
 
   hide('ov-confirm'); show('ov-ok');
@@ -3716,7 +3746,7 @@ function confirmCancelRequest(){
   var reason = (el('cancel-reason').value||'').trim();
   if(!rid) return;
   if(!reason){
-    showToast('กรุณาระบุเหตุผลที่ยกเลิก','warn');
+    showToast(_t('toast.pleaseGiveReason'),'warn');
     el('cancel-reason').focus();
     return;
   }
@@ -3736,7 +3766,7 @@ function confirmCancelRequest(){
   renderSalePills();
   if(ACTIVE_TAB==='admin') renderAdminContent();
   else renderContent();
-  showToast('ยกเลิกคำขอแล้ว','warn');
+  showToast(_t('toast.cancelled'),'warn');
 }
 
 function editRequest(rid){
@@ -3897,7 +3927,7 @@ var REV_HIST_STATE = { rid: null, selected: 0 };
 function openRevisionHistory(rid){
   var r = null;
   for(var i=0;i<RECENT.length;i++) if(RECENT[i].id===rid){r=RECENT[i];break;}
-  if(!r) { showToast('ไม่พบคำขอ '+rid, 'warn'); return; }
+  if(!r) { showToast(_t('toast.reqNotFound',{id:rid}), 'warn'); return; }
   REV_HIST_STATE.rid = rid;
   var hist = Array.isArray(r.revisionHistory) ? r.revisionHistory : [];
   // Default the tab to the most recently-CORRECTED revision (i.e. the
@@ -4230,7 +4260,7 @@ function adminApprove(){
   closeAll();
   renderSalePills();
   renderAdminContent();
-  showToast('อนุมัติคำขอ '+rid+' แล้ว — กำลัง Sync Sheet...','warn');
+  showToast(_t('toast.approvedSyncing',{id:rid}),'warn');
 
   // Sheet sync
   if(r && r.submittedItems && r.submittedItems.length>0){
@@ -4251,7 +4281,7 @@ function adminApprove(){
         }
       }
       renderAdminContent();
-      showToast('🧪 อนุมัติคำขอทดสอบ — ข้าม Sheet sync','warn');
+      showToast(_t('toast.testApprovedSkip'),'warn');
       return;
     }
     updateSheetStatus(
@@ -4267,7 +4297,7 @@ function adminApprove(){
           }
         }
         renderAdminContent();
-        showToast('Sync Sheet สำเร็จ ✓','success');
+        showToast(_t('toast.syncOkCheck'),'success');
       },
       function(err){
         for(var j=0;j<RECENT.length;j++){
@@ -4279,7 +4309,7 @@ function adminApprove(){
           }
         }
         renderAdminContent();
-        showToast('Sync Sheet ล้มเหลว: '+err,'error');
+        showToast(_t('toast.syncFailErr',{err:err}),'error');
       }
     );
   }
@@ -4297,19 +4327,19 @@ function retrySheetSync(rid){
     r.sheetSyncError='';
     saveReturnRequest(r);
     renderAdminContent();
-    showToast('🧪 คำขอทดสอบ — ไม่ retry Sync Sheet','warn');
+    showToast(_t('toast.testRetryNoSync'),'warn');
     return;
   }
   var syncItems = sheetSyncItemsForRequest(r);
   if(!syncItems.length){
-    showToast('ไม่มีรายการที่ต้อง Sync Sheet','warn');
+    showToast(_t('toast.nothingNeedSync'),'warn');
     return;
   }
   r.sheetSync = 'pending';
   r.sheetSyncError = '';
   saveReturnRequest(r);
   renderAdminContent();
-  showToast('กำลัง Retry Sync Sheet...','warn');
+  showToast(_t('toast.retrySyncStarting'),'warn');
   updateSheetStatus(
     {action:'approve', br:r.br, submittedItems:syncItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
     function(){
@@ -4318,7 +4348,7 @@ function retrySheetSync(rid){
       r.sheetSyncError = '';
       saveReturnRequest(r);
       renderAdminContent();
-      showToast('Retry Sync Sheet สำเร็จ ✓','success');
+      showToast(_t('toast.retrySyncOkCheck'),'success');
     },
     function(err){
       // Smart auto-recovery for stuck-pending cases. When Apps Script reports
@@ -4337,14 +4367,14 @@ function retrySheetSync(rid){
         r.sheetSyncError = '';
         saveReturnRequest(r);
         renderAdminContent();
-        showToast('ตรวจพบว่า Sheet ได้ sync ไว้แล้ว — อัปเดตสถานะเรียบร้อย ✓','success');
+        showToast(_t('toast.syncAlreadyOk'),'success');
         return;
       }
       r.sheetSync = 'failed';
       r.sheetSyncError = err;
       saveReturnRequest(r);
       renderAdminContent();
-      showToast('Retry ล้มเหลว: '+err,'error');
+      showToast(_t('toast.retryFailErr',{err:err}),'error');
     }
   );
 }
@@ -4394,19 +4424,19 @@ function handleAttachUpload(evt){
   var current = ADMIN_REVIEW.attachments || [];
   var available = ATTACH_MAX_FILES - current.length;
   if(available <= 0){
-    showToast('แนบได้สูงสุด '+ATTACH_MAX_FILES+' รูป', 'warn');
+    showToast(_t('toast.attachMax',{n:ATTACH_MAX_FILES}), 'warn');
     evt.target.value = '';
     return;
   }
   var toProcess = Array.prototype.slice.call(files, 0, available);
   if(files.length > available){
-    showToast('แนบเกิน '+ATTACH_MAX_FILES+' รูป — รับแค่ '+available+' ไฟล์แรก', 'warn');
+    showToast(_t('toast.attachExceeded',{max:ATTACH_MAX_FILES,n:available}), 'warn');
   }
   Promise.all(toProcess.map(compressImage)).then(function(results){
     ADMIN_REVIEW.attachments = (ADMIN_REVIEW.attachments || []).concat(results);
     renderAdminAttachments();
   }).catch(function(err){
-    showToast('แนบรูปล้มเหลว: '+(err && err.message || err), 'error');
+    showToast(_t('toast.attachFailErr',{err:(err && err.message || err)}), 'error');
   }).finally(function(){
     evt.target.value = '';
   });
@@ -4516,10 +4546,10 @@ function adminSendBack(){
         }
       }
       renderAdminContent();
-      showToast('🧪 ส่งกลับให้ Sale แก้ '+failedItems.length+' รายการ — ข้าม Sheet sync (test)','warn');
+      showToast(_t('toast.testSentBackSkip',{n:failedItems.length}),'warn');
       return;
     }
-    showToast('อนุมัติรายการที่ผ่าน '+approvedItems.length+' รายการ และส่งกลับให้ Sale แก้ '+failedItems.length+' รายการ','warn');
+    showToast(_t('toast.partialApproveSendBack',{a:approvedItems.length,f:failedItems.length}),'warn');
     updateSheetStatus(
       {action:'approve', br:r.br, submittedItems:approvedItems, updatedBy:'Admin', updatedAt:new Date().toISOString()},
       function(){
@@ -4533,7 +4563,7 @@ function adminSendBack(){
           }
         }
         renderAdminContent();
-        showToast('Sync Sheet รายการที่ผ่านสำเร็จ ✓','success');
+        showToast(_t('toast.partialSyncOk'),'success');
       },
       function(err){
         for(var x=0;x<RECENT.length;x++){
@@ -4545,11 +4575,11 @@ function adminSendBack(){
           }
         }
         renderAdminContent();
-        showToast('Sync Sheet รายการที่ผ่านล้มเหลว: '+err,'error');
+        showToast(_t('toast.partialSyncFail',{err:err}),'error');
       }
     );
   } else {
-    showToast('ส่งกลับให้ Sale แก้ไข '+failedItems.length+' รายการ','warn');
+    showToast(_t('toast.sentBackNItems',{n:failedItems.length}),'warn');
   }
 }
 
