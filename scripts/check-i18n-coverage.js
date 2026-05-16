@@ -95,6 +95,17 @@ function stripBenign(filePath, src) {
     /\btag\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
     m => m.replace(THAI_G, '')
   );
+  // HTML elements that already carry a data-i18n / data-i18n-placeholder /
+  // data-i18n-title attribute are translated at render time by
+  // applyStaticI18n(). The inline Thai text inside them is just a fallback
+  // for users with JS disabled — not a real translation gap. Strip Thai
+  // from any line that contains the attribute.
+  out = out.split('\n').map(line => {
+    if (/data-i18n(?:-placeholder|-title)?\s*=\s*"/.test(line)) {
+      return line.replace(THAI_G, '');
+    }
+    return line;
+  }).join('\n');
   return out;
 }
 

@@ -1207,12 +1207,12 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
-<!-- Step 2: เลือกใบยืม -->
+<!-- Step 2: select BR -->
 <div class="overlay" id="ov2">
   <div class="popup">
     <div class="popup-head">
       <div>
-        <div class="popup-title">เลือกใบยืม</div>
+        <div class="popup-title" data-i18n="step2.title">เลือกใบยืม</div>
         <div class="popup-sub" id="ov2-cust-label"></div>
       </div>
       <button class="btn-close" onclick="closeAll()">✕</button>
@@ -1222,24 +1222,24 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="ov2-stepbar"></div>
         <div class="search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-          <input id="ov2-search" type="text" placeholder="ค้นหาเลขใบยืม เช่น BR2022..." oninput="renderBRList()"/>
+          <input id="ov2-search" type="text" data-i18n-placeholder="step2.searchPlaceholder" placeholder="ค้นหาเลขใบยืม เช่น BR2022..." oninput="renderBRList()"/>
         </div>
       </div>
       <div class="br-list" id="ov2-list"></div>
     </div>
     <div class="popup-foot">
-      <button class="btn btn-ghost" onclick="closeAll(); show('ov1');">← ย้อนกลับ</button>
-      <button class="btn btn-primary-green" id="ov2-next" disabled onclick="goStep3()">ถัดไป →</button>
+      <button class="btn btn-ghost" onclick="closeAll(); show('ov1');" data-i18n="common.backArrow">← ย้อนกลับ</button>
+      <button class="btn btn-primary-green" id="ov2-next" disabled onclick="goStep3()" data-i18n="common.nextArrow">ถัดไป →</button>
     </div>
   </div>
 </div>
 
-<!-- Step 3: เลือกสินค้า -->
+<!-- Step 3: select items + qty -->
 <div class="overlay" id="ov3">
   <div class="popup popup-wide">
     <div class="popup-head">
       <div>
-        <div class="popup-title">เลือกสินค้าและจำนวน</div>
+        <div class="popup-title" data-i18n="step3.title">เลือกสินค้าและจำนวน</div>
         <div class="popup-sub" id="ov3-br-label"></div>
       </div>
       <button class="btn-close" onclick="closeAll()">✕</button>
@@ -1247,29 +1247,29 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="popup-body">
       <div id="ov3-stepbar"></div>
       <div class="item-legend">
-        <div class="legend-item"><div class="legend-dot legend-wait"></div> ↩ คืน (WAIT)</div>
-        <div class="legend-item"><div class="legend-dot legend-claim"></div> ⚠ เคลม (CLAIM)</div>
-        <div class="legend-item"><div class="legend-dot legend-sale"></div> 💰 ขาย (SALE)</div>
-        <div class="legend-item"><div class="legend-dot legend-free"></div> 🎁 ฟรี (FREE)</div>
+        <div class="legend-item"><div class="legend-dot legend-wait"></div> <span data-i18n="step3.legend.return">↩ คืน (WAIT)</span></div>
+        <div class="legend-item"><div class="legend-dot legend-claim"></div> <span data-i18n="step3.legend.claim">⚠ เคลม (CLAIM)</span></div>
+        <div class="legend-item"><div class="legend-dot legend-sale"></div> <span data-i18n="step3.legend.sale">💰 ขาย (SALE)</span></div>
+        <div class="legend-item"><div class="legend-dot legend-free"></div> <span data-i18n="step3.legend.free">🎁 ฟรี (FREE)</span></div>
       </div>
       <div class="product-list" id="ov3-list"></div>
       <div id="ov3-summary" class="summary-bar" style="display:none"></div>
       <div class="remark-wrap">
-        <label>หมายเหตุ (ถ้ามี)</label>
-        <textarea id="ov3-remark" placeholder="ระบุหมายเหตุเพิ่มเติม..."></textarea>
+        <label data-i18n="step3.remarkLabel">หมายเหตุ (ถ้ามี)</label>
+        <textarea id="ov3-remark" data-i18n-placeholder="step3.remarkPlaceholder" placeholder="ระบุหมายเหตุเพิ่มเติม..."></textarea>
       </div>
     </div>
     <div class="popup-foot">
-      <div class="bulk-actions" id="bulk-actions" aria-label="เลือกจำนวนทั้งหมด">
-        <span class="bulk-label">เลือกทั้งหมด:</span>
-        <button class="bulk-btn bulk-ret" data-bulk-type="ret" onclick="applyBulkType('ret')">↩ คืน</button>
-        <button class="bulk-btn bulk-clm" data-bulk-type="clm" onclick="applyBulkType('clm')">⚠ เคลม</button>
-        <button class="bulk-btn bulk-sale" data-bulk-type="sale" onclick="applyBulkType('sale')">💰 ขาย</button>
-        <button class="bulk-btn bulk-free" data-bulk-type="free" onclick="applyBulkType('free')">🎁 ฟรี</button>
+      <div class="bulk-actions" id="bulk-actions" data-i18n-title="step3.bulkAllAria" aria-label="เลือกจำนวนทั้งหมด">
+        <span class="bulk-label" data-i18n="step3.bulkAllLabel">เลือกทั้งหมด:</span>
+        <button class="bulk-btn bulk-ret"  data-bulk-type="ret"  onclick="applyBulkType('ret')"  data-i18n="step3.bulk.return">↩ คืน</button>
+        <button class="bulk-btn bulk-clm"  data-bulk-type="clm"  onclick="applyBulkType('clm')"  data-i18n="step3.bulk.claim">⚠ เคลม</button>
+        <button class="bulk-btn bulk-sale" data-bulk-type="sale" onclick="applyBulkType('sale')" data-i18n="step3.bulk.sale">💰 ขาย</button>
+        <button class="bulk-btn bulk-free" data-bulk-type="free" onclick="applyBulkType('free')" data-i18n="step3.bulk.free">🎁 ฟรี</button>
       </div>
       <div class="foot-nav">
-        <button class="btn btn-ghost" onclick="closeAll(); show('ov2');">← ย้อนกลับ</button>
-        <button class="btn btn-primary-green" id="ov3-submit" disabled onclick="showConfirm()">ตรวจสอบ & ส่ง →</button>
+        <button class="btn btn-ghost" onclick="closeAll(); show('ov2');" data-i18n="common.backArrow">← ย้อนกลับ</button>
+        <button class="btn btn-primary-green" id="ov3-submit" disabled onclick="showConfirm()" data-i18n="step3.review">ตรวจสอบ & ส่ง →</button>
       </div>
     </div>
   </div>
@@ -1280,15 +1280,15 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="popup" style="max-width:600px">
     <div class="popup-head">
       <div>
-        <div class="popup-title">ยืนยันคำขอคืนสินค้า</div>
-        <div class="popup-sub">ตรวจสอบรายการให้ครบก่อนส่ง</div>
+        <div class="popup-title" data-i18n="confirm.title">ยืนยันคำขอคืนสินค้า</div>
+        <div class="popup-sub" data-i18n="confirm.sub">ตรวจสอบรายการให้ครบก่อนส่ง</div>
       </div>
       <button class="btn-close" onclick="hide('ov-confirm');show('ov3')">✕</button>
     </div>
     <div class="popup-body" id="confirm-body"></div>
     <div class="popup-foot">
-      <button class="btn btn-ghost" onclick="hide('ov-confirm');show('ov3')">← แก้ไข</button>
-      <button class="btn btn-primary-green" onclick="doSubmit()">✓ ยืนยันส่งคำขอ</button>
+      <button class="btn btn-ghost" onclick="hide('ov-confirm');show('ov3')" data-i18n="confirm.editBack">← แก้ไข</button>
+      <button class="btn btn-primary-green" onclick="doSubmit()" data-i18n="confirm.send">✓ ยืนยันส่งคำขอ</button>
     </div>
   </div>
 </div>
@@ -1303,13 +1303,13 @@ tbody tr:last-child td{border-bottom:none;}
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ECDA0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
         </div>
-        <div class="success-title">ส่งคำขอสำเร็จ</div>
-        <div class="success-sub">คำขอถูกส่งให้ Admin ตรวจสอบแล้ว</div>
+        <div class="success-title" data-i18n="ok.title">ส่งคำขอสำเร็จ</div>
+        <div class="success-sub" data-i18n="ok.sub">คำขอถูกส่งให้ Admin ตรวจสอบแล้ว</div>
         <div class="success-id" id="ok-id"></div>
       </div>
     </div>
     <div class="popup-foot" style="justify-content:center">
-      <button class="btn btn-primary-green" onclick="closeAll()">ปิด</button>
+      <button class="btn btn-primary-green" onclick="closeAll()" data-i18n="ok.close">ปิด</button>
     </div>
   </div>
 </div>
@@ -1328,9 +1328,9 @@ tbody tr:last-child td{border-bottom:none;}
                the admin-review modal's chip/button so both views are
                in sync. -->
           <span id="detail-rev-chip" style="display:none;font-size:10px;font-weight:700;color:#D4357A;background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.45);border-radius:5px;padding:2px 7px;letter-spacing:0.3px;"></span>
-          <button id="detail-history-btn" onclick="openRevisionHistory(_DETAIL_REQ_ID)" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
+          <button id="detail-history-btn" onclick="openRevisionHistory(_DETAIL_REQ_ID)" data-i18n="rev.openBtnLabel" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
         </div>
-        <div class="popup-sub">รายละเอียดคำขอคืนสินค้า</div>
+        <div class="popup-sub" data-i18n="detail.title">รายละเอียดคำขอคืนสินค้า</div>
       </div>
       <button class="btn-close" onclick="closeAll()">✕</button>
     </div>
@@ -1344,20 +1344,20 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="popup" style="max-width:520px">
     <div class="popup-head">
       <div>
-        <div class="popup-title">ยกเลิกคำขอคืนสินค้า</div>
+        <div class="popup-title" data-i18n="cancelpopup.title">ยกเลิกคำขอคืนสินค้า</div>
         <div class="popup-sub" id="cancel-sub"></div>
       </div>
       <button class="btn-close" onclick="hide('ov-cancel')">✕</button>
     </div>
     <div class="popup-body">
       <div class="remark-wrap" style="margin-top:0">
-        <label>Remark / เหตุผลที่ยกเลิก</label>
-        <textarea id="cancel-reason" placeholder="ระบุเหตุผลที่ยกเลิกคำขอนี้..." style="min-height:92px"></textarea>
+        <label data-i18n="cancelpopup.reasonLabel">Remark / เหตุผลที่ยกเลิก</label>
+        <textarea id="cancel-reason" data-i18n-placeholder="cancelpopup.reasonPlaceholder" placeholder="ระบุเหตุผลที่ยกเลิกคำขอนี้..." style="min-height:92px"></textarea>
       </div>
     </div>
     <div class="popup-foot">
-      <button class="btn btn-ghost" onclick="hide('ov-cancel')">กลับ</button>
-      <button class="btn btn-danger" onclick="confirmCancelRequest()">ยืนยันยกเลิก</button>
+      <button class="btn btn-ghost" onclick="hide('ov-cancel')" data-i18n="common.back">กลับ</button>
+      <button class="btn btn-danger" onclick="confirmCancelRequest()" data-i18n="cancelpopup.confirm">ยืนยันยกเลิก</button>
     </div>
   </div>
 </div>
@@ -1373,21 +1373,21 @@ tbody tr:last-child td{border-bottom:none;}
       <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.3px">Neobiotech BR Return</div>
     </div>
     <!-- Title -->
-    <div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:4px">เข้าสู่ระบบ</div>
+    <div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:4px" data-i18n="login.title">เข้าสู่ระบบ</div>
     <div style="margin-bottom:24px"></div>
     <!-- Username -->
     <div style="margin-bottom:14px">
       <label style="font-size:12px;font-weight:500;color:var(--sub);display:block;margin-bottom:6px">User</label>
       <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <input id="al-user" type="text" placeholder="เช่น ADMIN001" onkeydown="if(event.key==='Enter')doAdminLogin()"
+        <input id="al-user" type="text" data-i18n-placeholder="login.userPlaceholder" placeholder="เช่น ADMIN001" onkeydown="if(event.key==='Enter')doAdminLogin()"
           style="background:transparent;border:none;outline:none;color:var(--text);font-size:13px;width:100%;"/>
       </div>
     </div>
     <!-- Password -->
     <div style="margin-bottom:20px">
       <div style="margin-bottom:6px">
-        <label style="font-size:12px;font-weight:500;color:var(--sub)">รหัสผ่าน</label>
+        <label style="font-size:12px;font-weight:500;color:var(--sub)" data-i18n="login.passwordLabel">รหัสผ่าน</label>
       </div>
       <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 14px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1402,17 +1402,17 @@ tbody tr:last-child td{border-bottom:none;}
     <!-- Remember -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <input type="checkbox" id="al-remember" checked style="accent-color:var(--pink);width:15px;height:15px"/>
-      <label for="al-remember" style="font-size:12px;color:var(--sub);cursor:pointer">จดจำการเข้าสู่ระบบ</label>
+      <label for="al-remember" style="font-size:12px;color:var(--sub);cursor:pointer" data-i18n="login.remember">จดจำการเข้าสู่ระบบ</label>
     </div>
     <!-- Error -->
-    <div id="al-error" style="display:none;font-size:11px;color:var(--red);margin-bottom:10px;padding:8px 12px;background:rgba(226,75,74,0.1);border-radius:6px">รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง</div>
+    <div id="al-error" style="display:none;font-size:11px;color:var(--red);margin-bottom:10px;padding:8px 12px;background:rgba(226,75,74,0.1);border-radius:6px" data-i18n="login.wrongCreds">รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง</div>
     <!-- Button -->
     <button onclick="doAdminLogin()" style="width:100%;background:var(--pink);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;padding:13px;cursor:pointer;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px">
-      เข้าสู่ระบบ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <span data-i18n="login.signIn">เข้าสู่ระบบ</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </button>
     <!-- Demo hint -->
     <div style="margin-top:20px;padding:10px 14px;background:var(--bg2);border-radius:8px;font-size:11px;color:var(--sub);border:1px solid var(--border)">
-      <strong style="color:var(--text)">Demo:</strong> ใช้รหัสได้ + รหัสผ่านได้ ·
+      <strong style="color:var(--text)">Demo:</strong> <span data-i18n="login.demoHint">ใช้รหัสได้ + รหัสผ่านได้</span> ·
       <span style="color:var(--pink);font-weight:600">SALEM</span> = Admin
     </div>
   </div>
@@ -1424,16 +1424,14 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="popup-head">
       <div>
         <div class="popup-title d-flex align-center gap8">
-          ตรวจสอบคำขอ
+          <span data-i18n="review.title">ตรวจสอบคำขอ</span>
           <span id="ar-id" class="mono text-pink" style="font-size:12px"></span>
           <!-- Rev N chip — visible only when the request has been
                corrected at least once (revisionHistory.length > 0). -->
           <span id="ar-rev-chip" style="display:none;font-size:10px;font-weight:700;color:#D4357A;background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.45);border-radius:5px;padding:2px 7px;letter-spacing:0.3px;"></span>
           <!-- "ดูประวัติแก้ไข" button — visible alongside the chip.
-               Opens ov-revision-history populated for this request.
-               Styled prominently (gradient background, slightly bigger
-               text) so Admin notices it before deciding to approve. -->
-          <button id="ar-history-btn" onclick="openRevisionHistory(ADMIN_REVIEW.id)" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
+               Opens ov-revision-history populated for this request. -->
+          <button id="ar-history-btn" onclick="openRevisionHistory(ADMIN_REVIEW.id)" data-i18n="rev.openBtnLabel" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
         </div>
         <div class="popup-sub" id="ar-sub"></div>
       </div>
@@ -1460,7 +1458,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="popup-head">
       <div>
         <div class="popup-title d-flex align-center gap8">
-          ประวัติแก้ไขคำขอ
+          <span data-i18n="rev.title">ประวัติแก้ไขคำขอ</span>
           <span id="rh-id" class="mono text-pink" style="font-size:12px"></span>
         </div>
         <div class="popup-sub" id="rh-sub"></div>
@@ -1469,7 +1467,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="popup-body" id="rh-body"></div>
     <div class="popup-foot" style="display:flex;justify-content:flex-end">
-      <button class="btn" onclick="closeOverlay('ov-revision-history')" style="padding:8px 22px;border-radius:9px;border:0.5px solid var(--bd);background:var(--card2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">ปิด</button>
+      <button class="btn" onclick="closeOverlay('ov-revision-history')" data-i18n="common.close" style="padding:8px 22px;border-radius:9px;border:0.5px solid var(--bd);background:var(--card2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">ปิด</button>
     </div>
   </div>
 </div>
@@ -1519,6 +1517,53 @@ var BR_STRINGS = {
   "err.connectFail":          { th: "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ", en: "Could not connect to the database. Please refresh the page." },
   "err.retry":                { th: "ลองใหม่",                en: "Retry" },
   "cust.searchPlaceholder":   { th: "ค้นหาชื่อหรือรหัสลูกค้า...", en: "Search customer name or code..." },
+
+  // ── New-request flow: Step 2 (select BR) ─────────────────────
+  "step2.title":              { th: "เลือกใบยืม",            en: "Select BR" },
+  "step2.searchPlaceholder":  { th: "ค้นหาเลขใบยืม เช่น BR2022...", en: "Search BR number, e.g. BR2022..." },
+
+  // ── Step 3 (select items + qty) ──────────────────────────────
+  "step3.title":              { th: "เลือกสินค้าและจำนวน",   en: "Select items and quantities" },
+  "step3.legend.return":      { th: "↩ คืน (WAIT)",          en: "↩ Return (WAIT)" },
+  "step3.legend.claim":       { th: "⚠ เคลม (CLAIM)",         en: "⚠ Claim (CLAIM)" },
+  "step3.legend.sale":        { th: "💰 ขาย (SALE)",          en: "💰 Sale (SALE)" },
+  "step3.legend.free":        { th: "🎁 ฟรี (FREE)",          en: "🎁 Free (FREE)" },
+  "step3.remarkLabel":        { th: "หมายเหตุ (ถ้ามี)",      en: "Note (optional)" },
+  "step3.remarkPlaceholder":  { th: "ระบุหมายเหตุเพิ่มเติม...", en: "Add any additional notes..." },
+  "step3.bulkAllLabel":       { th: "เลือกทั้งหมด:",          en: "Select all as:" },
+  "step3.bulkAllAria":        { th: "เลือกจำนวนทั้งหมด",      en: "Bulk-select all quantities" },
+  "step3.bulk.return":        { th: "↩ คืน",                 en: "↩ Return" },
+  "step3.bulk.claim":         { th: "⚠ เคลม",                en: "⚠ Claim" },
+  "step3.bulk.sale":          { th: "💰 ขาย",                en: "💰 Sale" },
+  "step3.bulk.free":          { th: "🎁 ฟรี",                en: "🎁 Free" },
+  "step3.review":             { th: "ตรวจสอบ & ส่ง →",        en: "Review & submit →" },
+
+  // ── Confirm popup ─────────────────────────────────────────────
+  "confirm.title":            { th: "ยืนยันคำขอคืนสินค้า",   en: "Confirm return request" },
+  "confirm.sub":              { th: "ตรวจสอบรายการให้ครบก่อนส่ง", en: "Review all items before submitting" },
+  "confirm.editBack":         { th: "← แก้ไข",                en: "← Edit" },
+  "confirm.send":             { th: "✓ ยืนยันส่งคำขอ",       en: "✓ Confirm and submit" },
+
+  // ── Success popup ─────────────────────────────────────────────
+  "ok.title":                 { th: "ส่งคำขอสำเร็จ",         en: "Request submitted" },
+  "ok.sub":                   { th: "คำขอถูกส่งให้ Admin ตรวจสอบแล้ว", en: "Your request has been sent to Admin for review" },
+  "ok.close":                 { th: "ปิด",                   en: "Close" },
+
+  // ── Detail-modal button (already used elsewhere too) ─────────
+  "rev.openBtnLabel":         { th: "📜 ดูประวัติแก้ไข",     en: "📜 View correction history" },
+
+  // ── Cancel popup ──────────────────────────────────────────────
+  "cancelpopup.title":        { th: "ยกเลิกคำขอคืนสินค้า",   en: "Cancel return request" },
+  "cancelpopup.reasonLabel":  { th: "Remark / เหตุผลที่ยกเลิก", en: "Remark / cancel reason" },
+  "cancelpopup.reasonPlaceholder": { th: "ระบุเหตุผลที่ยกเลิกคำขอนี้...", en: "Why is this request being cancelled?..." },
+  "cancelpopup.confirm":      { th: "ยืนยันยกเลิก",          en: "Confirm cancellation" },
+
+  // ── Admin login ───────────────────────────────────────────────
+  "login.userPlaceholder":    { th: "เช่น ADMIN001",         en: "e.g. ADMIN001" },
+  "login.passwordLabel":      { th: "รหัสผ่าน",              en: "Password" },
+  "login.remember":           { th: "จดจำการเข้าสู่ระบบ",    en: "Remember me" },
+  "login.wrongCreds":         { th: "รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง", en: "Incorrect employee ID or password" },
+  "login.demoHint":           { th: "ใช้รหัสได้ + รหัสผ่านได้", en: "Any user ID + password works in demo" },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
