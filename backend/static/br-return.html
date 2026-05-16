@@ -1150,13 +1150,13 @@ tbody tr:last-child td{border-bottom:none;}
       <!-- Module Banner -->
       <div id="module-banner">
         <div class="banner-left">
-          <h2><span class="banner-status-dot" id="banner-dot"></span>ระบบคืนสินค้ายืม (BR Return)<span class="data-badge beta" id="beta-badge"><span class="badge-dot"></span>BETA</span><span class="data-badge live" id="data-badge" style="display:none"><span class="badge-dot"></span>LIVE</span></h2>
-          <p>สร้างคำขอคืน ติดตาม และตรวจสอบรายการสินค้าจากใบยืม</p>
+          <h2><span class="banner-status-dot" id="banner-dot"></span><span data-i18n="br.module.title">ระบบคืนสินค้ายืม (BR Return)</span><span class="data-badge beta" id="beta-badge"><span class="badge-dot"></span>BETA</span><span class="data-badge live" id="data-badge" style="display:none"><span class="badge-dot"></span>LIVE</span></h2>
+          <p data-i18n="br.module.subtitle">สร้างคำขอคืน ติดตาม และตรวจสอบรายการสินค้าจากใบยืม</p>
         </div>
       </div>
       <div id="connection-error">
-        <div>ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ</div>
-        <button onclick="retryConnection()">ลองใหม่</button>
+        <div data-i18n="err.connectFail">ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ</div>
+        <button onclick="retryConnection()" data-i18n="err.retry">ลองใหม่</button>
       </div>
 
       <!-- Sale pills bar -->
@@ -1166,7 +1166,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div id="pills-wrap"></div>
         </div>
         <button class="btn-create" id="btn-create" onclick="openStep1()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> สร้างคำขอคืน
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="br.createBtn">สร้างคำขอคืน</span>
         </button>
       </div>
 
@@ -1180,12 +1180,12 @@ tbody tr:last-child td{border-bottom:none;}
 
 <!-- ═══════════════════ OVERLAYS ═══════════════════ -->
 
-<!-- Step 1: เลือกลูกค้า -->
+<!-- Step 1: select customer -->
 <div class="overlay" id="ov1">
   <div class="popup">
     <div class="popup-head">
       <div>
-        <div class="popup-title">สร้างคำขอคืนสินค้า</div>
+        <div class="popup-title" data-i18n="new.title">สร้างคำขอคืนสินค้า</div>
         <div class="popup-sub" id="ov1-sale-label"></div>
       </div>
       <button class="btn-close" onclick="closeAll()">✕</button>
@@ -1195,14 +1195,14 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="ov1-stepbar"></div>
         <div class="search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-          <input type="text" id="ov1-search" placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." oninput="renderCustList()"/>
+          <input type="text" id="ov1-search" data-i18n-placeholder="cust.searchPlaceholder" placeholder="ค้นหาชื่อหรือรหัสลูกค้า..." oninput="renderCustList()"/>
         </div>
       </div>
       <div class="cust-list" id="ov1-list"></div>
     </div>
     <div class="popup-foot">
-      <button class="btn btn-ghost" onclick="closeAll()">ยกเลิก</button>
-      <button class="btn btn-primary-green" id="ov1-next" disabled onclick="goStep2()">ถัดไป →</button>
+      <button class="btn btn-ghost" onclick="closeAll()" data-i18n="common.cancel">ยกเลิก</button>
+      <button class="btn btn-primary-green" id="ov1-next" disabled onclick="goStep2()" data-i18n="common.nextArrow">ถัดไป →</button>
     </div>
   </div>
 </div>
@@ -1514,6 +1514,11 @@ var BR_STRINGS = {
   "common.edit":              { th: "แก้ไข",                 en: "Edit" },
   "common.add":               { th: "เพิ่ม",                  en: "Add" },
   "common.refresh":           { th: "รีเฟรช",                en: "Refresh" },
+  "common.nextArrow":         { th: "ถัดไป →",                en: "Next →" },
+  "common.backArrow":         { th: "← กลับ",                 en: "← Back" },
+  "err.connectFail":          { th: "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณารีเฟรชหน้าเว็บ", en: "Could not connect to the database. Please refresh the page." },
+  "err.retry":                { th: "ลองใหม่",                en: "Retry" },
+  "cust.searchPlaceholder":   { th: "ค้นหาชื่อหรือรหัสลูกค้า...", en: "Search customer name or code..." },
   "common.today":             { th: "วันนี้",                 en: "Today" },
   "common.yesterday":         { th: "เมื่อวาน",               en: "Yesterday" },
   "common.thisWeek":          { th: "สัปดาห์นี้",             en: "This week" },
