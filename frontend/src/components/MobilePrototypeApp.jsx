@@ -75,7 +75,7 @@
 //     once the localStorage shim is replaced with a backend POST.
 // =============================================================================
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { TEAMS, TEAM_COLORS } from "../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -1359,6 +1359,11 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, sale, 
 function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) {
   const [localFrom, setLocalFrom] = useState(from);
   const [localTo, setLocalTo] = useState(to);
+  // Refs used to auto-scroll the calendar to the current month when the sheet
+  // opens, so the user starts near today instead of 11 months in the past.
+  // Current month is NOT auto-selected — only scrolled into view.
+  const scrollRef = useRef(null);
+  const currentMonthRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -1366,6 +1371,27 @@ function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) 
       setLocalTo(to);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // After the bottom sheet finishes mounting, snap the scroll container so the
+  // current month's heading is near the top of the visible calendar area.
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
+      const scroller = scrollRef.current;
+      const target = currentMonthRef.current;
+      if (!scroller || !target) return;
+      try {
+        // Align the current-month block near the top of the scroller, leaving
+        // a few pixels above so the previous month's tail stays peekable.
+        const offset = target.offsetTop - 8;
+        scroller.scrollTo({ top: offset, behavior: "auto" });
+      } catch {
+        // Fallback for very old WebViews
+        try { scroller.scrollTop = target.offsetTop - 8; } catch {}
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [open]);
 
   const text = dark ? "#eee" : "#111";
@@ -1383,6 +1409,9 @@ function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) 
   }, [open]);
 
   const today = startOfDay(new Date());
+  const currentMonthIdx = months.findIndex(m =>
+    m.getFullYear() === today.getFullYear() && m.getMonth() === today.getMonth()
+  );
 
   function pickDate(d) {
     const day = startOfDay(d);
@@ -1460,7 +1489,7 @@ function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) 
         </div>
 
         {/* Months list — scrollable */}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 16px 20px" }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 16px 20px" }}>
           {months.map((monthDate, mIdx) => {
             const year = monthDate.getFullYear();
             const month = monthDate.getMonth();
@@ -1471,37 +1500,67 @@ function DateRangePickerSheet({ open, onClose, from, to, onApply, dark, lang }) 
             for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
 
             return (
-              <div key={mIdx} style={{ marginBottom: 18 }}>
+              <div
+                key={mIdx}
+                ref={mIdx === currentMonthIdx ? currentMonthRef : null}
+                style={{ marginBottom: 18 }}
+              >
                 <div style={{ fontSize: 14, fontWeight: 700, color: text, textAlign: "center", margin: "12px 0 10px" }}>
                   {monthsLabels[month]} {lang === "th" ? year + 543 : year}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
                   {cells.map((d, idx) => {
-                    if (!d) return <div key={idx} style={{ height: 42 }} />;
+                    if (!d) return <div key={idx} style={{ height: 44 }} />;
                     const isT     = sameDay(d, today);
                     const isStart = sameDay(d, localFrom);
                     const isEnd   = sameDay(d, localTo);
                     const between = inBetween(d);
-                    const isSingleSelected = isStart && (!localTo || sameDay(localFrom, localTo));
-                    // Cell wrapper provides the range "stripe" background.
-                    // Inner pill gives the start/end dots their circle.
-                    const wrapperBg =
-                      between ? "#2D0F1A" :
-                      (isStart && localTo && !sameDay(localFrom, localTo)) ? "linear-gradient(to right, transparent 50%, #2D0F1A 50%)" :
-                      (isEnd && !sameDay(localFrom, localTo))               ? "linear-gradient(to right, #2D0F1A 50%, transparent 50%)" :
-                      "transparent";
+                    const hasRange = !!(localFrom && localTo && !sameDay(localFrom, localTo));
+                    // A continuous range band is rendered behind the day pill
+                    // when the cell is between, or is the start/end of a
+                    // multi-day range. The band has rounded ends at the start
+                    // and end cells so the overall range reads as a soft pill.
+                    const showBand = between || (hasRange && (isStart || isEnd));
+                    // Light pink fill + slightly darker pink top/bottom edges
+                    // so the band is visible but never washes out the digits.
+                    const bandFill   = dark ? "rgba(212, 53, 122, 0.16)" : "rgba(212, 53, 122, 0.12)";
+                    const bandEdge   = dark ? "rgba(212, 53, 122, 0.36)" : "rgba(212, 53, 122, 0.32)";
                     return (
                       <button
                         key={idx}
                         onClick={() => pickDate(d)}
                         style={{
-                          height: 42, padding: 0, border: "none", cursor: "pointer",
-                          background: wrapperBg, display: "flex", alignItems: "center", justifyContent: "center",
+                          position: "relative",
+                          height: 44, padding: 0, border: "none", cursor: "pointer",
+                          background: "transparent", display: "flex", alignItems: "center", justifyContent: "center",
                           fontFamily: "inherit",
                         }}
                       >
+                        {showBand && (
+                          <div
+                            aria-hidden
+                            style={{
+                              position: "absolute",
+                              top: 4, bottom: 4,
+                              left:  isStart && hasRange ? "50%" : 0,
+                              right: isEnd   && hasRange ? "50%" : 0,
+                              background: bandFill,
+                              borderTop:    `1px solid ${bandEdge}`,
+                              borderBottom: `1px solid ${bandEdge}`,
+                              borderLeft:  isStart && hasRange ? `1px solid ${bandEdge}` : "none",
+                              borderRight: isEnd   && hasRange ? `1px solid ${bandEdge}` : "none",
+                              borderTopLeftRadius:     isStart && hasRange ? 999 : 0,
+                              borderBottomLeftRadius:  isStart && hasRange ? 999 : 0,
+                              borderTopRightRadius:    isEnd   && hasRange ? 999 : 0,
+                              borderBottomRightRadius: isEnd   && hasRange ? 999 : 0,
+                              pointerEvents: "none",
+                            }}
+                          />
+                        )}
                         <div
                           style={{
+                            position: "relative",
+                            zIndex: 1,
                             width: 36, height: 36, borderRadius: "50%",
                             background: (isStart || isEnd) ? "#D4357A" : "transparent",
                             color: (isStart || isEnd) ? "#fff" : (between ? "#D4357A" : (isT ? "#D4357A" : text)),
@@ -2212,10 +2271,19 @@ export default function MobilePrototypeApp() {
       {selectedSale && submittedRequest ? (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, padding: "12px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 8px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
           <button
-            onClick={() => { setSubmittedRequest(null); setTab("home"); }}
+            onClick={() => {
+              // "กลับไปเลือก BR" — re-open the same customer's BR list sheet so
+              // the Sale can pick another BR for the same customer without
+              // having to navigate back through Customers manually. Falls back
+              // to the Customers tab if the customer can't be matched.
+              const cust = customers.find(c => c.cust_code === submittedRequest.custCode) || null;
+              setSubmittedRequest(null);
+              setTab("customers");
+              if (cust) setSelectedCustomer(cust);
+            }}
             style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${navBdr}`, background: "transparent", color: navText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
           >
-            {lang === "th" ? "กลับหน้าหลัก" : "Back to Home"}
+            {lang === "th" ? "กลับไปเลือก BR" : "Back to BR list"}
           </button>
           <button
             onClick={() => { setSubmittedRequest(null); setTab("returns"); }}
