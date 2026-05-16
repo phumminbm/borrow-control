@@ -177,6 +177,9 @@ function upsertTestCacheLocal(req){
   if (i >= 0) _TEST_CACHE[i] = { ..._TEST_CACHE[i], ...req };
   else        _TEST_CACHE = [req, ..._TEST_CACHE];
 }
+function removeFromTestCacheLocal(id){
+  _TEST_CACHE = _TEST_CACHE.filter(r => r.id !== id);
+}
 
 // Backend-shim helpers — used only in test mode (isTestMode() === true).
 // They return Promises but the existing call sites are synchronous; for
@@ -219,10 +222,13 @@ async function postTestReturnToBackend(req){
 }
 
 // ── Return-request storage (single connected-test path, 2026-05-16) ───
-// loadProtoReturns / saveProtoReturns / upsertProtoReturn / replaceProtoReturn
-// all read & write the real /return-requests backend with isTest=true.
-// The optimistic local cache (_TEST_CACHE) gives instant UI feedback;
-// the 30s background poll + post-write fetch reconcile with the server.
+// loadProtoReturns / saveProtoReturns are simple cache accessors.
+// upsertProtoReturn / replaceProtoReturn each return a Promise that
+// resolves with the persisted server-side row, or rejects with the
+// backend error. The optimistic local entry is ROLLED BACK on rejection
+// so the UI never shows a fake row from a request the backend refused.
+// Call sites that want to show success only after persistence (the
+// Sale-side submit flow, edit-and-resubmit) must `await` these.
 function loadProtoReturns() {
   return getTestCache();
 }
@@ -230,13 +236,18 @@ function saveProtoReturns(list) {
   setTestCache(list);
 }
 function upsertProtoReturn(req) {
-  // Optimistic local insert so the React tree updates immediately;
-  // fire the backend POST in the background. Polling reconciles state.
+  // Optimistic local insert for instant UI feedback…
+  const beforeOptimistic = _TEST_CACHE.find(r => r.id === req.id) || null;
   upsertTestCacheLocal({ ...req, isTest: true });
-  postTestReturnToBackend(req).catch(() => {
+  // …then return the backend promise. On rejection we roll back to
+  // whatever the cache held before (or remove entirely if it was new)
+  // so a failed submit never leaves a phantom row in the Returns tab.
+  return postTestReturnToBackend(req).catch(err => {
+    if (beforeOptimistic) upsertTestCacheLocal(beforeOptimistic);
+    else                   removeFromTestCacheLocal(req.id);
     try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "บันทึกคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    throw err;
   });
-  return getTestCache();
 }
 
 // In-place update of an existing return record by id. Used by:
@@ -246,16 +257,20 @@ function upsertProtoReturn(req) {
 //      clear adminNote/rejectedItems/attachments, status → pending). This
 //      mirrors the Desktop behavior at br-return.html:2960-2963 where the
 //      same request id is preserved and rejection metadata is cleared.
-// Returns the updated record (or null if not found).
+// Returns a Promise that resolves with the updated row on backend success,
+// or rejects with the backend error. The optimistic update is rolled back
+// to the pre-call cache state on rejection.
 function replaceProtoReturn(id, patch) {
   const cur = _TEST_CACHE.find(r => r.id === id);
-  if (!cur) return null;
+  if (!cur) return Promise.resolve(null);
+  const previousState = { ...cur };
   const next = { ...cur, ...patch, isTest: true };
   upsertTestCacheLocal(next);
-  postTestReturnToBackend(next).catch(() => {
+  return postTestReturnToBackend(next).catch(err => {
+    upsertTestCacheLocal(previousState);  // restore the row to what it was
     try { window.dispatchEvent(new CustomEvent("proto-test-error", { detail: { msg: "อัปเดตคำขอลง backend ไม่สำเร็จ" } })); } catch {}
+    throw err;
   });
-  return next;
 }
 
 // ── Image helpers (prototype-only photo evidence in localStorage) ────
@@ -429,6 +444,17 @@ function fmtShortDate(d, lang) {
   if (!d) return "";
   const mon = (lang === "th" ? THAI_MONTHS_SHORT : EN_MONTHS_SHORT)[d.getMonth()];
   return `${d.getDate()} ${mon}`;
+}
+
+// Match Desktop BR Return's dateSort format: Buddhist-year * 10000 +
+// month*100 + day (e.g. 25690516 for 2026-05-16). Critical: the
+// return_requests.date_sort column is Postgres INT4 with max value
+// 2,147,483,647 — using Date.now() (~1.7e12) here overflows and the
+// POST returns 500. Buddhist-yyyymmdd safely fits and sorts by date.
+function todayDateSort() {
+  const now = new Date();
+  const buddhistYear = now.getFullYear() + 543;
+  return buddhistYear * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
 }
 
 // ── Status taxonomy — matches Desktop BR Return exactly ──────────────
@@ -1038,6 +1064,11 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [perItem, setPerItem] = useState({}); // item_id -> { retQty, clmQty, saleQty, freeQty }
   const [remark, setRemark] = useState("");
+  // Submit-state (async, backend-aware): submitting disables the Submit
+  // button + shows a spinner; submitError lives at the bottom of Step 4
+  // and tells the Sale exactly what failed. Both reset on sheet open.
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   // ── Editing mode: synthesise br/customer/items from the rejected record ──
   // The Sale-side resubmission path reads everything it needs straight off
@@ -1071,6 +1102,8 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
   useEffect(() => {
     if (!open) return;
     setStep(1);
+    setSubmitting(false);
+    setSubmitError("");
     if (isEditing) {
       // Pre-select every rejected row (Sale needs to address all of them
       // to fix the request) but leave qty allocation BLANK — Sale must
@@ -1206,76 +1239,92 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
     return x.quantity > 0 && x.quantity <= avail;
   });
 
-  function submit() {
-    if (isEditing) {
-      // Resubmit corrected request — keep the same id, preserve approved
-      // items unchanged, replace the rejected items with the re-allocated
-      // versions, clear all rejection metadata, and push a snapshot to
-      // revisionHistory so the Sale-side UI can mark this as Rev N.
-      // Mirrors Desktop br-return.html:2960-2963 exactly (status='pending',
-      // adminNote='', rejectedItems=[], attachments=[]) plus the
-      // prototype-only revisionHistory extension.
-      const orig = editingRequest;
-      const merged = [...approvedPassthroughItems, ...submittedItems];
-      const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
-      // Track which item_ids were corrected in this revision so the Return
-      // Detail view can filter the items list down to just the items the
-      // Sale actually re-touched (per user feedback: hide approved items
-      // from corrected-request detail). Each rejected item carries its
-      // itemId in the same shape AdminFeedbackComposer wrote it.
-      const correctedItemIds = (orig.rejectedItems || [])
-        .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
-        .filter(Boolean);
-      const snapshot = {
-        at: new Date().toISOString(),
-        prevStatus: orig.status || "rejected",
-        prevAdminNote: orig.adminNote || "",
-        prevRejectedItemCount: (orig.rejectedItems || []).length,
-        prevAttachmentCount: (orig.attachments || []).length,
-        correctedItemIds,
-      };
-      const updated = replaceProtoReturn(orig.id, {
+  async function submit() {
+    if (submitting) return;
+    setSubmitError("");
+    setSubmitting(true);
+    try {
+      if (isEditing) {
+        // Resubmit corrected request — keep the same id, preserve approved
+        // items unchanged, replace the rejected items with the re-allocated
+        // versions, clear all rejection metadata, and push a snapshot to
+        // revisionHistory so the Sale-side UI can mark this as Rev N.
+        // Mirrors Desktop br-return.html:2960-2963 exactly (status='pending',
+        // adminNote='', rejectedItems=[], attachments=[]) plus the
+        // prototype-only revisionHistory extension.
+        const orig = editingRequest;
+        const merged = [...approvedPassthroughItems, ...submittedItems];
+        const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
+        // Track which item_ids were corrected in this revision so the
+        // Return Detail view can filter the items list down to just the
+        // items the Sale actually re-touched.
+        const correctedItemIds = (orig.rejectedItems || [])
+          .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
+          .filter(Boolean);
+        const snapshot = {
+          at: new Date().toISOString(),
+          prevStatus: orig.status || "rejected",
+          prevAdminNote: orig.adminNote || "",
+          prevRejectedItemCount: (orig.rejectedItems || []).length,
+          prevAttachmentCount: (orig.attachments || []).length,
+          correctedItemIds,
+        };
+        // Await the backend round-trip. If it rejects, the in-cache
+        // change is rolled back inside replaceProtoReturn so the user
+        // stays on Step 4 with an error toast and the request is still
+        // editable on retry.
+        const updated = await replaceProtoReturn(orig.id, {
+          status: "pending",
+          submittedItems: merged,
+          items: merged.length,
+          adminNote: "",
+          rejectedItems: [],
+          attachments: [],
+          remark: remark.trim() || orig.remark || "",
+          dateSort: todayDateSort(),  // INT4-safe; matches Desktop format
+          resubmittedAt: new Date().toISOString(),
+          revisionHistory: [...prevHistory, snapshot],
+        });
+        if (onSubmitted) onSubmitted(updated || orig);
+        return;
+      }
+      const newReq = {
+        id: genProtoReturnId(),
+        cust: effectiveCustomer.customer_name,
+        custCode: effectiveCustomer.cust_code,
+        br: effectiveBr.borrow_no,
+        items: submittedItems.length,
+        sale,
         status: "pending",
-        submittedItems: merged,
-        items: merged.length,
+        date: new Date().toISOString(),
+        dateSort: todayDateSort(),     // INT4-safe; matches Desktop format
+        remark: remark.trim(),
         adminNote: "",
         rejectedItems: [],
         attachments: [],
-        remark: remark.trim() || orig.remark || "",
-        dateSort: Date.now(),       // bump so the resubmitted request rises in the list
-        resubmittedAt: new Date().toISOString(),
-        revisionHistory: [...prevHistory, snapshot],
-      });
-      if (onSubmitted) onSubmitted(updated || orig);
-      return;
+        submittedItems,
+        cancelReason: "",
+        sheetSync: "none",
+        sheetSyncAt: "",
+        sheetSyncError: "",
+        revisionHistory: [],
+        _prototype: true,
+      };
+      // Await persistence before opening the full-screen success view.
+      // If the POST is rejected (e.g. backend 500), the optimistic cache
+      // insert is rolled back inside upsertProtoReturn and we surface a
+      // human-readable error on Step 4 instead of pretending success.
+      const persisted = await upsertProtoReturn(newReq);
+      if (onSubmitted) onSubmitted(persisted || newReq);
+    } catch (err) {
+      setSubmitError(
+        (err && err.message)
+          ? (lang === "th" ? `บันทึกคำขอไม่สำเร็จ — ${err.message}` : `Submit failed — ${err.message}`)
+          : (lang === "th" ? "บันทึกคำขอไม่สำเร็จ ลองอีกครั้ง" : "Submit failed — please retry")
+      );
+    } finally {
+      setSubmitting(false);
     }
-    const newReq = {
-      id: genProtoReturnId(),
-      cust: effectiveCustomer.customer_name,
-      custCode: effectiveCustomer.cust_code,
-      br: effectiveBr.borrow_no,
-      items: submittedItems.length,
-      sale,
-      status: "pending",
-      date: new Date().toISOString(),
-      dateSort: Date.now(),
-      remark: remark.trim(),
-      adminNote: "",
-      rejectedItems: [],
-      attachments: [],
-      submittedItems,
-      cancelReason: "",
-      sheetSync: "none",
-      sheetSyncAt: "",
-      sheetSyncError: "",
-      revisionHistory: [],
-      _prototype: true,
-    };
-    upsertProtoReturn(newReq);
-    // Parent handles: close this sheet, close BR detail + customer detail,
-    // open the full-screen success view (which lives at the MobilePrototypeApp
-    // top level — see the `submittedRequest` state there).
-    if (onSubmitted) onSubmitted(newReq);
   }
 
   const stepLabels = lang === "th"
@@ -1697,15 +1746,36 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             </div>
 
             <div style={{ marginTop: 12, padding: "10px 12px", background: dark ? "#1a1500" : "#FEFAEE", border: `0.5px dashed ${dark ? "#5a4810" : "#FAC775"}`, borderRadius: 9, fontSize: 10, color: dark ? "#FAC775" : "#854F0B", lineHeight: 1.55 }}>
-              ⚠ {lang === "th" ? "Prototype: คำขอนี้จะถูกเก็บเฉพาะในเครื่อง (localStorage) — ไม่ส่งไปที่ Admin จริง" : "Prototype: This request is stored in localStorage only — not sent to real Admin"}
+              🧪 {lang === "th"
+                ? "Test Mode: คำขอจะส่งให้ Backend ด้วย isTest=true และไปแสดงที่ Desktop Admin (🧪 TEST queue) — ไม่กระทบข้อมูล Logistics File"
+                : "Test Mode: request POSTs to backend with isTest=true and appears in Desktop Admin (🧪 TEST queue) — no Logistics File writeback"}
             </div>
+
+            {/* Failure banner — shown only after submit() rejects. The
+                Sale stays on Step 4 with the same form contents so they
+                can retry without re-entering anything. Toast on top of
+                the app also fires via window.dispatchEvent. */}
+            {submitError && (
+              <div style={{
+                marginTop: 12, padding: "11px 13px",
+                background: "#3D1212", border: "0.5px solid #7A2020",
+                borderRadius: 10, color: "#F09595",
+                fontSize: 12, fontWeight: 600, lineHeight: 1.55,
+              }}>
+                ⚠ {submitError}
+              </div>
+            )}
           </>
         )}
       </div>
 
       {/* Bottom action bar */}
       <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
-        <button onClick={step === 1 ? onClose : () => setStep(s => s - 1)} style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <button
+          onClick={step === 1 ? onClose : () => setStep(s => s - 1)}
+          disabled={submitting}
+          style={{ flex: 1, padding: 12, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.5 : 1 }}
+        >
           {step === 1 ? (lang === "th" ? "ยกเลิก" : "Cancel") : (lang === "th" ? "← กลับ" : "← Back")}
         </button>
         {step < 4 ? (
@@ -1722,10 +1792,33 @@ function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onS
             {step === 1 ? (lang === "th" ? `เลือก ${selectedIds.size} รายการ →` : `Selected ${selectedIds.size} →`) : (lang === "th" ? "ถัดไป →" : "Next →")}
           </button>
         ) : (
-          <button onClick={submit} style={{ flex: 2, padding: 14, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-            {isEditing
-              ? (lang === "th" ? "↩ ส่งคำขอแก้ไข" : "↩ Resubmit")
-              : (lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit")}
+          <button
+            onClick={submit}
+            disabled={submitting}
+            style={{
+              flex: 2, padding: 14, borderRadius: 12, border: "none",
+              background: submitting ? "#333" : "#D4357A",
+              color: submitting ? "#888" : "#fff",
+              fontSize: 14, fontWeight: 700,
+              cursor: submitting ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              fontFamily: "inherit",
+            }}
+          >
+            {submitting && (
+              <span style={{
+                display: "inline-block", width: 14, height: 14,
+                border: "2px solid rgba(255,255,255,0.3)",
+                borderTopColor: "#fff",
+                borderRadius: "50%",
+                animation: "proto-spin 0.8s linear infinite",
+              }}/>
+            )}
+            {submitting
+              ? (lang === "th" ? "กำลังบันทึก..." : "Saving...")
+              : isEditing
+                ? (lang === "th" ? "↩ ส่งคำขอแก้ไข" : "↩ Resubmit")
+                : (lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit")}
           </button>
         )}
       </div>
@@ -3548,6 +3641,10 @@ export default function MobilePrototypeApp() {
 
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: phoneBg, fontFamily: '"Inter", "IBM Plex Sans Thai", -apple-system, sans-serif', WebkitTapHighlightColor: "transparent", overscrollBehavior: "none" }}>
+      {/* Spinner keyframes used by the submit button + any other inline
+          loading indicators in this prototype. Inline so the file
+          remains self-contained (no CSS file dependency). */}
+      <style>{`@keyframes proto-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       <SplashScreen visible={splashVisible} />
 
       {/* Test-mode backend-error toast. Sits above the topbar so it's
