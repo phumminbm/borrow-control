@@ -501,6 +501,53 @@ function breakdownFor(si) {
   return out;
 }
 
+// Stable identity for an item across revisions. Tolerates both
+// Desktop-canonical (itemId/lineNo/lineKey) and Mobile-alias
+// (item_id/line_no) shapes so it works on records written by either
+// client.
+function itemIdentity(it) {
+  return it.itemId
+      || it.item_id
+      || it.lineKey
+      || `${it.code || it.product_code || ""}-${it.lineNo || it.line_no || ""}`;
+}
+
+// Reconstruct the COMPLETE set of approved items for a fully-approved
+// request that went through one or more correction rounds. After
+// resubmit, current `submittedItems` contains only the items corrected
+// in the latest revision; the original items that Admin approved in
+// earlier rounds live in `revisionHistory[0].prevSubmittedItems`.
+//
+// Algorithm — iterate forward through history, overlay by item identity:
+//   1. Seed from revisionHistory[0].prevSubmittedItems (the original
+//      submission's full item list).
+//   2. For each subsequent history entry, overlay its prevSubmittedItems
+//      so any item that got corrected mid-flow uses the post-correction
+//      version (a → a_v2 → a_v3 over time).
+//   3. Finally overlay current `submittedItems` (the LATEST revision's
+//      items, which are the post-correction versions for items the Sale
+//      just re-touched).
+//
+// Items that were approved on the first round and never corrected stay
+// at their original value (step 1) and pass through untouched. Items
+// that went through one or more corrections end up with their newest
+// version. The result is the full approved-state view the Sale needs.
+function buildApprovedFullView(req) {
+  const hist = Array.isArray(req.revisionHistory) ? req.revisionHistory : [];
+  if (hist.length === 0) return Array.isArray(req.submittedItems) ? req.submittedItems : [];
+  const byId = new Map();
+  const original = Array.isArray(hist[0] && hist[0].prevSubmittedItems) ? hist[0].prevSubmittedItems : [];
+  for (const it of original) byId.set(itemIdentity(it), it);
+  for (let i = 1; i < hist.length; i++) {
+    const items = Array.isArray(hist[i] && hist[i].prevSubmittedItems) ? hist[i].prevSubmittedItems : [];
+    for (const it of items) byId.set(itemIdentity(it), it);
+  }
+  for (const it of (Array.isArray(req.submittedItems) ? req.submittedItems : [])) {
+    byId.set(itemIdentity(it), it);
+  }
+  return Array.from(byId.values());
+}
+
 // =============================================================================
 // SMALL UI COMPONENTS
 // =============================================================================
@@ -3018,18 +3065,22 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           const m = STATUS_META[selectedReq.status] || STATUS_META.pending;
           // ── Items-in-scope filter ───────────────────────────────────
           // The detail view focuses on the items that matter for the
-          // CURRENT lifecycle stage rather than the full historical list:
-          //   • rejected   → only items Admin flagged this round
-          //   • after a    → only items the Sale re-touched in the
-          //     correction    most recent revision (drawn from
-          //                   revisionHistory[last].correctedItemIds)
-          //   • otherwise  → the full submittedItems list (unchanged)
-          // The Rev N chip in the header + the resubmittedAt line keep the
-          // "this is corrected" context visible without listing approved
-          // items that haven't changed since.
+          // CURRENT lifecycle stage:
+          //   • rejected        → only items Admin flagged this round
+          //   • approved-full   → the COMPLETE post-correction set
+          //                       (status === "approved" with history):
+          //                       Sale needs to see all approved items
+          //                       after the request is done, not just
+          //                       the last-corrected subset.
+          //   • corrected       → only items the Sale re-touched in the
+          //                       most recent revision (still-pending
+          //                       after a resubmit)
+          //   • all             → the full submittedItems list as-is
+          // The Rev N chip in the header + the resubmittedAt line keep
+          // the "this is corrected" context visible alongside.
           const revHist = Array.isArray(selectedReq.revisionHistory) ? selectedReq.revisionHistory : [];
           let displayItems;
-          let scopeMode;  // "rejected" | "corrected" | "all"
+          let scopeMode;  // "rejected" | "approvedFull" | "corrected" | "all"
           if (selectedReq.status === "rejected") {
             // Map rejectedItems shape → submittedItems-ish shape so the
             // existing row renderer can render them uniformly. Reason is
@@ -3049,13 +3100,24 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
               _rejectReason: r.reason || "",
             }));
             scopeMode = "rejected";
+          } else if (selectedReq.status === "approved" && revHist.length > 0) {
+            // Approved AND has a correction history: rebuild the FULL
+            // approved set by overlaying every revision's items onto the
+            // original submission. Sale sees the complete approved
+            // request, not just the last-corrected subset.
+            displayItems = buildApprovedFullView(selectedReq);
+            scopeMode = "approvedFull";
           } else if (revHist.length > 0) {
+            // Pending-after-correction: still under review by Admin for
+            // this round. Showing only the corrected items keeps the
+            // focus on what's actively being reviewed.
             const last = revHist[revHist.length - 1];
             const correctedIds = Array.isArray(last?.correctedItemIds) ? last.correctedItemIds : [];
             if (correctedIds.length > 0) {
               displayItems = (selectedReq.submittedItems || []).filter(si =>
                 correctedIds.includes(si.item_id)
-                || correctedIds.includes(`${si.product_code}-${si.line_no || ""}`)
+                || correctedIds.includes(si.itemId)
+                || correctedIds.includes(`${si.product_code || si.code}-${si.line_no || si.lineNo || ""}`)
               );
               scopeMode = "corrected";
             } else {
@@ -3069,10 +3131,12 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
           const total = displayItems.reduce((s, x) => s + (Number(x.totalPrice) || (Number(x.price)||0) * (Number(x.quantity)||0)), 0);
           const itemsLabel = scopeMode === "rejected"
             ? (lang === "th" ? "รายการที่ต้องแก้ไข" : "Items to revise")
-            : scopeMode === "corrected"
-              ? (lang === "th" ? "รายการที่แก้ไขใหม่" : "Revised items")
-              : (lang === "th" ? "รายการ" : "Items");
-          const totalLabel = scopeMode === "all"
+            : scopeMode === "approvedFull"
+              ? (lang === "th" ? "รายการที่อนุมัติทั้งหมด" : "All approved items")
+              : scopeMode === "corrected"
+                ? (lang === "th" ? "รายการที่แก้ไขใหม่" : "Revised items")
+                : (lang === "th" ? "รายการ" : "Items");
+          const totalLabel = (scopeMode === "all" || scopeMode === "approvedFull")
             ? (lang === "th" ? "รวมทั้งหมด" : "Grand total")
             : (lang === "th" ? "รวมรายการที่แสดง" : "Subtotal (shown)");
           return (
@@ -3148,11 +3212,13 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                   <div style={{ fontSize: 11, color: scopeMode === "rejected" ? "#fff" : sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
                     {itemsLabel} ({displayItems.length})
                   </div>
-                  {scopeMode !== "all" && (
+                  {(scopeMode === "rejected" || scopeMode === "corrected" || scopeMode === "approvedFull") && (
                     <span style={{ fontSize: 9, color: sub, fontWeight: 600, letterSpacing: 0.3 }}>
                       {scopeMode === "rejected"
                         ? (lang === "th" ? "ซ่อนรายการที่อนุมัติแล้ว" : "Approved items hidden")
-                        : (lang === "th" ? "เฉพาะรายการที่แก้ไขรอบล่าสุด" : "Latest-revision items only")}
+                        : scopeMode === "approvedFull"
+                          ? (lang === "th" ? "รวมรายการที่ผ่านการแก้ไขด้วย" : "Includes corrected versions")
+                          : (lang === "th" ? "เฉพาะรายการที่แก้ไขรอบล่าสุด" : "Latest-revision items only")}
                     </span>
                   )}
                 </div>

@@ -1384,8 +1384,10 @@ tbody tr:last-child td{border-bottom:none;}
                corrected at least once (revisionHistory.length > 0). -->
           <span id="ar-rev-chip" style="display:none;font-size:10px;font-weight:700;color:#D4357A;background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.45);border-radius:5px;padding:2px 7px;letter-spacing:0.3px;"></span>
           <!-- "ดูประวัติแก้ไข" button — visible alongside the chip.
-               Opens ov-revision-history populated for this request. -->
-          <button id="ar-history-btn" onclick="openRevisionHistory(ADMIN_REVIEW.id)" style="display:none;font-size:10px;font-weight:600;color:#D4357A;background:transparent;border:0.5px solid rgba(212,53,122,0.45);border-radius:6px;padding:3px 9px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;">ดูประวัติแก้ไข</button>
+               Opens ov-revision-history populated for this request.
+               Styled prominently (gradient background, slightly bigger
+               text) so Admin notices it before deciding to approve. -->
+          <button id="ar-history-btn" onclick="openRevisionHistory(ADMIN_REVIEW.id)" style="display:none;font-size:12px;font-weight:700;color:#fff;background:linear-gradient(135deg,#D4357A,#9A1A56);border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;box-shadow:0 2px 8px rgba(212,53,122,0.3);">📜 ดูประวัติแก้ไข</button>
         </div>
         <div class="popup-sub" id="ar-sub"></div>
       </div>
@@ -1400,8 +1402,14 @@ tbody tr:last-child td{border-bottom:none;}
      for a single BR Return request. Opened from the Admin review modal
      via the "ดูประวัติแก้ไข" button. Lets Admin tab through revisions
      and see, for each: submitted items, Admin remark, flagged items
-     with reasons, and photo evidence. -->
-<div class="overlay" id="ov-revision-history">
+     with reasons, and photo evidence.
+
+     z-index 1500 layers it ABOVE the admin-review modal so the history
+     visually overlays the review. Close ✕ uses closeOverlay() so only
+     this overlay dismisses (the underlying review stays open and the
+     Admin keeps their review state). Backdrop click + ESC key are
+     wired the same way in the init block at the bottom of the file. -->
+<div class="overlay" id="ov-revision-history" style="z-index:1500">
   <div class="popup popup-wide">
     <div class="popup-head">
       <div>
@@ -1411,9 +1419,12 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
         <div class="popup-sub" id="rh-sub"></div>
       </div>
-      <button class="btn-close" onclick="closeAll()">✕</button>
+      <button class="btn-close" onclick="closeOverlay('ov-revision-history')">✕</button>
     </div>
     <div class="popup-body" id="rh-body"></div>
+    <div class="popup-foot" style="display:flex;justify-content:flex-end">
+      <button class="btn" onclick="closeOverlay('ov-revision-history')" style="padding:8px 22px;border-radius:9px;border:0.5px solid var(--bd);background:var(--card2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">ปิด</button>
+    </div>
   </div>
 </div>
 
@@ -1760,13 +1771,23 @@ var RUN_DATE   = '';
 function show(id){ document.getElementById(id).classList.add('show'); }
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function closeAll(){
-  var ids = ['ov1','ov2','ov3','ov-ok','ov-detail','ov-cancel','ov-admin-review'];
+  var ids = ['ov1','ov2','ov3','ov-ok','ov-detail','ov-cancel','ov-admin-review','ov-revision-history'];
   for(var i=0;i<ids.length;i++) hide(ids[i]);
   // Defensively clear the new-request remark textarea on every full close so
   // a typed remark cannot bleed into the next session through DOM persistence.
   // editReturnRequest sets ov3-remark.value AFTER calling closeAll(), so the
   // edit flow still loads the saved remark correctly.
   if (el('ov3-remark')) el('ov3-remark').value = '';
+}
+
+// Close only ONE overlay without disturbing whatever else is open.
+// Used by the revision-history modal's close button so dismissing
+// the history doesn't also dismiss the underlying admin-review modal
+// (which would lose the Admin's review state). Different from closeAll
+// which is intentionally aggressive.
+function closeOverlay(id){
+  var node = el(id);
+  if(node) node.classList.remove('show');
 }
 function el(id){ return document.getElementById(id); }
 
@@ -4251,7 +4272,29 @@ startReturnHistoryPolling();
 
 document.querySelectorAll('.overlay').forEach(function(ov){
   if(ov.id==='ov-admin-login') return;
-  ov.addEventListener('click',function(e){ if(e.target===ov) closeAll(); });
+  ov.addEventListener('click',function(e){
+    if(e.target!==ov) return;
+    // The revision-history overlay sits on TOP of ov-admin-review.
+    // Backdrop-click should dismiss only the history (keeping the
+    // underlying review and its in-progress state intact). Every
+    // other overlay still uses the aggressive closeAll() for parity
+    // with the existing flows.
+    if(ov.id==='ov-revision-history') closeOverlay('ov-revision-history');
+    else                                closeAll();
+  });
+});
+
+// ESC key dismisses the revision-history overlay first if it's open
+// (so Admin can pop the history modal without losing the review).
+// Other overlays already have their own ✕ buttons; we don't bind ESC
+// to closeAll() globally because that would surprise users mid-flow.
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Escape' && e.key !== 'Esc') return;
+  var rh = el('ov-revision-history');
+  if(rh && rh.classList.contains('show')){
+    closeOverlay('ov-revision-history');
+    e.stopPropagation();
+  }
 });
 
 // Close sale dropdown when clicking outside
