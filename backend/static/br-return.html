@@ -1596,7 +1596,7 @@ var BR_STRINGS = {
   "toast.loadingBC":          { th: "กำลังโหลดข้อมูล Borrow Control...", en: "Loading Borrow Control data..." },
 
   // ── Sheet-sync pill labels ───────────────────────────────────
-  "syncpill.synced":          { th: "อนุมัติ · รอ snapshot คืนถัดไป", en: "Approved · awaiting next nightly snapshot" },
+  "syncpill.synced":          { th: "อนุมัติ · รอ snapshot",   en: "Approved · pending snapshot" },
   "syncpill.syncedTitle":     { th: "อัพเดต Logistics File แล้ว — Find Borrow DB จะอัพเดตในรอบ sync ถัดไป (รายคืน)", en: "Logistics File updated — Find Borrow DB will refresh on the next nightly sync" },
   "syncpill.pending":         { th: "กำลัง sync...",          en: "Syncing..." },
   "syncpill.retry":           { th: "retry",                 en: "retry" },
@@ -2902,6 +2902,51 @@ function calMonths()      { return BR_LANG === 'en' ? EN_MONTHS_FULL  : TH_MONTH
 function calMonthsShort() { return BR_LANG === 'en' ? EN_MONTHS_SHORT : TH_MONTHS_SHORT; }
 function calDays()        { return BR_LANG === 'en' ? EN_DAYS_SHORT   : TH_DAYS_SHORT; }
 
+// Normalise a request's stored date for display in the active locale.
+// The dataset is heterogeneous because requests get created over time
+// from different clients:
+//   - Desktop submits store a pre-rendered Thai string ("15 พ.ค. 2569")
+//   - Mobile / Test mode submits store an ISO string
+//     ("2026-05-16T14:57:23.212Z")
+//   - dateSort is always present and canonical: Buddhist-year *
+//     10000 + month*100 + day (INT4-safe). We prefer it because the
+//     downstream date string can be locale-stuck.
+// The helper renders consistently in the active language regardless
+// of the source format.
+function fmtRequestDate(r) {
+  if (!r) return '';
+  // 1. Prefer the canonical dateSort integer.
+  var ds = Number(r.dateSort);
+  if (ds && ds > 19000000 && ds < 99990000) {
+    var by = Math.floor(ds / 10000);   // Buddhist year
+    var mm = Math.floor((ds % 10000) / 100); // 1..12
+    var dd = ds % 100;                  // 1..31
+    var gy = by - 543;
+    if (mm < 1 || mm > 12) mm = 1;
+    return (BR_LANG === 'en')
+      ? (dd + ' ' + EN_MONTHS_SHORT[mm - 1] + ' ' + gy)
+      : (dd + ' ' + TH_MONTHS_SHORT[mm - 1] + ' ' + by);
+  }
+  // 2. Try parsing r.date as an ISO string.
+  var raw = r.date || r.resubmittedAt || '';
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    var dt = new Date(raw);
+    if (!isNaN(dt.getTime())) {
+      var dd2 = dt.getDate();
+      var mm2 = dt.getMonth(); // 0..11
+      var gy2 = dt.getFullYear();
+      return (BR_LANG === 'en')
+        ? (dd2 + ' ' + EN_MONTHS_SHORT[mm2] + ' ' + gy2)
+        : (dd2 + ' ' + TH_MONTHS_SHORT[mm2] + ' ' + (gy2 + 543));
+    }
+  }
+  // 3. Fallback: show the raw string. Older Desktop-submitted Thai
+  // strings render unchanged here, which is correct for TH mode and
+  // an unavoidable artifact for EN mode (the rendered Thai string
+  // is what was stored at submit time pre-i18n).
+  return raw;
+}
+
 function dateToDs(y,m0,d){ return (y+543)*10000+(m0+1)*100+d; }
 function dsToObj(ds){
   var thY=Math.floor(ds/10000), y=thY-543, m1=Math.floor((ds%10000)/100), d=ds%100;
@@ -3069,7 +3114,7 @@ function rebuildTable(){
       var cs = getCustStatus(r.custCode);
       h += '<tr>';
       h += '<td><span class="col-id">'+r.id+'</span></td>';
-      h += '<td><span class="col-date">'+r.date+'</span></td>';
+      h += '<td><span class="col-date">'+fmtRequestDate(r)+'</span></td>';
       h += '<td><span class="col-code">'+r.custCode+'</span></td>';
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
@@ -3171,7 +3216,7 @@ function rebuildAdminTable(){
         : '<button class="btn-detail" onclick="openDetail(\''+r.id+'\')">'+_t('br.action.viewDetail')+'</button>';
       h += '<tr>';
       h += '<td><span class="col-id">'+r.id+'</span></td>';
-      h += '<td><span class="col-date">'+r.date+'</span></td>';
+      h += '<td><span class="col-date">'+fmtRequestDate(r)+'</span></td>';
       h += '<td><span class="col-name">'+r.cust+'</span></td>';
       h += '<td><span class="br-tag">'+r.br+'</span></td>';
       h += '<td><span style="font-weight:600;color:var(--green)">'+r.sale+'</span></td>';
@@ -3715,7 +3760,7 @@ function openDetail(rid){
   h += '<div class="detail-section">';
   h += '<div class="detail-section-title">'+_t('detail.reqInfo')+'</div>';
   h += '<div class="detail-grid">';
-  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+r.date+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+fmtRequestDate(r)+'</span></div>';
   h += '<div class="detail-field"><label>'+_t('br.col.sale')+'</label><span style="color:var(--green);font-weight:700">'+r.sale+'</span></div>';
   h += '<div class="detail-field"><label>'+_t('detail.cust')+'</label><span>'+r.cust+'</span></div>';
   h += '<div class="detail-field mono"><label>'+_t('detail.custCode')+'</label><span>'+r.custCode+'</span></div>';
@@ -3909,7 +3954,7 @@ function openAdminReview(rid){
   // Body
   var h = '';
   h += '<div class="detail-grid" style="margin-bottom:14px">';
-  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+r.date+'</span></div>';
+  h += '<div class="detail-field"><label>'+_t('common.date')+'</label><span>'+fmtRequestDate(r)+'</span></div>';
   h += '<div class="detail-field"><label>'+_t('review.itemCount')+'</label><span>'+displayItemCount(r)+' '+_t('common.items')+'</span></div>';
   if(r.remark) h += '<div class="detail-field" style="grid-column:span 2"><label>'+_t('review.saleRemark')+'</label><span>'+r.remark+'</span></div>';
   h += '</div><hr class="sep"/>';

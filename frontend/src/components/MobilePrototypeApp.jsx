@@ -407,17 +407,25 @@ function fmtFull(v) {
   if (!v) return "—";
   return `฿${Number(v).toLocaleString()}`;
 }
-function fmtDate(d) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return "—";
-  return dt.toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" });
+// Read the active language from localStorage at call-time so date
+// helpers switch the moment the user flips the TH/EN toggle.
+function _activeLang() {
+  try { return localStorage.getItem("lang") || "th"; }
+  catch { return "th"; }
 }
-function fmtDateTime(d) {
+function fmtDate(d, lang) {
   if (!d) return "—";
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return "—";
-  return dt.toLocaleString("th-TH", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short", year: "numeric" });
+  const loc = (lang || _activeLang()) === "en" ? "en-GB" : "th-TH";
+  return dt.toLocaleDateString(loc, { day: "2-digit", month: "short", year: "numeric" });
+}
+function fmtDateTime(d, lang) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "—";
+  const loc = (lang || _activeLang()) === "en" ? "en-GB" : "th-TH";
+  return dt.toLocaleString(loc, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short", year: "numeric" });
 }
 
 // ── Calendar helpers (for the date-range picker on Returns tab) ──────
@@ -3055,7 +3063,7 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                     <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{r.id}</div>
                     <RevisionChip rev={revCount} lang={lang} />
                   </div>
-                  <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{fmtDateTime(r.date)}</div>
+                  <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{fmtDateTime(r.date, lang)}</div>
                 </div>
                 <ReturnStatusPill status={r.status} size="xs" lang={lang} />
               </div>
@@ -3177,10 +3185,10 @@ function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setReturnsCo
                       <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "ui-monospace,monospace" }}>{selectedReq.id}</div>
                       <RevisionChip rev={1 + (Array.isArray(selectedReq.revisionHistory) ? selectedReq.revisionHistory.length : 0)} lang={lang} />
                     </div>
-                    <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>{fmtDateTime(selectedReq.date)} · <b style={{ color: "#D4357A" }}>{selectedReq.sale}</b></div>
+                    <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>{fmtDateTime(selectedReq.date, lang)} · <b style={{ color: "#D4357A" }}>{selectedReq.sale}</b></div>
                     {selectedReq.resubmittedAt && (
                       <div style={{ fontSize: 10, color: "#D4357A", marginTop: 2 }}>
-                        ↻ {lang === "th" ? "ส่งแก้ไขเมื่อ" : "Resubmitted"} {fmtDateTime(selectedReq.resubmittedAt)}
+                        ↻ {lang === "th" ? "ส่งแก้ไขเมื่อ" : "Resubmitted"} {fmtDateTime(selectedReq.resubmittedAt, lang)}
                       </div>
                     )}
                   </div>
@@ -3610,7 +3618,7 @@ function SuccessScreen({ req, lang, dark }) {
       <div style={{ width: "100%", padding: 16, background: card, border: `0.5px solid ${bdr}`, borderRadius: 13, marginBottom: 14 }}>
         <div style={{ fontSize: 11, color: sub, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600, marginBottom: 6 }}>{lang === "th" ? "เลขที่คำขอ" : "Request ID"}</div>
         <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{req.id}</div>
-        <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>{fmtDateTime(req.date)}</div>
+        <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>{fmtDateTime(req.date, lang)}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
           <ReturnStatusPill status={req.status} size="sm" lang={lang} />
           <span style={{ fontSize: 11, color: sub }}>→ Admin {lang === "th" ? "ตรวจสอบ" : "review"} → Sheet sync</span>
