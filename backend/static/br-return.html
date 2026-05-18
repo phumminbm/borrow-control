@@ -2371,9 +2371,15 @@ function syncPillHTML(r){
       +_t('syncpill.synced')+'</span>';
   }
   if(sync==='pending'){
+    // Show a retry button alongside "syncing..." so Admin can unstick a record
+    // that got stuck in pending (Apps Script succeeded but the success callback
+    // never reached the browser — e.g. tab was closed / network glitch).
+    // retrySheetSync() already handles this: if the sheet was already updated,
+    // Apps Script returns "No BORROW rows found for BR" → auto-flips to 'synced'.
     return '<span class="sync-pill sync-pending">'
       +'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#F0B429" stroke-width="1"/><path d="M5 3v2.2l1.2 1.2" stroke="#F0B429" stroke-width="1" stroke-linecap="round"/></svg>'
-      +_t('syncpill.pending')+'</span>';
+      +_t('syncpill.pending')+'</span>'
+      +'<button class="btn-retry" onclick="retrySheetSync(\''+r.id+'\')">↺ '+_t('syncpill.retry')+'</button>';
   }
   if(sync==='failed'){
     return '<span class="sync-pill sync-fail">'
