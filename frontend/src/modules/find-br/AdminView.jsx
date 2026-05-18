@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { TEAMS, TEAM_COLORS, SC, StatusBadge, T } from "../App";
+import { TEAMS, TEAM_COLORS, SC, StatusBadge, T } from "../../App";
 
 // lookup team จาก sale name
 function getTeam(sale) {

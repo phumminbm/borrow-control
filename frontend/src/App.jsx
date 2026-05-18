@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import SaleView from "./components/SaleView";
-import AdminView from "./components/AdminView";
-import MobileApp from "./components/MobileApp";
-import MobilePrototypeApp from "./components/MobilePrototypeApp";
+import SaleView from "./modules/find-br/SaleView";
+import AdminView from "./modules/find-br/AdminView";
+import MobileApp from "./mobile/MobileApp";
+import MobilePrototypeApp from "./mobile/MobilePrototypeApp";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const DESKTOP_DATA_CACHE = "borrow-control:last-good-desktop-data";

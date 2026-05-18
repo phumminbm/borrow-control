@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NeoBiotech Mobile — Borrow Control · BR Return</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg-0: #050507;
+  --bg-1: #0a0a0e;
+  --bg-2: #14141a;
+  --bg-3: #1c1c24;
+  --bg-glass: rgba(255,255,255,0.04);
+  --bd: rgba(255,255,255,0.08);
+  --bd-strong: rgba(255,255,255,0.16);
+  --text: #f5f5f7;
+  --text-2: #c7c7cf;
+  --text-3: #8a8a93;
+  --text-4: #5a5a63;
+  --pink: #D4357A;
+  --pink-2: #FF4D9D;
+  --pink-glow: rgba(212,53,122,0.45);
+  --green: #97C459;
+  --green-bg: #1A2E0A;
+  --amber: #FAC775;
+  --amber-bg: #3D2A00;
+  --red: #F09595;
+  --red-bg: #3D1212;
+  --gray: #888;
+  --mono: ui-monospace,"SF Mono","Roboto Mono",monospace;
+  --easing: cubic-bezier(0.22,1,0.36,1);
+  --easing-snap: cubic-bezier(0.34,1.56,0.64,1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Inter","SF Pro Display",-apple-system,BlinkMacSystemFont,sans-serif;
+  background: var(--bg-0);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL BACKDROP — animated gradient orbs
+   ═══════════════════════════════════════════════════════════════ */
+.backdrop {
+  position: fixed; inset: 0;
+  z-index: 0; pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(at 20% 10%, rgba(212,53,122,0.08), transparent 50%),
+    radial-gradient(at 80% 90%, rgba(80,40,140,0.10), transparent 50%),
+    var(--bg-0);
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.6;
+  will-change: transform;
+}
+.orb-1 { width: 600px; height: 600px; top: -100px; left: -200px;  background: radial-gradient(circle, rgba(212,53,122,0.4), transparent 70%); }
+.orb-2 { width: 700px; height: 700px; top: 30%; right: -300px;    background: radial-gradient(circle, rgba(151,196,89,0.18), transparent 70%); }
+.orb-3 { width: 500px; height: 500px; bottom: -100px; left: 30%;  background: radial-gradient(circle, rgba(250,199,117,0.18), transparent 70%); }
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVBAR — sticky translucent
+   ═══════════════════════════════════════════════════════════════ */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: rgba(8,8,12,0.72);
+  border-bottom: 0.5px solid var(--bd);
+  height: 52px;
+  display: flex; align-items: center;
+}
+nav .inner {
+  max-width: 1200px; margin: 0 auto; width: 100%;
+  padding: 0 28px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+nav .brand { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+nav .brand em { font-style: normal; color: var(--pink); }
+nav ul { display: flex; gap: 28px; list-style: none; }
+nav ul a {
+  color: var(--text-2); text-decoration: none;
+  font-size: 12px; font-weight: 500;
+  transition: color 0.2s;
+}
+nav ul a:hover { color: var(--text); }
+nav .platforms {
+  display: flex; gap: 5px;
+  background: var(--bg-3);
+  border: 0.5px solid var(--bd);
+  border-radius: 999px;
+  padding: 3px;
+}
+nav .platforms span {
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  color: var(--text-3);
+}
+nav .platforms span.active { background: var(--pink); color: #fff; }
+
+@media (max-width: 800px) {
+  nav ul { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SECTION LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+.section {
+  position: relative;
+  z-index: 1;
+  padding: 120px 28px;
+}
+.section .container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--pink);
+  margin-bottom: 16px;
+}
+.kicker { color: var(--text-3); font-size: 16px; }
+.headline {
+  font-size: clamp(40px, 6vw, 76px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  background: linear-gradient(180deg, #fff 0%, #b8b8c0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.subheadline {
+  font-size: clamp(18px, 1.6vw, 22px);
+  color: var(--text-2);
+  max-width: 640px;
+  margin-top: 24px;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REVEAL ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.9s var(--easing), transform 0.9s var(--easing);
+}
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-1 { transition-delay: 0.05s; }
+.reveal-2 { transition-delay: 0.15s; }
+.reveal-3 { transition-delay: 0.25s; }
+.reveal-4 { transition-delay: 0.35s; }
+.reveal-5 { transition-delay: 0.45s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PHONE MOCKUP — CSS-only iPhone-style frame
+   ═══════════════════════════════════════════════════════════════ */
+.phone {
+  --w: 320px;
+  --h: 660px;
+  --r: 44px;
+  width: var(--w);
+  height: var(--h);
+  position: relative;
+  background: linear-gradient(180deg, #1a1a20 0%, #0a0a0f 100%);
+  border-radius: var(--r);
+  border: 1px solid #2a2a32;
+  box-shadow:
+    0 0 0 2px #0e0e14,
+    0 0 0 3px #2a2a32,
+    0 40px 80px rgba(0,0,0,0.6),
+    0 0 100px rgba(212,53,122,0.10),
+    inset 0 1px 1px rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  transform-style: preserve-3d;
+  perspective: 1200px;
+}
+.phone::before {
+  /* Dynamic Island */
+  content: "";
+  position: absolute;
+  top: 14px; left: 50%;
+  transform: translateX(-50%);
+  width: 100px; height: 28px;
+  background: #000;
+  border-radius: 999px;
+  z-index: 10;
+}
+.phone::after {
+  /* Side button shimmer */
+  content: "";
+  position: absolute;
+  top: 110px; right: -2px;
+  width: 3px; height: 60px;
+  background: linear-gradient(180deg, #2a2a32, #1a1a20);
+  border-radius: 0 2px 2px 0;
+}
+.phone .screen {
+  position: absolute;
+  inset: 8px;
+  border-radius: calc(var(--r) - 8px);
+  overflow: hidden;
+  background: var(--bg-0);
+}
+.phone .statusbar {
+  position: absolute;
+  top: 8px; left: 28px; right: 28px;
+  height: 38px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 700;
+  color: #fff;
+  z-index: 5;
+  padding: 0 8px;
+}
+.phone .statusbar .time { font-variant-numeric: tabular-nums; }
+.phone .statusbar .icons { display: flex; gap: 4px; align-items: center; }
+.phone .statusbar .icons svg { width: 12px; height: 12px; }
+.phone .content {
+  position: absolute;
+  inset: 50px 0 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Topbar inside phone */
+.p-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 0.5px solid var(--bd);
+  background: rgba(17,17,17,0.95);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.p-logo { font-size: 13px; font-weight: 700; letter-spacing: -0.3px; }
+.p-logo em { font-style: normal; color: var(--pink); }
+.p-sale-chip {
+  background: rgba(212,53,122,0.18);
+  border: 0.5px solid rgba(212,53,122,0.4);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 9px; font-weight: 600;
+  color: var(--pink);
+}
+.p-proto-badge {
+  background: #3D2A00; color: #FAC775;
+  border: 0.5px solid #FAC775;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 0.8px;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.p-proto-badge::before {
+  content: ""; width: 4px; height: 4px;
+  border-radius: 50%; background: #FAC775;
+}
+
+/* Inner screens */
+.p-body { flex: 1; overflow: hidden; padding: 14px 14px 0; }
+
+/* KPI card */
+.p-kpi {
+  background: linear-gradient(135deg, rgba(212,53,122,0.12), transparent);
+  border: 0.5px solid rgba(212,53,122,0.25);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  margin-bottom: 12px;
+}
+.p-kpi-label { font-size: 9px; color: var(--text-3); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.p-kpi-val { font-size: 24px; font-weight: 700; color: var(--text); margin-top: 2px; letter-spacing: -0.5px; }
+.p-kpi-sub { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+
+/* Donut */
+.p-donut-wrap {
+  display: flex; gap: 14px; align-items: center;
+  background: var(--bg-2); border: 0.5px solid var(--bd);
+  border-radius: 12px; padding: 12px; margin-bottom: 10px;
+}
+.p-donut { width: 56px; height: 56px; flex-shrink: 0; }
+.p-donut circle { fill: none; stroke-width: 8; transform-origin: 50% 50%; transform: rotate(-90deg); }
+.p-donut-legend { display: flex; flex-direction: column; gap: 3px; font-size: 9px; }
+.p-donut-legend span { display: flex; align-items: center; gap: 5px; color: var(--text-2); }
+.p-donut-legend i { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+
+/* Customer row */
+.p-cust-row {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--bg-2); border: 0.5px solid var(--bd);
+  border-radius: 10px; padding: 9px 10px;
+  margin-bottom: 6px;
+}
+.p-cust-avatar {
+  width: 32px; height: 32px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.p-cust-avatar.block { background: var(--red-bg); color: var(--red); }
+.p-cust-avatar.warn { background: var(--amber-bg); color: var(--amber); }
+.p-cust-avatar.norm { background: var(--green-bg); color: var(--green); }
+.p-cust-name { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-cust-meta { font-size: 9px; color: var(--text-3); margin-top: 1px; }
+.p-cust-right { text-align: right; flex-shrink: 0; }
+.p-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px;
+  white-space: nowrap;
+}
+.p-pill::before { content: ""; width: 4px; height: 4px; border-radius: 50%; }
+.p-pill.block { background: var(--red-bg); color: var(--red); border: 0.5px solid #7A2020; }
+.p-pill.block::before { background: #E24B4A; }
+.p-pill.warn { background: var(--amber-bg); color: var(--amber); border: 0.5px solid #7A5500; }
+.p-pill.warn::before { background: #EF9F27; }
+.p-pill.norm { background: var(--green-bg); color: var(--green); border: 0.5px solid #3A6014; }
+.p-pill.norm::before { background: #639922; }
+.p-pill.pending { background: var(--amber-bg); color: var(--amber); border: 0.5px solid #7A5500; }
+.p-pill.pending::before { background: #EF9F27; }
+.p-pill.approved { background: var(--green-bg); color: var(--green); border: 0.5px solid #3A6014; }
+.p-pill.approved::before { background: #639922; }
+.p-pill.rejected { background: #2a1815; color: #E89C7D; border: 0.5px solid #6b3a26; }
+.p-pill.rejected::before { background: #E89C7D; }
+.p-days {
+  font-size: 13px; font-weight: 700;
+  color: var(--text-2);
+}
+.p-days.red { color: var(--red); }
+.p-days.amber { color: var(--amber); }
+.p-days small { font-size: 8px; font-weight: 500; color: var(--text-4); margin-left: 1px; }
+
+/* Search bar */
+.p-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg-2); border: 0.5px solid var(--bd);
+  border-radius: 9px; padding: 7px 10px;
+  font-size: 11px; color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+/* Filter chips */
+.p-chips { display: flex; gap: 5px; overflow-x: auto; margin-bottom: 10px; }
+.p-chip {
+  padding: 4px 11px; border-radius: 999px;
+  font-size: 10px; font-weight: 600;
+  border: 0.5px solid var(--bd); background: var(--bg-2);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.p-chip.active { background: var(--pink); color: #fff; border-color: var(--pink); }
+
+/* Step bar (Return flow) */
+.p-stepbar { display: flex; align-items: center; gap: 0; padding: 12px 0 14px; }
+.p-step { flex: 1; display: flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 600; }
+.p-step-circle {
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; flex-shrink: 0;
+}
+.p-step.done .p-step-circle { background: var(--green-bg); color: var(--green); border: 0.5px solid #3A6014; }
+.p-step.done { color: var(--green); }
+.p-step.active .p-step-circle { background: var(--pink); color: #fff; }
+.p-step.active { color: var(--pink); }
+.p-step.todo .p-step-circle { background: var(--bg-2); color: var(--text-3); border: 0.5px solid var(--bd); }
+.p-step.todo { color: var(--text-3); }
+.p-step-line { flex: 1; height: 0.5px; background: var(--bd); margin: 0 4px; }
+
+/* Item card (Return flow) */
+.p-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--bg-2); border: 1px solid var(--bd);
+  border-radius: 11px; padding: 11px 12px;
+  margin-bottom: 6px;
+}
+.p-item.checked { border-color: var(--pink); box-shadow: 0 0 0 1px rgba(212,53,122,0.35); }
+.p-check {
+  width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0; margin-top: 1px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+}
+.p-check.checked { border-color: var(--pink); background: var(--pink); color: #fff; }
+.p-item-code { font-size: 9px; font-family: var(--mono); color: var(--text-3); font-weight: 600; }
+.p-item-name { font-size: 11px; font-weight: 600; color: var(--text); margin: 2px 0 3px; }
+.p-item-qty { font-size: 9px; color: var(--text-3); }
+.p-type-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.p-type-chip {
+  font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px;
+  border: 0.5px solid; letter-spacing: 0.3px;
+}
+.p-type-chip.return { color: var(--green); border-color: rgba(151,196,89,0.4); background: rgba(151,196,89,0.06); }
+.p-type-chip.claim { color: var(--amber); border-color: rgba(250,199,117,0.4); background: rgba(250,199,117,0.06); }
+.p-type-chip.sale { color: var(--red); border-color: rgba(240,149,149,0.4); background: rgba(240,149,149,0.06); }
+.p-type-chip.free { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.04); }
+
+/* Big CTA */
+.p-cta {
+  background: var(--pink);
+  color: #fff;
+  font-size: 12px; font-weight: 700;
+  padding: 12px;
+  border-radius: 11px;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+.p-cta.grad {
+  background: linear-gradient(135deg, #D4357A, #9A1A56);
+  box-shadow: 0 6px 18px rgba(212,53,122,0.4);
+}
+
+/* Bottom tab bar */
+.p-tabbar {
+  display: flex;
+  flex-shrink: 0;
+  padding: 8px 0 14px;
+  border-top: 0.5px solid var(--bd);
+  background: rgba(17,17,17,0.95);
+}
+.p-tab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 2px;
+  font-size: 8px; font-weight: 600;
+  color: #fff;
+}
+.p-tab.active { color: var(--pink); }
+.p-tab svg { width: 18px; height: 18px; }
+
+/* Success check */
+.p-success-circle {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--green), #3A6014);
+  display: flex; align-items: center; justify-content: center;
+  margin: 24px auto 18px;
+  box-shadow: 0 8px 24px rgba(151,196,89,0.3);
+}
+.p-success-title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+.p-success-sub { font-size: 10px; color: var(--text-3); text-align: center; line-height: 1.55; padding: 0 18px; }
+
+/* Rev chip */
+.p-rev-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; font-weight: 700; color: var(--pink);
+  background: rgba(212,53,122,0.12); border: 0.5px solid rgba(212,53,122,0.45);
+  border-radius: 5px; padding: 1px 6px; letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* Banner (rejected detail) */
+.p-banner-rejected {
+  background: #2a1815; border: 0.5px solid #6b3a26;
+  border-radius: 11px; padding: 11px 13px;
+  margin-bottom: 12px;
+}
+.p-banner-title { font-size: 11px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+.p-banner-body { font-size: 10px; color: #fff; line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════════════════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 100px 28px 60px;
+  position: relative;
+}
+.hero .container { text-align: center; }
+.hero .eyebrow { font-size: 13px; letter-spacing: 3px; }
+.hero .headline {
+  font-size: clamp(48px, 9vw, 120px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.hero .headline .accent {
+  background: linear-gradient(135deg, #D4357A 0%, #FF6FA5 50%, #FFA8C7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero .subheadline {
+  margin: 28px auto 0;
+  font-size: clamp(18px, 2vw, 24px);
+  color: var(--text-2);
+  max-width: 720px;
+}
+.hero-phones {
+  display: flex; gap: 24px; justify-content: center;
+  margin-top: 80px;
+  perspective: 1500px;
+}
+.hero-phones .phone {
+  --w: 260px;
+  --h: 540px;
+  transition: transform 0.6s var(--easing);
+}
+.hero-phones .phone.left  { transform: rotateY(20deg) rotateX(2deg) translateZ(-30px) translateX(20px); opacity: 0.6; }
+.hero-phones .phone.center{ transform: rotateY(0) rotateX(0) translateZ(40px); z-index: 2; }
+.hero-phones .phone.right { transform: rotateY(-20deg) rotateX(2deg) translateZ(-30px) translateX(-20px); opacity: 0.6; }
+
+@media (max-width: 900px) {
+  .hero-phones .phone.left, .hero-phones .phone.right { display: none; }
+}
+
+/* Hero scroll hint */
+.scroll-hint {
+  position: absolute; bottom: 28px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font-size: 10px; font-weight: 600; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-3);
+  animation: bob 2.5s ease-in-out infinite;
+}
+.scroll-hint::after {
+  content: ""; width: 1px; height: 24px;
+  background: linear-gradient(180deg, var(--text-3), transparent);
+}
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 6px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OVERVIEW SECTION — Two modules
+   ═══════════════════════════════════════════════════════════════ */
+.overview-grid {
+  display: grid; gap: 24px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 80px;
+}
+.module-card {
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  border: 1px solid var(--bd);
+  border-radius: 28px;
+  padding: 44px 36px 0;
+  position: relative;
+  overflow: hidden;
+  min-height: 480px;
+  display: flex; flex-direction: column;
+  transition: transform 0.6s var(--easing), border-color 0.6s var(--easing);
+}
+.module-card:hover {
+  border-color: var(--bd-strong);
+  transform: translateY(-6px);
+}
+.module-card .tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--pink);
+  margin-bottom: 12px;
+}
+.module-card h3 {
+  font-size: 36px; font-weight: 700; letter-spacing: -0.02em;
+  margin-bottom: 12px; line-height: 1.1;
+}
+.module-card .desc {
+  color: var(--text-2); font-size: 14px;
+  margin-bottom: 24px; line-height: 1.6;
+  max-width: 340px;
+}
+.module-card ul {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 28px;
+}
+.module-card ul li {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--text-2);
+}
+.module-card ul li::before {
+  content: ""; width: 4px; height: 4px;
+  border-radius: 50%; background: var(--pink);
+  flex-shrink: 0;
+}
+.module-card .phone-wrap {
+  position: absolute;
+  right: -60px; bottom: -200px;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+.module-card .phone-wrap .phone { --w: 280px; --h: 560px; }
+.module-card.return .phone-wrap { right: -40px; bottom: -180px; transform: rotate(6deg); }
+
+@media (max-width: 900px) {
+  .overview-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DEEP-DIVE — sticky scroll showcase
+   ═══════════════════════════════════════════════════════════════ */
+.dive {
+  position: relative;
+  /* total scroll length = num-frames × 100vh */
+}
+.dive-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.dive-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+.dive-phone {
+  display: flex; justify-content: center;
+  position: relative;
+}
+.dive-phone .phone {
+  transform: perspective(1500px) rotateY(-6deg) rotateX(1deg);
+  transition: transform 0.8s var(--easing);
+}
+.dive-phone .phone .content {
+  transition: opacity 0.4s ease;
+}
+/* The "slides" stack on top of each other on the phone screen */
+.dive-phone .frame {
+  position: absolute;
+  inset: 50px 8px 8px 8px;
+  display: flex; flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.7s var(--easing), transform 0.7s var(--easing);
+  transform: translateY(20px);
+  pointer-events: none;
+}
+.dive-phone .frame.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.dive-text {
+  position: relative;
+  height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.dive-text .frame-text {
+  position: absolute;
+  inset: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.6s var(--easing), transform 0.6s var(--easing);
+  transform: translateX(40px);
+}
+.dive-text .frame-text.active {
+  opacity: 1;
+  transform: translateX(0);
+}
+.dive-text .step-counter {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.dive-text h2 {
+  font-size: clamp(34px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  margin-bottom: 20px;
+}
+.dive-text .lede {
+  font-size: 17px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 28px;
+  max-width: 480px;
+}
+.dive-text .features {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.dive-text .features li {
+  display: flex; gap: 12px; align-items: flex-start;
+  font-size: 13.5px; color: var(--text-2);
+  line-height: 1.55;
+}
+.dive-text .features li b {
+  color: var(--text); font-weight: 700;
+  display: block; margin-bottom: 1px;
+}
+.dive-text .features li svg {
+  width: 18px; height: 18px; flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--pink);
+}
+
+@media (max-width: 900px) {
+  .dive-grid { grid-template-columns: 1fr; gap: 24px; }
+  .dive-text { height: auto; }
+  .dive-text .frame-text { position: relative; transform: none; }
+}
+
+/* Frame progress indicator (left rail) */
+.dive-rail {
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 5;
+}
+.dive-rail span {
+  width: 3px; height: 32px;
+  background: var(--bd);
+  border-radius: 2px;
+  transition: background 0.4s, height 0.4s;
+}
+.dive-rail span.active {
+  background: var(--pink);
+  height: 48px;
+  box-shadow: 0 0 12px var(--pink-glow);
+}
+
+@media (max-width: 1200px) { .dive-rail { display: none; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   WORKFLOW SECTION
+   ═══════════════════════════════════════════════════════════════ */
+.workflow {
+  padding: 140px 28px;
+}
+.workflow .flow-svg {
+  margin-top: 64px;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto; margin-right: auto;
+  display: block;
+}
+.workflow .flow-node {
+  fill: var(--bg-2);
+  stroke: var(--bd);
+  stroke-width: 1;
+  rx: 16;
+}
+.workflow .flow-node.start { fill: rgba(212,53,122,0.12); stroke: var(--pink); }
+.workflow .flow-node.admin { fill: rgba(151,196,89,0.10); stroke: rgba(151,196,89,0.4); }
+.workflow .flow-node.reject { fill: rgba(240,149,149,0.10); stroke: rgba(240,149,149,0.4); }
+.workflow .flow-node.done { fill: rgba(151,196,89,0.16); stroke: var(--green); }
+.workflow .flow-line {
+  fill: none; stroke: var(--text-4); stroke-width: 1.5;
+  stroke-dasharray: 5,4;
+  animation: dash 30s linear infinite;
+}
+@keyframes dash { to { stroke-dashoffset: -100; } }
+.workflow .flow-text { fill: var(--text); font-family: inherit; font-size: 13px; font-weight: 600; }
+.workflow .flow-sub  { fill: var(--text-3); font-family: inherit; font-size: 10px; }
+.workflow .flow-arrow { fill: var(--text-4); }
+
+/* ═══════════════════════════════════════════════════════════════
+   FEATURES GRID
+   ═══════════════════════════════════════════════════════════════ */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 64px;
+}
+.feature-card {
+  background: var(--bg-1);
+  border: 1px solid var(--bd);
+  border-radius: 22px;
+  padding: 26px;
+  transition: transform 0.4s var(--easing), border-color 0.4s, background 0.4s;
+  position: relative;
+  overflow: hidden;
+}
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--bd-strong);
+  background: var(--bg-2);
+}
+.feature-card .icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(212,53,122,0.18), rgba(212,53,122,0.04));
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 18px;
+  color: var(--pink);
+}
+.feature-card .icon svg { width: 22px; height: 22px; }
+.feature-card h4 {
+  font-size: 17px; font-weight: 700;
+  margin-bottom: 8px; letter-spacing: -0.01em;
+}
+.feature-card p {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) { .feature-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .feature-grid { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   QUICK START STEPS
+   ═══════════════════════════════════════════════════════════════ */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin-top: 64px;
+}
+.guide-step {
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  border: 1px solid var(--bd);
+  border-radius: 22px;
+  padding: 28px 28px 26px;
+  position: relative;
+}
+.guide-step .num {
+  font-family: var(--mono);
+  font-size: 60px; font-weight: 700;
+  background: linear-gradient(180deg, var(--pink), rgba(212,53,122,0.2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 4px;
+  letter-spacing: -0.04em;
+}
+.guide-step h4 {
+  font-size: 19px; font-weight: 700;
+  margin-bottom: 10px; letter-spacing: -0.01em;
+}
+.guide-step p {
+  font-size: 13.5px; color: var(--text-2);
+  line-height: 1.6;
+}
+.guide-step ul {
+  margin-top: 12px;
+  list-style: none;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.guide-step ul li {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12.5px; color: var(--text-3);
+}
+.guide-step ul li::before {
+  content: ""; width: 4px; height: 4px;
+  border-radius: 50%; background: var(--pink);
+  margin-top: 7px; flex-shrink: 0;
+}
+@media (max-width: 800px) { .guide-grid { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════════ */
+footer {
+  border-top: 1px solid var(--bd);
+  padding: 48px 28px 64px;
+  margin-top: 80px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+footer .brand { font-size: 13px; font-weight: 700; }
+footer .brand em { font-style: normal; color: var(--pink); }
+footer p { color: var(--text-3); font-size: 11px; margin-top: 10px; letter-spacing: 0.3px; }
+footer .meta { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin-top: 18px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   3D TILT ON HOVER (subtle)
+   ═══════════════════════════════════════════════════════════════ */
+.tilt {
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--easing);
+}
+</style>
+</head>
+
+<body>
+
+<!-- ─── Animated backdrop orbs ─── -->
+<div class="backdrop">
+  <div class="orb orb-1" id="orb-1"></div>
+  <div class="orb orb-2" id="orb-2"></div>
+  <div class="orb orb-3" id="orb-3"></div>
+</div>
+
+<!-- ─── Nav ─── -->
+<nav>
+  <div class="inner">
+    <div class="brand"><em>Neo</em>Biotech BR Mobile</div>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#find">Find BR</a></li>
+      <li><a href="#return">BR Return</a></li>
+      <li><a href="#workflow">Workflow</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#guide">Guide</a></li>
+    </ul>
+    <div class="platforms">
+      <span class="active">iOS</span>
+      <span>Android</span>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HERO
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="reveal in-view">
+      <div class="eyebrow">Borrow System</div>
+      <h1 class="headline">The entire borrow lifecycle. <br/><span class="accent">In your pocket.</span></h1>
+      <p class="subheadline">Track every BR, every customer, every return — wherever you are. Built for Sale and Admin teams to move at the speed of the field.</p>
+    </div>
+
+    <div class="hero-phones" id="heroPhones">
+      <!-- Left phone — Customers -->
+      <div class="phone left">
+        <div class="screen">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="icons">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v3H2v-3zm4-3h2v6H6v-6zm4-3h2v9h-2v-9zm4-3h2v12h-2V8zm4-3h2v15h-2V5z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7 4 2.7 7 1 11c1.7 4 6 7 11 7s9.3-3 11-7c-1.7-4-6-7-11-7zm0 11.5a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="8" width="18" height="8" rx="2" stroke="currentColor" fill="none" stroke-width="1.5"/><rect x="4" y="10" width="14" height="4" fill="currentColor"/><rect x="20.5" y="10.5" width="1.5" height="3" rx="0.5" fill="currentColor"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="p-topbar">
+              <div class="p-logo"><em>Neo</em>Biotech</div>
+              <span class="p-sale-chip">OPAL</span>
+            </div>
+            <div class="p-body">
+              <div class="p-search">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                Search customers...
+              </div>
+              <div class="p-chips">
+                <span class="p-chip active">All</span>
+                <span class="p-chip">BLOCK 4</span>
+                <span class="p-chip">WARNING 12</span>
+              </div>
+              <div class="p-cust-row">
+                <div class="p-cust-avatar block">บร</div>
+                <div style="flex:1;min-width:0">
+                  <div class="p-cust-name">บริษัท สไมล์เกลลอรี่ จำกัด</div>
+                  <div class="p-cust-meta">50754 · 5 BR</div>
+                </div>
+                <div class="p-cust-right"><span class="p-pill block">BLOCK</span><div class="p-days red">218<small>d</small></div></div>
+              </div>
+              <div class="p-cust-row">
+                <div class="p-cust-avatar warn">คล</div>
+                <div style="flex:1;min-width:0">
+                  <div class="p-cust-name">คลินิกทันตกรรม สมเกียรติ</div>
+                  <div class="p-cust-meta">50690 · 3 BR</div>
+                </div>
+                <div class="p-cust-right"><span class="p-pill warn">WARNING</span><div class="p-days amber">94<small>d</small></div></div>
+              </div>
+              <div class="p-cust-row">
+                <div class="p-cust-avatar norm">DR</div>
+                <div style="flex:1;min-width:0">
+                  <div class="p-cust-name">Dr. Anousone Toukhenchan</div>
+                  <div class="p-cust-meta">50100 · 1 BR</div>
+                </div>
+                <div class="p-cust-right"><span class="p-pill norm">NORMAL</span><div class="p-days">18<small>d</small></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center phone — Home -->
+      <div class="phone center">
+        <div class="screen">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="icons">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v3H2v-3zm4-3h2v6H6v-6zm4-3h2v9h-2v-9zm4-3h2v12h-2V8zm4-3h2v15h-2V5z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7 4 2.7 7 1 11c1.7 4 6 7 11 7s9.3-3 11-7c-1.7-4-6-7-11-7zm0 11.5a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="8" width="18" height="8" rx="2" stroke="currentColor" fill="none" stroke-width="1.5"/><rect x="4" y="10" width="14" height="4" fill="currentColor"/><rect x="20.5" y="10.5" width="1.5" height="3" rx="0.5" fill="currentColor"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="p-topbar">
+              <div class="p-logo"><em>Neo</em>Biotech</div>
+              <span class="p-sale-chip">OPAL</span>
+            </div>
+            <div class="p-body">
+              <div class="p-kpi">
+                <div class="p-kpi-label">Outstanding Value</div>
+                <div class="p-kpi-val">฿180.9M</div>
+                <div class="p-kpi-sub">16,450 BR Active · synced 06:00</div>
+              </div>
+              <div class="p-donut-wrap">
+                <svg class="p-donut" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="14" stroke="rgba(255,255,255,0.06)"/>
+                  <circle cx="18" cy="18" r="14" stroke="#97C459" stroke-dasharray="50 88" stroke-linecap="round"/>
+                  <circle cx="18" cy="18" r="14" stroke="#EF9F27" stroke-dasharray="22 88" stroke-dashoffset="-50" stroke-linecap="round"/>
+                  <circle cx="18" cy="18" r="14" stroke="#E24B4A" stroke-dasharray="16 88" stroke-dashoffset="-72" stroke-linecap="round"/>
+                </svg>
+                <div class="p-donut-legend">
+                  <span><i style="background:#639922"></i>NORMAL · 268</span>
+                  <span><i style="background:#EF9F27"></i>WARNING · 119</span>
+                  <span><i style="background:#E24B4A"></i>BLOCK · 87</span>
+                </div>
+              </div>
+              <div style="font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin:8px 0 6px">Critical customers</div>
+              <div class="p-cust-row">
+                <div class="p-cust-avatar block">บร</div>
+                <div style="flex:1;min-width:0">
+                  <div class="p-cust-name">บริษัท สไมล์เกลลอรี่</div>
+                  <div class="p-cust-meta">218 days · ฿3.2M</div>
+                </div>
+                <div class="p-cust-right"><span class="p-pill block">BLOCK</span></div>
+              </div>
+              <div class="p-cust-row">
+                <div class="p-cust-avatar block">รพ</div>
+                <div style="flex:1;min-width:0">
+                  <div class="p-cust-name">รพ.พญาไท 2</div>
+                  <div class="p-cust-meta">192 days · ฿2.1M</div>
+                </div>
+                <div class="p-cust-right"><span class="p-pill block">BLOCK</span></div>
+              </div>
+            </div>
+            <div class="p-tabbar">
+              <div class="p-tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1v-9.5z" stroke-linejoin="round"/></svg><span>Home</span></div>
+              <div class="p-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke-linecap="round"/></svg><span>Customers</span></div>
+              <div class="p-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 14l-4-4 4-4M5 10h11a4 4 0 010 8h-3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Returns</span></div>
+              <div class="p-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 16V10a6 6 0 1112 0v6l2 2H4l2-2z" stroke-linejoin="round"/></svg><span>Alerts</span></div>
+              <div class="p-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke-linecap="round"/></svg><span>Profile</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right phone — Returns history -->
+      <div class="phone right">
+        <div class="screen">
+          <div class="statusbar"><span class="time">9:41</span><span class="icons">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v3H2v-3zm4-3h2v6H6v-6zm4-3h2v9h-2v-9zm4-3h2v12h-2V8zm4-3h2v15h-2V5z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7 4 2.7 7 1 11c1.7 4 6 7 11 7s9.3-3 11-7c-1.7-4-6-7-11-7z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="8" width="18" height="8" rx="2" stroke="currentColor" fill="none" stroke-width="1.5"/><rect x="4" y="10" width="14" height="4" fill="currentColor"/></svg>
+          </span></div>
+          <div class="content">
+            <div class="p-topbar">
+              <div class="p-logo">Returns</div>
+              <span class="p-proto-badge">PROTO</span>
+            </div>
+            <div class="p-body">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:8px;padding:8px 4px;text-align:center">
+                  <div style="font-size:8px;color:var(--amber);font-weight:700">⬤ PENDING</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:3px">3</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:8px;padding:8px 4px;text-align:center">
+                  <div style="font-size:8px;color:var(--green);font-weight:700">⬤ APPROVED</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:3px">12</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:8px;padding:8px 4px;text-align:center">
+                  <div style="font-size:8px;color:#E89C7D;font-weight:700">⬤ REVISE</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:3px">1</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:8px;padding:8px 4px;text-align:center">
+                  <div style="font-size:8px;color:var(--text-3);font-weight:700">⬤ CANCEL</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:3px">0</div>
+                </div>
+              </div>
+              <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-left:3px solid var(--amber);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+                  <div>
+                    <div style="font-size:11px;font-weight:700;font-family:var(--mono)">RT-T-20260516001</div>
+                    <div style="font-size:9px;color:var(--text-3);margin-top:1px">15 May 2026 18:24</div>
+                  </div>
+                  <span class="p-pill pending">PENDING</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-2)">บริษัท สไมล์เกลลอรี่ <span style="color:var(--text-4)">·</span> <span style="font-family:var(--mono);color:var(--text-3)">BR202203539</span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px"><span style="color:var(--text-3)">3 items · RETURN, CLAIM</span><span style="font-weight:700">฿18,000</span></div>
+              </div>
+              <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-left:3px solid var(--green);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:4px"><div style="font-size:11px;font-weight:700;font-family:var(--mono)">RT-T-20260515084</div><span class="p-rev-chip">Rev 2</span></div>
+                    <div style="font-size:9px;color:var(--text-3);margin-top:1px">14 May 2026 11:50</div>
+                  </div>
+                  <span class="p-pill approved">APPROVED</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-2)">คลินิกทันตกรรม สมเกียรติ <span style="color:var(--text-4)">·</span> <span style="font-family:var(--mono);color:var(--text-3)">BR102503130026</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-hint">Scroll</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     OVERVIEW
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="overview">
+  <div class="container">
+    <div class="reveal">
+      <div class="eyebrow">One app · Two systems</div>
+      <h2 class="headline">Built around how Sale teams actually work.</h2>
+      <p class="kicker" style="margin-top:20px;max-width:680px">Two tightly-integrated modules. One unified experience. Optimized for Sale on the road and Admin behind the desk.</p>
+    </div>
+
+    <div class="overview-grid">
+      <!-- Module 1: Find BR -->
+      <div class="module-card reveal reveal-1">
+        <div>
+          <span class="tag">Module 01</span>
+          <h3>Find BR</h3>
+          <div class="desc">A read-only view into your borrowed inventory, refreshed nightly from the Logistics File. Spot risk customers, drill into BRs, see every item.</div>
+          <ul>
+            <li>Live KPI dashboard with portfolio value</li>
+            <li>Block / Warning / Normal status tracking</li>
+            <li>Customer list with search, filter, and sort</li>
+            <li>Per-BR detail with line-item drilldown</li>
+            <li>PDF export of any borrow form</li>
+          </ul>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="screen">
+              <div class="content" style="padding-top:38px">
+                <div class="p-body" style="padding-top:0">
+                  <div class="p-kpi">
+                    <div class="p-kpi-label">Outstanding</div>
+                    <div class="p-kpi-val">฿180.9M</div>
+                  </div>
+                  <div class="p-cust-row">
+                    <div class="p-cust-avatar block">บร</div>
+                    <div style="flex:1;min-width:0"><div class="p-cust-name">สไมล์เกลลอรี่</div><div class="p-cust-meta">218d · ฿3.2M</div></div>
+                    <span class="p-pill block">BLOCK</span>
+                  </div>
+                  <div class="p-cust-row">
+                    <div class="p-cust-avatar warn">คล</div>
+                    <div style="flex:1;min-width:0"><div class="p-cust-name">สมเกียรติ</div><div class="p-cust-meta">94d · ฿1.4M</div></div>
+                    <span class="p-pill warn">WARN</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module 2: BR Return -->
+      <div class="module-card return reveal reveal-2">
+        <div>
+          <span class="tag">Module 02</span>
+          <h3>BR Return</h3>
+          <div class="desc">A guided 4-step flow to request returns from the field — with photo evidence, multi-type allocation, revision history, and a full Admin review round-trip.</div>
+          <ul>
+            <li>Pick items, allocate qty across return types</li>
+            <li>Multi-language remarks · TH and EN</li>
+            <li>Submit to Admin · live status updates</li>
+            <li>Correction round-trip with photo evidence</li>
+            <li>Revision history viewer · full audit trail</li>
+          </ul>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="screen">
+              <div class="content" style="padding-top:38px">
+                <div class="p-body" style="padding-top:0">
+                  <div class="p-stepbar">
+                    <div class="p-step done"><div class="p-step-circle">✓</div>Select</div>
+                    <div class="p-step-line"></div>
+                    <div class="p-step active"><div class="p-step-circle">2</div>Qty</div>
+                    <div class="p-step-line"></div>
+                    <div class="p-step todo"><div class="p-step-circle">3</div>Note</div>
+                  </div>
+                  <div class="p-item checked">
+                    <div class="p-check checked">✓</div>
+                    <div style="flex:1;min-width:0">
+                      <div class="p-item-code">ISAH537</div>
+                      <div class="p-item-name">IS Cemented Abutment</div>
+                      <div class="p-item-qty">2 pcs × ฿2,500</div>
+                      <div class="p-type-row">
+                        <span class="p-type-chip return">↩ 1 RETURN</span>
+                        <span class="p-type-chip claim">⚠ 1 CLAIM</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FIND BR DEEP DIVE — Sticky scroll showcase
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="dive" id="find" data-dive-frames="3">
+  <div class="dive-rail">
+    <span data-rail="0" class="active"></span>
+    <span data-rail="1"></span>
+    <span data-rail="2"></span>
+  </div>
+
+  <div class="dive-sticky">
+    <div class="dive-grid">
+      <!-- Phone with multiple frames -->
+      <div class="dive-phone">
+        <div class="phone tilt">
+          <div class="screen">
+            <div class="statusbar"><span class="time">9:41</span><span class="icons">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v3H2v-3zm4-3h2v6H6v-6zm4-3h2v9h-2v-9zm4-3h2v12h-2V8zm4-3h2v15h-2V5z"/></svg>
+            </span></div>
+
+            <!-- Frame 0: Home -->
+            <div class="frame active" data-frame="0">
+              <div class="p-topbar">
+                <div class="p-logo"><em>Neo</em>Biotech</div>
+                <span class="p-sale-chip">OPAL</span>
+              </div>
+              <div class="p-body">
+                <div class="p-kpi">
+                  <div class="p-kpi-label">Outstanding Value</div>
+                  <div class="p-kpi-val">฿180.9M</div>
+                  <div class="p-kpi-sub">16,450 BR Active</div>
+                </div>
+                <div class="p-donut-wrap">
+                  <svg class="p-donut" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="14" stroke="rgba(255,255,255,0.06)"/>
+                    <circle cx="18" cy="18" r="14" stroke="#97C459" stroke-dasharray="50 88" stroke-linecap="round"/>
+                    <circle cx="18" cy="18" r="14" stroke="#EF9F27" stroke-dasharray="22 88" stroke-dashoffset="-50" stroke-linecap="round"/>
+                    <circle cx="18" cy="18" r="14" stroke="#E24B4A" stroke-dasharray="16 88" stroke-dashoffset="-72" stroke-linecap="round"/>
+                  </svg>
+                  <div class="p-donut-legend">
+                    <span><i style="background:#639922"></i>NORMAL · 268</span>
+                    <span><i style="background:#EF9F27"></i>WARNING · 119</span>
+                    <span><i style="background:#E24B4A"></i>BLOCK · 87</span>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin:4px 0 6px">Critical · BLOCK</div>
+                <div class="p-cust-row"><div class="p-cust-avatar block">บร</div><div style="flex:1"><div class="p-cust-name">สไมล์เกลลอรี่ จำกัด</div><div class="p-cust-meta">218 days · ฿3.2M</div></div></div>
+                <div class="p-cust-row"><div class="p-cust-avatar block">รพ</div><div style="flex:1"><div class="p-cust-name">โรงพยาบาลพญาไท 2</div><div class="p-cust-meta">192 days · ฿2.1M</div></div></div>
+              </div>
+            </div>
+
+            <!-- Frame 1: Customer list -->
+            <div class="frame" data-frame="1">
+              <div class="p-topbar">
+                <div class="p-logo">Customers</div>
+                <span class="p-sale-chip">OPAL · 47</span>
+              </div>
+              <div class="p-body">
+                <div class="p-search">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                  Search name / code...
+                </div>
+                <div class="p-chips">
+                  <span class="p-chip active">All</span>
+                  <span class="p-chip">BLOCK</span>
+                  <span class="p-chip">WARNING</span>
+                  <span class="p-chip">NORMAL</span>
+                </div>
+                <div class="p-cust-row"><div class="p-cust-avatar block">บร</div><div style="flex:1"><div class="p-cust-name">สไมล์เกลลอรี่ จำกัด</div><div class="p-cust-meta">50754 · 5 BR · ฿3.2M</div></div><div class="p-cust-right"><span class="p-pill block">BLOCK</span><div class="p-days red">218<small>d</small></div></div></div>
+                <div class="p-cust-row"><div class="p-cust-avatar warn">คล</div><div style="flex:1"><div class="p-cust-name">คลินิกทันตกรรม สมเกียรติ</div><div class="p-cust-meta">50690 · 3 BR · ฿1.4M</div></div><div class="p-cust-right"><span class="p-pill warn">WARN</span><div class="p-days amber">94<small>d</small></div></div></div>
+                <div class="p-cust-row"><div class="p-cust-avatar warn">รพ</div><div style="flex:1"><div class="p-cust-name">รพ.พญาไท 2</div><div class="p-cust-meta">50534 · 2 BR · ฿890K</div></div><div class="p-cust-right"><span class="p-pill warn">WARN</span><div class="p-days amber">112<small>d</small></div></div></div>
+                <div class="p-cust-row"><div class="p-cust-avatar norm">DR</div><div style="flex:1"><div class="p-cust-name">Dr. Anousone</div><div class="p-cust-meta">50100 · 1 BR · ฿18K</div></div><div class="p-cust-right"><span class="p-pill norm">NORMAL</span><div class="p-days">18<small>d</small></div></div></div>
+              </div>
+            </div>
+
+            <!-- Frame 2: BR detail -->
+            <div class="frame" data-frame="2">
+              <div class="p-topbar">
+                <div class="p-logo">BR Detail</div>
+                <span class="p-sale-chip">OPAL</span>
+              </div>
+              <div class="p-body">
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:11px 12px;margin-bottom:10px">
+                  <div style="font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase">Customer</div>
+                  <div style="font-size:13px;font-weight:600;margin-top:2px">บริษัท สไมล์เกลลอรี่</div>
+                  <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+                    <span style="font-family:var(--mono);font-size:9px;color:var(--text-3);background:var(--bg-3);padding:1px 6px;border-radius:4px">50754</span>
+                    <span style="font-family:var(--mono);font-size:9px;color:var(--text-3)">BR202203539</span>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Items (3)</div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:10px 12px;margin-bottom:5px">
+                  <div class="p-item-code">ISAH537</div>
+                  <div class="p-item-name">IS Cemented Abutment</div>
+                  <div class="p-item-qty">2 pcs · ฿2,500</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:10px 12px;margin-bottom:5px">
+                  <div class="p-item-code">MUAHC48</div>
+                  <div class="p-item-name">Multi Unit Healing Cap ø4.8</div>
+                  <div class="p-item-qty">5 pcs · ฿800</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:10px 12px;margin-bottom:8px">
+                  <div class="p-item-code">MUALA48</div>
+                  <div class="p-item-name">Multi Unit Lab Analog ø4.8</div>
+                  <div class="p-item-qty">5 pcs · ฿1,200</div>
+                </div>
+                <div class="p-cta grad">↩ Request Return</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Text panel with multiple frames -->
+      <div class="dive-text">
+        <div class="frame-text active" data-frame-text="0">
+          <div class="step-counter">01 / 03 · FIND BR</div>
+          <h2>Your portfolio.<br/>Always live.</h2>
+          <p class="lede">Open the app and see exactly where you stand. Total outstanding value, every BLOCK and WARNING customer, and the items that put them there.</p>
+          <ul class="features">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8" stroke-linecap="round"/></svg>
+              <span><b>Real-time KPI</b>Outstanding value plus the donut of BLOCK / WARNING / NORMAL counts.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>
+              <span><b>Nightly snapshot</b>Source-of-truth Logistics File, swapped atomically at 23:30 — never half-data.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l10 17H2L12 3z" stroke-linejoin="round"/></svg>
+              <span><b>Critical preview</b>One tap into the customer that's keeping you up at night.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="1">
+          <div class="step-counter">02 / 03 · FIND BR</div>
+          <h2>Every customer.<br/>In one swipe.</h2>
+          <p class="lede">Search by name, filter by status, sort by anything. Customer cards surface days-out, BR count, and outstanding value — instantly.</p>
+          <ul class="features">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4" stroke-linecap="round"/></svg>
+              <span><b>Live search</b>Type a few characters of the customer name or 5-digit code — results appear as you type.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" stroke-linejoin="round"/></svg>
+              <span><b>Status chips</b>One-tap filter for BLOCK / WARNING / NORMAL.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h13M3 12h9M3 18h5M19 4l3 3M19 4v16" stroke-linecap="round"/></svg>
+              <span><b>Smart sort</b>Days outstanding, total value, or alphabetical — your preference, persisted.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="2">
+          <div class="step-counter">03 / 03 · FIND BR</div>
+          <h2>Every BR.<br/>Down to the line.</h2>
+          <p class="lede">Tap any customer to see their BR list. Tap any BR to see every borrowed item — code, name, quantity, unit price, total. Then export a PDF or kick off a return.</p>
+          <ul class="features">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke-linecap="round"/></svg>
+              <span><b>Line-item drilldown</b>Every product code, name, qty, and price — exactly as it appears in the Logistics File.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h12l4 4v12H4V4z"/><path d="M14 4v6h6M9 14h6M9 18h6" stroke-linecap="round"/></svg>
+              <span><b>PDF export</b>Generate the full Borrowing Form on demand — letterhead, tax ID, tableized line items.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14l-4-4 4-4M5 10h11a4 4 0 010 8h-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span><b>Direct return CTA</b>Skip the desktop step — request a return for this BR right from here.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll spacer: 3 frames × 100vh -->
+  <div style="height: 300vh"></div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     BR RETURN DEEP DIVE — Sticky scroll, 5 frames
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="dive" id="return" data-dive-frames="5">
+  <div class="dive-rail">
+    <span data-rail="0" class="active"></span>
+    <span data-rail="1"></span>
+    <span data-rail="2"></span>
+    <span data-rail="3"></span>
+    <span data-rail="4"></span>
+  </div>
+
+  <div class="dive-sticky">
+    <div class="dive-grid">
+      <div class="dive-phone">
+        <div class="phone tilt">
+          <div class="screen">
+            <div class="statusbar"><span class="time">9:41</span><span class="icons">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v3H2v-3zm4-3h2v6H6v-6zm4-3h2v9h-2v-9zm4-3h2v12h-2V8zm4-3h2v15h-2V5z"/></svg>
+            </span></div>
+
+            <!-- Frame 0: Step 1 select items -->
+            <div class="frame active" data-frame="0">
+              <div class="p-topbar">
+                <div style="display:flex;align-items:center;gap:6px"><div class="p-logo" style="font-size:11px">Request Return</div><span class="p-proto-badge">TEST</span></div>
+                <span style="font-size:9px;color:var(--text-3)">RT-T-...001</span>
+              </div>
+              <div class="p-body">
+                <div class="p-stepbar">
+                  <div class="p-step active"><div class="p-step-circle">1</div>Select</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step todo"><div class="p-step-circle">2</div>Qty</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step todo"><div class="p-step-circle">3</div>Note</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step todo"><div class="p-step-circle">4</div>Review</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <div style="font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase">Select items to return</div>
+                  <span style="font-size:9px;font-weight:700;color:var(--pink);background:rgba(212,53,122,0.12);border:0.5px solid rgba(212,53,122,0.4);border-radius:999px;padding:3px 9px">Select all</span>
+                </div>
+                <div class="p-item checked">
+                  <div class="p-check checked">✓</div>
+                  <div style="flex:1">
+                    <div class="p-item-code">ISAH537</div>
+                    <div class="p-item-name">IS Cemented Abutment</div>
+                    <div class="p-item-qty">2 pcs × ฿2,500 = ฿5,000</div>
+                  </div>
+                </div>
+                <div class="p-item checked">
+                  <div class="p-check checked">✓</div>
+                  <div style="flex:1">
+                    <div class="p-item-code">MUAHC48</div>
+                    <div class="p-item-name">Multi Unit Healing Cap ø4.8</div>
+                    <div class="p-item-qty">5 pcs × ฿800 = ฿4,000</div>
+                  </div>
+                </div>
+                <div class="p-item">
+                  <div class="p-check"></div>
+                  <div style="flex:1">
+                    <div class="p-item-code">MUALA48</div>
+                    <div class="p-item-name">Multi Unit Lab Analog ø4.8</div>
+                    <div class="p-item-qty">5 pcs × ฿1,200 = ฿6,000</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Frame 1: Step 2 allocation -->
+            <div class="frame" data-frame="1">
+              <div class="p-topbar">
+                <div style="display:flex;align-items:center;gap:6px"><div class="p-logo" style="font-size:11px">Request Return</div><span class="p-proto-badge">TEST</span></div>
+              </div>
+              <div class="p-body">
+                <div class="p-stepbar">
+                  <div class="p-step done"><div class="p-step-circle">✓</div>Select</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step active"><div class="p-step-circle">2</div>Qty</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step todo"><div class="p-step-circle">3</div>Note</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step todo"><div class="p-step-circle">4</div>Review</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:9px;margin-bottom:8px">
+                  <div style="font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:0.5px;margin-bottom:6px">Select all as</div>
+                  <div style="display:flex;gap:5px">
+                    <button style="flex:1;padding:5px;font-size:9px;font-weight:700;color:var(--green);background:transparent;border:1px solid #3A6014;border-radius:6px">↩ RETURN</button>
+                    <button style="flex:1;padding:5px;font-size:9px;font-weight:700;color:var(--amber);background:transparent;border:1px solid #7A5500;border-radius:6px">⚠ CLAIM</button>
+                    <button style="flex:1;padding:5px;font-size:9px;font-weight:700;color:var(--red);background:transparent;border:1px solid #7A2020;border-radius:6px">💰 SALE</button>
+                    <button style="flex:1;padding:5px;font-size:9px;font-weight:700;color:#fff;background:transparent;border:1px solid #555;border-radius:6px">🎁 FREE</button>
+                  </div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:11px;margin-bottom:7px">
+                  <div class="p-item-code">ISAH537</div>
+                  <div class="p-item-name">IS Cemented Abutment</div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-3);margin:4px 0 6px"><span>Available: 2 pcs</span><span style="color:var(--green);font-weight:700">Remaining: 0 ✓</span></div>
+                  <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:0.5px solid var(--bd)">
+                    <div style="min-width:60px;font-size:10px;font-weight:700;color:var(--green)">↩ RETURN</div>
+                    <div style="display:flex;align-items:center;background:var(--bg-3);border-radius:7px;padding:1px;flex-shrink:0"><button style="width:22px;height:22px;border:none;background:transparent;color:var(--pink);font-size:13px">−</button><span style="width:22px;text-align:center;font-size:11px;font-weight:700;font-family:var(--mono)">1</span><button style="width:22px;height:22px;border:none;background:transparent;color:var(--pink);font-size:13px">+</button></div>
+                    <div style="flex:1;text-align:right;font-size:10px;color:var(--pink);font-weight:700">฿2,500</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:0.5px solid var(--bd)">
+                    <div style="min-width:60px;font-size:10px;font-weight:700;color:var(--amber)">⚠ CLAIM</div>
+                    <div style="display:flex;align-items:center;background:var(--bg-3);border-radius:7px;padding:1px;flex-shrink:0"><button style="width:22px;height:22px;border:none;background:transparent;color:var(--pink);font-size:13px">−</button><span style="width:22px;text-align:center;font-size:11px;font-weight:700;font-family:var(--mono)">1</span><button style="width:22px;height:22px;border:none;background:transparent;color:var(--pink);font-size:13px">+</button></div>
+                    <div style="flex:1;text-align:right;font-size:10px;color:var(--pink);font-weight:700">฿2,500</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Frame 2: Step 4 review -->
+            <div class="frame" data-frame="2">
+              <div class="p-topbar"><div class="p-logo" style="font-size:11px">Review &amp; Submit</div><span class="p-proto-badge">TEST</span></div>
+              <div class="p-body">
+                <div class="p-stepbar">
+                  <div class="p-step done"><div class="p-step-circle">✓</div>Select</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step done"><div class="p-step-circle">✓</div>Qty</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step done"><div class="p-step-circle">✓</div>Note</div>
+                  <div class="p-step-line"></div>
+                  <div class="p-step active"><div class="p-step-circle">4</div>Review</div>
+                </div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;overflow:hidden;margin-bottom:10px">
+                  <div style="padding:9px 11px;border-bottom:0.5px solid var(--bd);display:flex;justify-content:space-between"><div><div style="font-size:8px;color:var(--text-3)">Customer</div><div style="font-size:11px;font-weight:600;margin-top:1px">สไมล์เกลลอรี่</div></div><span style="font-family:var(--mono);font-size:9px;color:var(--text-3)">50754</span></div>
+                  <div style="padding:9px 11px;border-bottom:0.5px solid var(--bd)"><div style="font-size:8px;color:var(--text-3)">BR</div><div style="font-size:11px;margin-top:1px;font-family:var(--mono)">BR202203539</div></div>
+                  <div style="padding:9px 11px"><div style="font-size:8px;color:var(--text-3)">Sale</div><div style="font-size:11px;margin-top:1px">OPAL</div></div>
+                </div>
+                <div style="font-size:10px;color:var(--text-3);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Items (2)</div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:10px 12px;margin-bottom:6px">
+                  <div style="display:flex;justify-content:space-between"><div><div class="p-item-code">ISAH537</div><div class="p-item-name">IS Cemented Abutment</div></div><div style="font-size:12px;font-weight:700;color:var(--pink)">฿5,000</div></div>
+                  <div class="p-type-row"><span class="p-type-chip return">↩ 1 RETURN</span><span class="p-type-chip claim">⚠ 1 CLAIM</span></div>
+                </div>
+                <div style="background:rgba(212,53,122,0.10);border:1px solid rgba(212,53,122,0.3);border-radius:11px;padding:11px 13px;display:flex;justify-content:space-between;margin-bottom:8px">
+                  <span style="font-size:11px;color:var(--pink);font-weight:700">Submit total</span>
+                  <span style="font-size:15px;color:var(--pink);font-weight:700">฿9,000</span>
+                </div>
+                <div class="p-cta">✓ Submit Request</div>
+              </div>
+            </div>
+
+            <!-- Frame 3: Success -->
+            <div class="frame" data-frame="3">
+              <div class="p-topbar"><div class="p-logo">Submitted</div></div>
+              <div class="p-body" style="text-align:center;padding-top:18px">
+                <div class="p-success-circle">
+                  <svg width="44" height="44" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="p-success-title">Request submitted</div>
+                <div class="p-success-sub">Your request has been saved. Admin will review and approve it.<br/>Track its status under the Returns tab.</div>
+                <div style="background:var(--bg-2);border:0.5px solid var(--bd);border-radius:11px;padding:12px 14px;margin:20px 0 10px;text-align:left">
+                  <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.8px;font-weight:700">Request ID</div>
+                  <div style="font-size:14px;font-weight:700;font-family:var(--mono);margin-top:3px">RT-T-20260516001</div>
+                  <div style="font-size:9px;color:var(--text-3);margin-top:3px">16 May 2026 17:28</div>
+                  <div style="margin-top:9px"><span class="p-pill pending">PENDING</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Frame 4: Correction round-trip -->
+            <div class="frame" data-frame="4">
+              <div class="p-topbar"><div style="display:flex;align-items:center;gap:5px"><div class="p-logo">Return Detail</div><span class="p-rev-chip">Rev 2</span></div></div>
+              <div class="p-body">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <div style="font-size:14px;font-weight:700;font-family:var(--mono)">RT-T-...001</div>
+                  <span class="p-pill rejected">REVISE</span>
+                </div>
+                <div class="p-banner-rejected">
+                  <div class="p-banner-title">⚠ Items need revision</div>
+                  <div class="p-banner-body"><b>Admin note:</b> Quantity doesn't match — please reduce CLAIM by 1.</div>
+                </div>
+                <div style="font-size:10px;color:#E89C7D;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:6px">Items to revise (1)</div>
+                <div style="background:var(--bg-2);border:0.5px solid #6b3a26;border-radius:11px;padding:11px 12px;margin-bottom:8px">
+                  <div class="p-item-code">ISAH537</div>
+                  <div class="p-item-name">IS Cemented Abutment</div>
+                  <div class="p-type-row"><span class="p-type-chip claim">⚠ 2 CLAIM</span></div>
+                  <div style="margin-top:7px;padding:6px 8px;background:#2a1815;border-radius:6px;font-size:10px;color:#fff"><b>Reason:</b> CLAIM qty exceeds receipt — verify</div>
+                </div>
+                <div style="font-size:10px;color:#E89C7D;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:6px">📷 Admin evidence (1)</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px">
+                  <div style="aspect-ratio:1/1;border-radius:7px;background:linear-gradient(135deg,#3D2A00,#1c1c00);border:0.5px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--amber)">📷</div>
+                  <div style="aspect-ratio:1/1;border-radius:7px;background:linear-gradient(135deg,#2a1815,#1a0e0a);border:0.5px solid var(--bd)"></div>
+                  <div style="aspect-ratio:1/1;border-radius:7px;background:linear-gradient(135deg,#1A2E0A,#0a1500);border:0.5px solid var(--bd)"></div>
+                </div>
+                <div class="p-cta grad">↩ Edit and resubmit</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dive-text">
+        <div class="frame-text active" data-frame-text="0">
+          <div class="step-counter">01 / 05 · BR RETURN</div>
+          <h2>Pick the items.<br/>Just the ones.</h2>
+          <p class="lede">Open any BR's detail, tap "Request Return", and the items are right there. Select what you want to return — Select All for the whole BR, or tap individually. Already-allocated quantities are preserved if you backtrack.</p>
+          <ul class="features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>One-tap select</b>Single line-items, or "Select all" for the entire BR.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/></svg><span><b>Selected counter</b>Real-time count in the bottom CTA — "Selected 2 →".</span></li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="1">
+          <div class="step-counter">02 / 05 · BR RETURN</div>
+          <h2>Multi-type allocation.<br/>Per item.</h2>
+          <p class="lede">Split a single line across RETURN, CLAIM, SALE, and FREE — exactly mirroring the Desktop BR Return flow. Steppers clamp at the source quantity so you can't over-allocate. The bulk-action bar fills every selected item with one tap.</p>
+          <ul class="features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span><b>Four types per item</b>RETURN (warehouse-bound), CLAIM (defect), SALE (post-sale), FREE (giveaway).</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Bulk-fill</b>"Select all as RETURN" — the quick path when one type dominates the BR.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Smart clamping</b>Can't over-allocate. The stepper stops at the source row's available quantity.</span></li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="2">
+          <div class="step-counter">03 / 05 · BR RETURN</div>
+          <h2>Review.<br/>Then submit.</h2>
+          <p class="lede">Step 4 lays out the entire request — customer, BR, every item with its type breakdown chips, the running total, and your remark. One tap to submit, one tap to back out and fix.</p>
+          <ul class="features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke-linecap="round"/></svg><span><b>Full review</b>Submit-total pill matches what Admin sees on the desktop — zero surprises.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2" stroke-linecap="round"/></svg><span><b>Real-backend save</b>Submit talks to /return-requests with a spinner. Success only when the row lands.</span></li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="3">
+          <div class="step-counter">04 / 05 · BR RETURN</div>
+          <h2>Submitted.<br/>And tracked.</h2>
+          <p class="lede">A full-screen success view confirms the new RT-T-* request ID. From here, jump back to BR list to file the next one for the same customer — or watch its status under the Returns tab.</p>
+          <ul class="features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Unique request ID</b>Timestamp-based — collision-free even with concurrent submissions.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h7l3-9 4 18 3-9h4" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Live status</b>30-second polling keeps the Returns tab in sync with Admin's desk.</span></li>
+          </ul>
+        </div>
+
+        <div class="frame-text" data-frame-text="4">
+          <div class="step-counter">05 / 05 · BR RETURN</div>
+          <h2>Correction round-trip.<br/>With evidence.</h2>
+          <p class="lede">When Admin sends a request back for revision, you get the full context — which items, why, and photographic evidence. Edit just the flagged items and resubmit. Every round is preserved in the revision history.</p>
+          <ul class="features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14l-4-4 4-4M5 10h11a4 4 0 010 8h-3" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Edit and resubmit</b>One-tap returns you to the qty step, scoped to just the flagged items.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Photo evidence</b>Admin's attached photos open in a fullscreen lightbox with prev/next nav.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6M20 20v-6h-6M20 4l-7 7M4 20l7-7" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Rev N chip</b>"Rev 2" badge surfaces every time, on every view, on both Sale and Admin sides.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 500vh"></div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     WORKFLOW
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="section workflow" id="workflow">
+  <div class="container">
+    <div class="reveal">
+      <div class="eyebrow">The complete flow</div>
+      <h2 class="headline">Mobile to desk.<br/>And back again.</h2>
+      <p class="kicker" style="margin-top:20px;max-width:680px">Every return-request takes the same path. Sale on Mobile creates the request; Admin reviews on Desktop. Approvals sync back to Logistics File overnight. Rejections come back to the Sale's pocket — with reasons.</p>
+    </div>
+
+    <svg class="flow-svg reveal reveal-2" viewBox="0 0 1100 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- Node: Sale creates -->
+      <rect class="flow-node start" x="20" y="120" width="180" height="80"/>
+      <text class="flow-text" x="110" y="155" text-anchor="middle">Sale creates</text>
+      <text class="flow-sub" x="110" y="175" text-anchor="middle">Mobile · 4-step flow</text>
+      <text class="flow-sub" x="110" y="188" text-anchor="middle">items + qty + remark</text>
+
+      <!-- Arrow 1 -->
+      <path class="flow-line" d="M 200 160 L 280 160"/>
+      <polygon class="flow-arrow" points="280,156 290,160 280,164"/>
+
+      <!-- Node: Backend stores -->
+      <rect class="flow-node" x="290" y="120" width="180" height="80"/>
+      <text class="flow-text" x="380" y="155" text-anchor="middle">Backend stores</text>
+      <text class="flow-sub" x="380" y="175" text-anchor="middle">POST /return-requests</text>
+      <text class="flow-sub" x="380" y="188" text-anchor="middle">Postgres · isTest flag</text>
+
+      <!-- Arrow 2 -->
+      <path class="flow-line" d="M 470 160 L 550 160"/>
+      <polygon class="flow-arrow" points="550,156 560,160 550,164"/>
+
+      <!-- Node: Admin reviews -->
+      <rect class="flow-node admin" x="560" y="120" width="180" height="80"/>
+      <text class="flow-text" x="650" y="155" text-anchor="middle">Admin reviews</text>
+      <text class="flow-sub" x="650" y="175" text-anchor="middle">Desktop · per-item</text>
+      <text class="flow-sub" x="650" y="188" text-anchor="middle">pass / fail / reason</text>
+
+      <!-- Arrow 3 split -->
+      <path class="flow-line" d="M 740 145 L 880 80"/>
+      <polygon class="flow-arrow" points="877,75 890,75 884,87" transform="rotate(-15 884 78)"/>
+      <path class="flow-line" d="M 740 175 L 880 240"/>
+      <polygon class="flow-arrow" points="877,238 890,238 884,250" transform="rotate(15 884 244)"/>
+
+      <!-- Node: Approved -->
+      <rect class="flow-node done" x="890" y="40" width="180" height="80"/>
+      <text class="flow-text" x="980" y="75" text-anchor="middle">Approved</text>
+      <text class="flow-sub" x="980" y="95" text-anchor="middle">Logistics File sync</text>
+      <text class="flow-sub" x="980" y="108" text-anchor="middle">Visible in next snapshot</text>
+
+      <!-- Node: Sent back -->
+      <rect class="flow-node reject" x="890" y="200" width="180" height="80"/>
+      <text class="flow-text" x="980" y="232" text-anchor="middle">Sent back</text>
+      <text class="flow-sub" x="980" y="252" text-anchor="middle">Reasons + photos</text>
+      <text class="flow-sub" x="980" y="265" text-anchor="middle">Sale revises &amp; resubmits</text>
+
+      <!-- Loop-back arrow from "Sent back" to "Sale creates" -->
+      <path class="flow-line" d="M 890 280 Q 500 320 110 280 Q 80 260 110 220 L 110 200"/>
+      <polygon class="flow-arrow" points="106,203 110,193 114,203"/>
+      <text class="flow-sub" x="500" y="312" text-anchor="middle" style="font-style:italic">Rev N · full history preserved</text>
+    </svg>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FEATURES GRID
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="reveal">
+      <div class="eyebrow">Built-in capabilities</div>
+      <h2 class="headline">Small details.<br/>Big difference.</h2>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card reveal reveal-1">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+        <h4>TH / EN</h4>
+        <p>Full bilingual support. Toggle between Thai and Natural English in any view. Customer data and product names stay in their original language.</p>
+      </div>
+      <div class="feature-card reveal reveal-2">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14a8 8 0 01-10-10 8 8 0 1010 10z" stroke-linejoin="round"/></svg></div>
+        <h4>Dark / Light</h4>
+        <p>iPhone-style sliding theme switch with a sunrise gradient. Persists per browser — flips with one tap from the topbar.</p>
+      </div>
+      <div class="feature-card reveal reveal-3">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10V5h5M20 14v5h-5" stroke-linecap="round"/><path d="M4 10a8 8 0 0115-1M20 14a8 8 0 01-15 1" stroke-linecap="round"/></svg></div>
+        <h4>Real-time sync</h4>
+        <p>30-second background polling keeps Mobile in sync with Desktop. Status changes surface within seconds of Admin's action.</p>
+      </div>
+
+      <div class="feature-card reveal reveal-1">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h4>Photo evidence</h4>
+        <p>Real camera/library picker for proof. Auto-compressed to 600px and stored as base64 — the same shape Desktop uses.</p>
+      </div>
+      <div class="feature-card reveal reveal-2">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6M20 20v-6h-6M20 4l-7 7M4 20l7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h4>Revision history</h4>
+        <p>Every correction round captured with date, Admin remark, flagged items, reasons, and photos. Full audit trail per request.</p>
+      </div>
+      <div class="feature-card reveal reveal-3">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L3 7v6c0 5 4 9 9 11 5-2 9-6 9-11V7l-9-5z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h4>Test mode</h4>
+        <p>Submit real requests to the real backend with isTest=true. Visible only in Desktop's TEST queue. Apps Script writeback blocked. Clean cleanup query.</p>
+      </div>
+
+      <div class="feature-card reveal reveal-1">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 7h7v7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h4>Optimistic UI</h4>
+        <p>Submissions appear instantly in the Returns list. Rolls back cleanly if the backend rejects — you stay on Step 4 with a clear error and your form intact.</p>
+      </div>
+      <div class="feature-card reveal reveal-2">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg></div>
+        <h4>Calendar picker</h4>
+        <p>Hotel-app-style date range with scroll-to-current month, Buddhist / Gregorian year switching, and a soft pink selection band.</p>
+      </div>
+      <div class="feature-card reveal reveal-3">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1v-9.5z" stroke-linejoin="round"/></svg></div>
+        <h4>Offline-ready cache</h4>
+        <p>Customer and BR data cached on first load. Open the app on poor signal and still see your portfolio.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     QUICK START GUIDE
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="section" id="guide">
+  <div class="container">
+    <div class="reveal">
+      <div class="eyebrow">Quick start</div>
+      <h2 class="headline">How to use it.<br/>End to end.</h2>
+      <p class="kicker" style="margin-top:20px;max-width:680px">Five steps from "I just opened the app" to "Admin approved my return". Each one is one tap.</p>
+    </div>
+
+    <div class="guide-grid">
+      <div class="guide-step reveal reveal-1">
+        <div class="num">01</div>
+        <h4>Pick your Sale name</h4>
+        <p>First launch shows the Sale picker. Tap your name once — it's remembered for next time.</p>
+        <ul>
+          <li>Organized by team for fast scanning</li>
+          <li>One tap to set, persists in browser storage</li>
+          <li>Switch later from the Profile tab</li>
+        </ul>
+      </div>
+
+      <div class="guide-step reveal reveal-2">
+        <div class="num">02</div>
+        <h4>Browse customers · find the BR</h4>
+        <p>Open the Customers tab. Search, filter by status, or sort by days outstanding. Tap a customer to see their full BR list.</p>
+        <ul>
+          <li>Search by name or 5-digit customer code</li>
+          <li>Sort: Days · Value · Name</li>
+          <li>Tap a BR to drill into its items</li>
+          <li>Export the PDF file in the Borrow format</li>
+        </ul>
+      </div>
+
+      <div class="guide-step reveal reveal-3">
+        <div class="num">03</div>
+        <h4>Request the return</h4>
+        <p>From BR Detail, tap "Request Return". Pick items, allocate quantities across return types, add a remark, review, and submit.</p>
+        <ul>
+          <li>4-step flow with a back button on every screen</li>
+          <li>Smart clamping prevents over-allocation</li>
+          <li>"Select all as RETURN" for fast common cases</li>
+        </ul>
+      </div>
+
+      <div class="guide-step reveal reveal-1">
+        <div class="num">04</div>
+        <h4>Wait for Admin · or get it back</h4>
+        <p>Status appears in the Returns tab within 30 seconds of Admin's decision. Approved? Done. Sent back? Open the request to see why.</p>
+        <ul>
+          <li>Background polling — no manual refresh needed</li>
+          <li>Pull-to-refresh anytime to force a check</li>
+          <li>Toast notifications surface backend errors</li>
+        </ul>
+      </div>
+
+      <div class="guide-step reveal reveal-2">
+        <div class="num">05</div>
+        <h4>Revise and resubmit (if needed)</h4>
+        <p>Rejected requests show Admin's note, the flagged items, the reasons, and any photo evidence. Tap "Edit and resubmit" to revise just the flagged items — approved items pass through automatically.</p>
+        <ul>
+          <li>Scoped editor — only revise what Admin asked for</li>
+          <li>Rev 2 chip appears on every view, both sides</li>
+          <li>Full history viewer lets Admin audit every round</li>
+        </ul>
+      </div>
+
+      <div class="guide-step reveal reveal-3">
+        <div class="num">06</div>
+        <h4>Customize the experience</h4>
+        <p>Open Profile to flip between TH/EN, dark/light, change Sale, or check version info. Settings persist across sessions.</p>
+        <ul>
+          <li>Language toggle: Thai · Natural English</li>
+          <li>Theme toggle: iPhone-style sliding switch</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════════ -->
+<footer>
+  <div class="brand"><em>Neo</em>Biotech BR Mobile</div>
+  <p>Borrow System · designed for the field.</p>
+  <div class="meta">v 2.0 — built for iOS &amp; Android · synced with Desktop</div>
+  <div class="meta">Created by: Phummin Boonmee</div>
+</footer>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCRIPTS
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+// ─── Reveal-on-scroll ─────────────────────────────────────────────
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in-view');
+      revealObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// ─── Sticky-scroll deep dive (Apple-style frame swap) ────────────
+function setupDive(section) {
+  const total = parseInt(section.dataset.diveFrames, 10);
+  if (!total || total < 2) return;
+  const phoneFrames = section.querySelectorAll('[data-frame]');
+  const textFrames  = section.querySelectorAll('[data-frame-text]');
+  const railDots    = section.querySelectorAll('[data-rail]');
+
+  function update() {
+    const rect = section.getBoundingClientRect();
+    const sectionH = section.offsetHeight;
+    const viewH = window.innerHeight;
+    // Active region: section top reaches viewport top → section bottom reaches viewport bottom
+    const scrolled = -rect.top;
+    const scrollable = sectionH - viewH;
+    const progress = Math.max(0, Math.min(1, scrolled / scrollable));
+    // Map progress to active frame index (with mild snap at frame boundaries)
+    let idx = Math.min(total - 1, Math.floor(progress * total));
+    if (idx < 0) idx = 0;
+    phoneFrames.forEach((f, i) => f.classList.toggle('active', i === idx));
+    textFrames.forEach((f, i) => f.classList.toggle('active', i === idx));
+    railDots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  }
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+}
+document.querySelectorAll('.dive').forEach(setupDive);
+
+// ─── Parallax for backdrop orbs + hero phones ─────────────────────
+const orb1 = document.getElementById('orb-1');
+const orb2 = document.getElementById('orb-2');
+const orb3 = document.getElementById('orb-3');
+const heroPhones = document.getElementById('heroPhones');
+const phones = heroPhones ? heroPhones.querySelectorAll('.phone') : [];
+
+let lastY = 0;
+let ticking = false;
+
+function onScroll() {
+  lastY = window.scrollY;
+  if (!ticking) {
+    requestAnimationFrame(applyParallax);
+    ticking = true;
+  }
+}
+function applyParallax() {
+  const y = lastY;
+  if (orb1) orb1.style.transform = `translate3d(${y * 0.04}px, ${y * 0.15}px, 0)`;
+  if (orb2) orb2.style.transform = `translate3d(${-y * 0.06}px, ${y * 0.10}px, 0)`;
+  if (orb3) orb3.style.transform = `translate3d(${y * 0.08}px, ${-y * 0.06}px, 0)`;
+  if (heroPhones && y < window.innerHeight) {
+    const p = y / window.innerHeight; // 0..1
+    phones.forEach((ph, i) => {
+      const baseRotY = i === 0 ? 20 : (i === 1 ? 0 : -20);
+      const baseRotX = i === 1 ? 0 : 2;
+      ph.style.transform = `rotateY(${baseRotY - p * 8}deg) rotateX(${baseRotX + p * 2}deg) translateZ(${i === 1 ? 40 : -30}px) translateY(${-p * 30}px)`;
+    });
+  }
+  ticking = false;
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+applyParallax();
+
+// ─── Mouse-based 3D tilt on .tilt phones ──────────────────────────
+document.querySelectorAll('.tilt').forEach(el => {
+  const wrap = el.closest('.dive-phone') || el.parentElement;
+  if (!wrap) return;
+  wrap.addEventListener('mousemove', e => {
+    const rect = wrap.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / rect.width;   // -0.5 .. 0.5
+    const dy = (e.clientY - cy) / rect.height;
+    el.style.transform = `perspective(1500px) rotateY(${-6 + dx * 8}deg) rotateX(${1 - dy * 6}deg)`;
+  });
+  wrap.addEventListener('mouseleave', () => {
+    el.style.transform = `perspective(1500px) rotateY(-6deg) rotateX(1deg)`;
+  });
+});
+
+// ─── Smooth-scroll nav links ──────────────────────────────────────
+document.querySelectorAll('nav a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href').slice(1);
+    const target = document.getElementById(id);
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+
+</body>
+</html>
