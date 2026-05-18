@@ -2228,6 +2228,10 @@ var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:'',attachments:[]};
 var CANCEL_TARGET = {id:null, from:''};
 var RUN_NUMBER = 1;
 var RUN_DATE   = '';
+var RUN_PREFIX = '';  // Tracks current ID prefix so RUN_NUMBER resets when
+                      // user toggles test mode within the same day. Without
+                      // this, switching modes would inherit the other queue's
+                      // counter and skip IDs.
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITIES
@@ -2650,18 +2654,29 @@ function genId(){
   var mm = String(d.getMonth()+1).padStart(2,'0');
   var dd = String(d.getDate()).padStart(2,'0');
   var today = yy+mm+dd;
-  if(RUN_DATE !== today){
+  // Test mode generates IDs with an explicit `T-` segment so test rows are
+  // visually unmistakable in lists, exports, and screenshots. Production
+  // rows keep the historical `RT-YYYYMMDDNNNN` format unchanged.
+  //   Production: RT-202605180003
+  //   Test:       RT-T-202605180003
+  var prefix = TEST_MODE ? 'RT-T-' : 'RT-';
+  var fullPrefix = prefix + today;
+  // Recompute the day's counter whenever the calendar date changes OR the
+  // prefix changes (i.e. user toggled test mode). Counting from RECENT is
+  // safe because RECENT is already filtered to test-only or production-only
+  // by `returnRequestsQueryUrl()`, so we naturally count the right queue.
+  if(RUN_DATE !== today || RUN_PREFIX !== prefix){
     RUN_DATE = today;
-    var prefix = 'RT-'+today;
+    RUN_PREFIX = prefix;
     var count = 0;
     for(var i=0;i<RECENT.length;i++){
-      if(RECENT[i].id.indexOf(prefix)===0) count++;
+      if(RECENT[i].id.indexOf(fullPrefix)===0) count++;
     }
     RUN_NUMBER = count + 1;
   }
   var num = String(RUN_NUMBER).padStart(4,'0');
   RUN_NUMBER++;
-  return 'RT-'+today+num;
+  return fullPrefix + num;
 }
 
 function fmtVal(v){
@@ -3686,7 +3701,12 @@ function doSubmit(){
       id:newId,cust:ST.custName,custCode:ST.custCode,br:ST.br,
       items:submitted.length,sale:ST.sale,status:'pending',
       date:thDate,dateSort:dateSort,remark:remark,adminNote:'',rejectedItems:[],attachments:[],
-      submittedItems:submitted,cancelReason:'',sheetSync:'none',sheetSyncAt:'',sheetSyncError:''
+      submittedItems:submitted,cancelReason:'',sheetSync:'none',sheetSyncAt:'',sheetSyncError:'',
+      // Test-mode tag: when Test Mode is ON, this MUST land on the row so the
+      // backend filters it into the TEST queue (include_test=only) and skips
+      // the Apps Script writeback on approval. Without this flag, a test-mode
+      // submission silently became a real production request — fixed here.
+      isTest: TEST_MODE
     };
     RECENT.unshift(newRequest);
     el('ok-id').innerHTML = newId;
