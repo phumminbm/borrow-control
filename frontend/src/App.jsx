@@ -3,6 +3,7 @@ import SaleView from "./modules/find-br/SaleView";
 import AdminView from "./modules/find-br/AdminView";
 import MobileApp from "./mobile/MobileApp";
 import MobilePrototypeApp from "./mobile/MobilePrototypeApp";
+import ShellApp from "./modules/v2-shell/ShellApp";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const DESKTOP_DATA_CACHE = "borrow-control:last-good-desktop-data";
@@ -263,8 +264,25 @@ function isPrototypeMode() {
   }
 }
 
-// ── Root — auto-switch Desktop / Mobile (or Prototype if ?prototype=1) ─
+// ── v2 shell gate ──────────────────────────────────────────────────────
+// Activated via the /v2 path (recommended) OR the ?v=2 query flag (handy
+// for sharing test links without changing the path). When set, renders
+// ShellApp — the new combined Find BR + BR Return shell — regardless of
+// viewport. Production users at the bare URL keep the legacy routing
+// untouched until Phase 4 cutover.
+function isV2Mode() {
+  try {
+    const p = window.location.pathname;
+    if (p === "/v2" || p.startsWith("/v2/")) return true;
+    return new URLSearchParams(window.location.search).get("v") === "2";
+  } catch {
+    return false;
+  }
+}
+
+// ── Root — auto-switch Desktop / Mobile (or Prototype / v2-shell) ──────
 export default function App() {
+  if (isV2Mode()) return <ShellApp />;
   if (isPrototypeMode()) return <MobilePrototypeApp />;
   const isMobile = useIsMobile();
   return isMobile ? <MobileApp /> : <DesktopApp />;
