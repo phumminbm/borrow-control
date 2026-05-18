@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>BorrowControl — ERP Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════════════════════
+   ERP-style design tokens — adopted from NeoBiotech ERP
+══════════════════════════════════════════════════ */
+:root {
+  /* Brand & accents (from ERP suite) */
+  --brand:        #D4357A;
+  --brand-2:      #9A1A56;
+  --fb-accent:    #378ADD;
+  --br-accent:    #D4357A;
+
+  /* Status palette */
+  --green:        #639922;
+  --green-soft:   #97C459;
+  --yellow:       #EF9F27;
+  --red:          #E24B4A;
+  --blue:         #378ADD;
+  --purple:       #7F77DD;
+
+  /* Dark theme */
+  --bg:           #0a0a0a;
+  --card:         #141414;
+  --card2:        #1a1a1a;
+  --border:       #222;
+  --border2:      #2a2a2a;
+  --text:         #eeeeee;
+  --sub:          #888888;
+  --sub2:         #555555;
+  --nav-bg:       #111111;
+  --nav-border:   #1f1f1f;
+
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter','IBM Plex Sans Thai',-apple-system,sans-serif;
+}
+
+/* Light theme — same hex palette as ERP light mode */
+:root.light {
+  --bg:           #f5f5f3;
+  --card:         #ffffff;
+  --card2:        #fafaf8;
+  --border:       rgba(0,0,0,0.08);
+  --border2:      rgba(0,0,0,0.12);
+  --text:         #111111;
+  --sub:          #666666;
+  --sub2:         #999999;
+  --nav-bg:       #ffffff;
+  --nav-border:   rgba(0,0,0,0.06);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 13px; overflow: hidden;
+}
+input, select, textarea, button { font-family: inherit; font-size: 13px; }
+button { cursor: pointer; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.4); }
+
+/* ══════════════════════════════════════════════════
+   APP SHELL
+══════════════════════════════════════════════════ */
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Topbar (56px — ERP standard) */
+#topbar {
+  height: 56px; flex-shrink: 0;
+  background: var(--nav-bg); border-bottom: 1px solid var(--nav-border);
+  display: flex; align-items: center; padding: 0 24px; gap: 14px;
+  position: relative; z-index: 50;
+}
+.logo-mark {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 800; letter-spacing: -0.5px;
+}
+.logo-text {
+  display: flex; flex-direction: column; line-height: 1.1; gap: 2px;
+}
+.logo-text-1 {
+  font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: -0.2px;
+}
+.logo-text-1 em { font-style: normal; color: var(--brand); }
+.logo-text-2 {
+  font-size: 8px; font-weight: 600; color: var(--sub);
+  letter-spacing: 1.4px; text-transform: uppercase;
+}
+.tb-spacer { flex: 1; }
+.tb-clock {
+  font-size: 11px; color: var(--sub); font-family: var(--mono);
+  padding: 6px 10px; background: var(--card2);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.lang-toggle, .theme-toggle {
+  display: flex; align-items: center; gap: 4px;
+  height: 34px; padding: 0 10px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text); font-size: 11px; font-weight: 600;
+}
+.lang-toggle:hover, .theme-toggle:hover { border-color: var(--brand); color: var(--brand); }
+.tb-divider { width: 1px; height: 24px; background: var(--border2); margin: 0 4px; }
+.tb-user {
+  display: flex; align-items: center; gap: 9px;
+  padding: 4px 12px 4px 4px; border-radius: 20px;
+  border: 1px solid var(--border); background: transparent;
+}
+.tb-user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tb-user-info {
+  display: flex; flex-direction: column; line-height: 1.1; gap: 2px;
+  text-align: left;
+}
+.tb-user-name { font-size: 11px; font-weight: 600; color: var(--text); }
+.tb-user-role { font-size: 9px; color: var(--sub); }
+
+/* Main layout */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ══════════════════════════════════════════════════
+   SIDEBAR (220px — ERP standard)
+══════════════════════════════════════════════════ */
+#sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--nav-bg); border-right: 1px solid var(--nav-border);
+  display: flex; flex-direction: column;
+  padding: 18px 12px;
+}
+.sb-section {
+  font-size: 10px; font-weight: 700; color: var(--sub2);
+  letter-spacing: 1.4px; text-transform: uppercase;
+  padding: 8px 12px 8px;
+}
+.sb-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 12px; border-radius: 9px;
+  cursor: pointer; transition: all 0.12s;
+  margin-bottom: 2px; border: none;
+  background: transparent; color: var(--text); text-align: left;
+  font-size: 13px; font-weight: 500;
+}
+.sb-item:hover { background: rgba(128,128,128,0.06); }
+.sb-item .sb-icon {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--sub);
+}
+.sb-item.active-fb {
+  background: rgba(55,138,221,0.12); color: var(--fb-accent); font-weight: 600;
+}
+.sb-item.active-fb .sb-icon { color: var(--fb-accent); }
+.sb-item.active-br {
+  background: rgba(212,53,122,0.12); color: var(--br-accent); font-weight: 600;
+}
+.sb-item.active-br .sb-icon { color: var(--br-accent); }
+.sb-item-text { flex: 1; }
+.sb-item-badge {
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px; border-radius: 9px;
+  min-width: 18px; text-align: center;
+}
+.sb-item.active-fb .sb-item-badge { background: var(--fb-accent); color: #fff; }
+.sb-item.active-br .sb-item-badge { background: var(--br-accent); color: #fff; }
+.sb-item:not(.active-fb):not(.active-br) .sb-item-badge {
+  background: rgba(128,128,128,0.15); color: var(--sub);
+}
+
+.sb-spacer { flex: 1; }
+
+.sb-tip {
+  margin-top: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 13px;
+  font-size: 11px; color: var(--sub); line-height: 1.5;
+}
+.sb-tip-title {
+  font-size: 11px; font-weight: 700; color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* ══════════════════════════════════════════════════
+   CONTENT
+══════════════════════════════════════════════════ */
+#content {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg);
+}
+.module-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.module-panel.active { display: flex; }
+
+/* PageHeader (ERP pattern) */
+.page-header {
+  padding: 22px 28px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; flex-shrink: 0; background: var(--bg);
+}
+.page-header-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+  text-transform: uppercase; margin-bottom: 5px;
+}
+.page-header-eyebrow.fb { color: var(--fb-accent); }
+.page-header-eyebrow.br { color: var(--br-accent); }
+.page-header h1 {
+  font-size: 24px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.6px;
+}
+.page-header p {
+  font-size: 13px; color: var(--sub); margin-top: 5px;
+}
+.page-header-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+  padding: 3px 8px; border-radius: 5px; margin-left: 10px;
+  vertical-align: middle; text-transform: uppercase;
+}
+.page-header-badge.live {
+  background: rgba(99,153,34,0.12); color: var(--green);
+  border: 1px solid rgba(99,153,34,0.3);
+}
+.page-header-badge.beta {
+  background: rgba(212,53,122,0.12); color: var(--brand);
+  border: 1px solid rgba(212,53,122,0.3);
+}
+.page-header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Tab bar (Sale | Admin) — ERP segmented */
+.tabbar {
+  display: flex; align-items: center; gap: 0;
+  padding: 0 28px; background: var(--bg);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.tab-btn {
+  height: 44px; padding: 0 22px; font-size: 13px; font-weight: 600;
+  border: none; background: transparent; color: var(--sub);
+  border-bottom: 2px solid transparent;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active-fb { color: var(--fb-accent); border-bottom-color: var(--fb-accent); }
+.tab-btn.active-br { color: var(--br-accent); border-bottom-color: var(--br-accent); }
+.tab-btn.active-admin { color: var(--brand); border-bottom-color: var(--brand); }
+.tab-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* Scroll area inside each view */
+.view-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 22px 28px 40px;
+}
+
+/* ══════════════════════════════════════════════════
+   COMMON COMPONENTS — KPI cards, tables, pills, buttons
+══════════════════════════════════════════════════ */
+/* Alert banner (used in FB Sale) */
+.alert-banner {
+  background: rgba(226,75,74,0.08);
+  border: 1px solid rgba(226,75,74,0.3);
+  border-radius: 11px;
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--red);
+  margin-bottom: 18px;
+}
+.alert-banner strong { font-weight: 700; }
+:root.light .alert-banner { color: #991B1B; background: #FEF2F2; border-color: #FCA5A5; }
+
+/* KPI cards — ERP style */
+.kpi-grid {
+  display: grid; gap: 12px; margin-bottom: 18px;
+}
+.kpi-grid.cols-6 { grid-template-columns: repeat(6, 1fr); }
+.kpi-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.kpi {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px;
+  position: relative; cursor: pointer;
+  transition: all 0.12s;
+}
+.kpi:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0,0,0,0.08); }
+.kpi.sel { border-color: var(--brand); }
+.kpi-icon {
+  position: absolute; top: 14px; right: 14px;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.kpi-icon.blue   { background: rgba(55,138,221,0.15); color: var(--blue); }
+.kpi-icon.red    { background: rgba(226,75,74,0.15); color: var(--red); }
+.kpi-icon.yellow { background: rgba(239,159,39,0.15); color: var(--yellow); }
+.kpi-icon.green  { background: rgba(99,153,34,0.15); color: var(--green); }
+.kpi-icon.purple { background: rgba(127,119,221,0.15); color: var(--purple); }
+.kpi-icon.brand  { background: rgba(212,53,122,0.15); color: var(--brand); }
+.kpi-icon.gray   { background: rgba(128,128,128,0.15); color: var(--sub); }
+.kpi-label {
+  font-size: 11px; font-weight: 600; color: var(--sub);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.kpi-val {
+  font-size: 26px; font-weight: 700; line-height: 1.05;
+  letter-spacing: -0.8px; color: var(--text); font-variant-numeric: tabular-nums;
+}
+.kpi-val.fs-22 { font-size: 22px; }
+.kpi-val.fs-20 { font-size: 20px; }
+.kpi-val.red    { color: var(--red); }
+.kpi-val.yellow { color: var(--yellow); }
+.kpi-val.green  { color: var(--green); }
+.kpi-val.blue   { color: var(--blue); }
+.kpi-val.brand  { color: var(--brand); }
+.kpi-val.purple { color: var(--purple); }
+.kpi-sub {
+  font-size: 10px; color: var(--sub2); margin-top: 6px;
+}
+
+/* Section card (ERP style) */
+.section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 14px;
+}
+.section-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.section-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.2px;
+}
+.section-sub {
+  font-size: 11px; color: var(--sub); margin-top: 2px;
+}
+.section-body { padding: 16px 18px; }
+.section-body.flush { padding: 0; }
+
+/* Search + filter row */
+.search-row {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+.search-input {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 12px;
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 8px; min-width: 240px;
+}
+.search-input input {
+  flex: 1; border: none; outline: none; background: transparent;
+  color: var(--text); font-size: 12px;
+}
+.search-input input::placeholder { color: var(--sub2); }
+.filter-sel {
+  height: 36px; padding: 0 30px 0 12px; border-radius: 8px;
+  background: var(--card2); border: 1px solid var(--border);
+  color: var(--text); font-size: 12px; outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text);
+}
+.btn:hover { border-color: var(--brand); color: var(--brand); }
+.btn.btn-primary {
+  background: var(--brand); color: #fff; border-color: var(--brand);
+}
+.btn.btn-primary:hover { background: var(--brand-2); border-color: var(--brand-2); color: #fff; }
+.btn.btn-blue {
+  background: var(--blue); color: #fff; border-color: var(--blue);
+}
+.btn.btn-blue:hover { filter: brightness(0.92); color: #fff; }
+.btn.btn-sm { height: 30px; padding: 0 12px; font-size: 11px; }
+
+/* Pills (status badges) */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2px;
+  white-space: nowrap; border: 1px solid;
+}
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; }
+.pill.block    { background: rgba(226,75,74,0.1); color: var(--red); border-color: rgba(226,75,74,0.35); }
+.pill.block .pill-dot { background: var(--red); }
+.pill.warning  { background: rgba(239,159,39,0.1); color: var(--yellow); border-color: rgba(239,159,39,0.35); }
+.pill.warning .pill-dot { background: var(--yellow); }
+.pill.normal   { background: rgba(99,153,34,0.1); color: var(--green); border-color: rgba(99,153,34,0.35); }
+.pill.normal .pill-dot { background: var(--green); }
+.pill.pending  { background: rgba(239,159,39,0.1); color: var(--yellow); border-color: rgba(239,159,39,0.35); }
+.pill.pending .pill-dot { background: var(--yellow); }
+.pill.approved { background: rgba(99,153,34,0.1); color: var(--green); border-color: rgba(99,153,34,0.35); }
+.pill.approved .pill-dot { background: var(--green); }
+.pill.rejected { background: rgba(226,75,74,0.1); color: var(--red); border-color: rgba(226,75,74,0.35); }
+.pill.rejected .pill-dot { background: var(--red); }
+.pill.cancelled{ background: rgba(128,128,128,0.1); color: var(--sub); border-color: rgba(128,128,128,0.3); }
+.pill.cancelled .pill-dot { background: var(--sub); }
+
+/* Mono chips for IDs */
+.chip-mono {
+  display: inline-block; font-family: var(--mono);
+  font-size: 11px; font-weight: 600;
+}
+.chip-br {
+  display: inline-block; font-family: var(--mono);
+  font-size: 10px; font-weight: 600;
+  padding: 3px 8px; border-radius: 5px;
+  background: rgba(55,138,221,0.1); color: var(--blue);
+  border: 1px solid rgba(55,138,221,0.3);
+}
+
+/* Tables — ERP style */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead tr { background: var(--card2); }
+th {
+  padding: 11px 14px; text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--sub);
+  letter-spacing: 0.6px; text-transform: uppercase;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+td {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  color: var(--text); font-size: 12px;
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 0.1s; }
+tbody tr:hover { background: rgba(128,128,128,0.04); }
+tbody tr.row-block td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+tbody tr.row-warn td:first-child  { box-shadow: inset 3px 0 0 var(--yellow); }
+td .text-sub { color: var(--sub); font-size: 11px; }
+td .text-mono { font-family: var(--mono); }
+td .num-warn   { color: var(--yellow); font-weight: 700; font-family: var(--mono); }
+td .num-danger { color: var(--red); font-weight: 700; font-family: var(--mono); }
+
+/* Two-column row */
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+/* ── Team chips (filter row) ── */
+.team-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 16px;
+}
+.team-chip {
+  height: 32px; padding: 0 14px; border-radius: 16px;
+  font-size: 11px; font-weight: 600;
+  background: var(--card); color: var(--sub);
+  border: 1px solid var(--border);
+}
+.team-chip:hover { color: var(--text); border-color: var(--border2); }
+.team-chip.active {
+  background: var(--text); color: var(--bg);
+  border-color: var(--text);
+}
+.team-chip.t-bkk    { color: var(--blue); border-color: rgba(55,138,221,0.35); }
+.team-chip.t-north  { color: var(--green-soft); border-color: rgba(151,196,89,0.35); }
+.team-chip.t-ne     { color: var(--yellow); border-color: rgba(239,159,39,0.35); }
+.team-chip.t-east   { color: var(--purple); border-color: rgba(127,119,221,0.35); }
+.team-chip.t-south  { color: var(--yellow); border-color: rgba(239,159,39,0.35); }
+
+/* ── Sync bar (Admin FB) ── */
+.sync-bar {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; font-size: 11px; margin-bottom: 14px;
+}
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(99,153,34,0.18);
+}
+.sync-label { font-weight: 600; color: var(--sub); }
+.sync-time { font-family: var(--mono); font-size: 10px; color: var(--sub); }
+.sync-pill {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 5px;
+  background: var(--card2); border: 1px solid var(--border); color: var(--sub);
+}
+.sync-pill.new     { color: var(--blue); }
+.sync-pill.changed { color: var(--purple); }
+.sync-pill.ok      { color: var(--green); }
+.sync-success-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(99,153,34,0.12); color: var(--green);
+  border: 1px solid rgba(99,153,34,0.3);
+}
+
+/* ── Donut + legend ── */
+.donut-section { display: flex; align-items: center; gap: 22px; }
+.donut-wrap {
+  position: relative; width: 140px; height: 140px; flex-shrink: 0;
+}
+.donut {
+  width: 140px; height: 140px; border-radius: 50%;
+  background: conic-gradient(
+    var(--red) 0% 74.8%,
+    var(--yellow) 74.8% 86.4%,
+    var(--green) 86.4% 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent 56%, black 57%);
+          mask: radial-gradient(farthest-side, transparent 56%, black 57%);
+}
+.donut-center {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); text-align: center;
+  pointer-events: none;
+}
+.donut-num {
+  font-size: 24px; font-weight: 700; font-family: var(--mono);
+  color: var(--text); line-height: 1;
+}
+.donut-sub {
+  font-size: 10px; color: var(--sub2); margin-top: 4px;
+}
+.donut-legend { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.donut-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid;
+}
+.donut-row.block   { background: rgba(226,75,74,0.07); border-color: rgba(226,75,74,0.25); }
+.donut-row.warning { background: rgba(239,159,39,0.07); border-color: rgba(239,159,39,0.25); }
+.donut-row.normal  { background: rgba(99,153,34,0.07); border-color: rgba(99,153,34,0.25); }
+.dr-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dr-dot.block  { background: var(--red); }
+.dr-dot.warn   { background: var(--yellow); }
+.dr-dot.normal { background: var(--green); }
+.dr-label { font-size: 11px; font-weight: 700; color: var(--sub); flex: 1; }
+.dr-val   { font-size: 16px; font-weight: 700; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dr-val.red    { color: var(--red); }
+.dr-val.yellow { color: var(--yellow); }
+.dr-val.green  { color: var(--green); }
+.dr-pct   { font-size: 10px; color: var(--sub2); width: 36px; text-align: right; }
+
+/* Team picker inside Admin card */
+.team-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.placeholder-box {
+  font-size: 11px; color: var(--sub2); text-align: center;
+  padding: 32px; border: 1px dashed var(--border2); border-radius: 9px;
+}
+
+/* Overdue list */
+.overdue-list { display: flex; flex-direction: column; }
+.overdue-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.overdue-item:last-child { border-bottom: none; }
+.overdue-rank {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  background: var(--card2); color: var(--sub);
+  flex-shrink: 0;
+}
+.overdue-rank.r1 { background: rgba(226,75,74,0.2); color: var(--red); }
+.overdue-rank.r2 { background: rgba(226,75,74,0.14); color: var(--red); }
+.overdue-rank.r3 { background: rgba(226,75,74,0.1); color: var(--red); }
+.overdue-name { flex: 1; font-size: 12px; color: var(--text); font-weight: 500; }
+.overdue-days { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--red); }
+
+/* Sale summary bars */
+.sale-sum-head {
+  display: grid; grid-template-columns: 70px 1fr 36px 36px 80px;
+  gap: 8px; font-size: 10px; font-weight: 700; color: var(--sub);
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.sale-sum-row {
+  display: grid; grid-template-columns: 70px 1fr 36px 36px 80px;
+  gap: 8px; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.sale-sum-row:last-child { border-bottom: none; }
+.ss-name { font-weight: 600; color: var(--text); }
+.ss-bar-wrap { background: var(--card2); border-radius: 4px; height: 7px; overflow: hidden; }
+.ss-bar { height: 100%; background: var(--red); border-radius: 4px; }
+.ss-bl { text-align: center; color: var(--red); font-weight: 700; font-family: var(--mono); }
+.ss-wa { text-align: center; color: var(--yellow); font-weight: 600; font-family: var(--mono); }
+.ss-val { text-align: right; font-family: var(--mono); font-weight: 600; color: var(--sub); }
+
+/* Compare select */
+.compare-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.compare-select { flex: 1; }
+.compare-vs {
+  font-size: 12px; font-weight: 700; color: var(--sub);
+  padding: 0 4px;
+}
+
+/* ── BR Sale dropdown (custom) ── */
+.brs-top-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 14px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.brs-label {
+  font-size: 11px; font-weight: 700; color: var(--sub);
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.dd-wrap { position: relative; }
+.dd-btn {
+  display: flex; align-items: center; gap: 10px;
+  height: 34px; padding: 0 12px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); font-size: 12px; font-weight: 600;
+  min-width: 160px; justify-content: space-between;
+}
+.dd-btn:hover, .dd-btn.open { border-color: var(--green); }
+.dd-list {
+  display: none; position: absolute;
+  top: calc(100% + 6px); left: 0; z-index: 100;
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 10px; min-width: 220px; max-height: 320px;
+  overflow-y: auto;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+}
+.dd-list.open { display: block; }
+.dd-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--sub);
+  border-bottom: 1px solid var(--border);
+}
+.dd-item:last-child { border-bottom: none; }
+.dd-item:hover { background: var(--card2); color: var(--text); }
+.dd-item.active { color: var(--green); background: rgba(99,153,34,0.06); }
+.dd-check { width: 14px; font-size: 10px; color: var(--green); }
+.dd-item:not(.active) .dd-check { visibility: hidden; }
+.dd-count { margin-left: auto; font-size: 10px; font-family: var(--mono); color: var(--sub2); }
+
+/* BR row helpers */
+.br-rt-chip { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text); }
+.br-cust-name { font-weight: 600; color: var(--text); }
+.br-sale-tag {
+  display: inline-block;
+  font-size: 11px; font-weight: 700;
+  color: var(--green);
+}
+.br-item-count { font-family: var(--mono); font-size: 12px; color: var(--sub); }
+
+/* Sheet sync chip */
+.sync-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 9px; border-radius: 5px;
+  border: 1px solid;
+}
+.sync-chip.done {
+  background: rgba(99,153,34,0.1); color: var(--green);
+  border-color: rgba(99,153,34,0.3);
+}
+.sync-chip.so {
+  background: rgba(128,128,128,0.1); color: var(--sub);
+  border-color: rgba(128,128,128,0.25);
+}
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px; border: 1px solid;
+  font-size: 12px; font-weight: 600; pointer-events: auto;
+  min-width: 240px;
+  backdrop-filter: blur(8px);
+  animation: toast-in 0.18s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast-success { background: rgba(99,153,34,0.12); border-color: rgba(99,153,34,0.35); color: var(--green); }
+.toast-warn    { background: rgba(239,159,39,0.12); border-color: rgba(239,159,39,0.35); color: var(--yellow); }
+.toast-info    { background: rgba(55,138,221,0.12); border-color: rgba(55,138,221,0.35); color: var(--blue); }
+
+/* Date button */
+.date-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px; border-radius: 8px;
+  background: var(--card2); border: 1px solid var(--border);
+  color: var(--sub); font-size: 12px;
+}
+.date-btn:hover { color: var(--brand); border-color: var(--brand); }
+.clear-btn {
+  height: 36px; padding: 0 12px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--sub2); font-size: 12px;
+}
+.clear-btn:hover { color: var(--red); border-color: var(--red); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════ TOPBAR ══════════════ -->
+  <header id="topbar">
+    <div class="logo-mark">N</div>
+    <div class="logo-text">
+      <span class="logo-text-1"><em>Neo</em>Biotech</span>
+      <span class="logo-text-2">Borrow System · v2.0</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="tb-clock" id="clock">--:--</div>
+    <button class="lang-toggle" id="langBtn" onclick="toggleLang()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>
+      </svg>
+      <span id="langLabel">TH</span>
+    </button>
+    <button class="theme-toggle" onclick="toggleTheme()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" id="themeIcon">
+        <path d="M20 14a8 8 0 01-10-10 8 8 0 1010 10z"/>
+      </svg>
+      <span id="themeLabel">Dark</span>
+    </button>
+    <div class="tb-divider"></div>
+    <button class="tb-user">
+      <div class="tb-user-avatar">AD</div>
+      <div class="tb-user-info">
+        <span class="tb-user-name">Admin User</span>
+        <span class="tb-user-role">Administrator</span>
+      </div>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </header>
+
+  <div id="main">
+
+    <!-- ══════════════ SIDEBAR ══════════════ -->
+    <nav id="sidebar">
+      <div class="sb-section">Modules</div>
+
+      <button class="sb-item active-fb" id="nav-fb" onclick="switchModule('fb')">
+        <span class="sb-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
+          </svg>
+        </span>
+        <span class="sb-item-text" data-th="Find Borrow" data-en="Find Borrow">Find Borrow</span>
+        <span class="sb-item-badge" id="sb-fb">248</span>
+      </button>
+
+      <button class="sb-item" id="nav-br" onclick="switchModule('br')">
+        <span class="sb-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 010 8h-1"/>
+          </svg>
+        </span>
+        <span class="sb-item-text" data-th="BR Return" data-en="BR Return">BR Return</span>
+        <span class="sb-item-badge" id="sb-br">3</span>
+      </button>
+
+      <div class="sb-spacer"></div>
+
+      <div class="sb-tip">
+        <div class="sb-tip-title" data-th="💡 เคล็ดลับ" data-en="💡 Pro tip">💡 เคล็ดลับ</div>
+        <span data-th="กด Tab เพื่อสลับ Sale / Admin ในแต่ละโมดูล" data-en="Press Tab to switch Sale / Admin">กด Tab เพื่อสลับ Sale / Admin ในแต่ละโมดูล</span>
+      </div>
+    </nav>
+
+    <!-- ══════════════ CONTENT ══════════════ -->
+    <main id="content">
+
+      <!-- ═════════════ MODULE: FIND BORROW ═════════════ -->
+      <section class="module-panel active" id="panel-fb">
+
+        <!-- Page header (ERP pattern) -->
+        <div class="page-header">
+          <div>
+            <h1>
+              <span data-th="ค้นหาใบยืม (Find Borrow)" data-en="Find Borrow">ค้นหาใบยืม (Find Borrow)</span>
+              <span class="page-header-badge live"><span class="pill-dot" style="background:var(--green)"></span>PRODUCTION</span>
+            </h1>
+            <p data-th="ค้นหาและติดตามใบยืม BR · วิเคราะห์สถานะการยืมสินค้าของลูกค้า" data-en="Search and track BR records · analyse customer borrow status">ค้นหาและติดตามใบยืม BR · วิเคราะห์สถานะการยืมสินค้าของลูกค้า</p>
+          </div>
+        </div>
+
+        <!-- Sale | Admin tabs -->
+        <div class="tabbar">
+          <button class="tab-btn active-fb" id="fb-tab-sale" onclick="switchFBTab('sale')">
+            <span class="tab-dot" style="background:var(--fb-accent)"></span>
+            <span data-th="Sale View" data-en="Sale View">Sale View</span>
+          </button>
+          <button class="tab-btn" id="fb-tab-admin" onclick="switchFBTab('admin')">
+            <span class="tab-dot" style="background:var(--brand)"></span>
+            <span data-th="Admin View" data-en="Admin View">Admin View</span>
+          </button>
+        </div>
+
+        <!-- ─── FB SALE VIEW ─── -->
+        <div id="fb-sale-view" class="view-scroll">
+
+          <!-- Alert banner -->
+          <div class="alert-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <strong data-th="แจ้งเตือน:" data-en="Alert:">แจ้งเตือน:</strong>
+            <span data-th="945 BLOCK customers ค้างชำระเกิน 180 วัน" data-en="945 BLOCK customers overdue more than 180 days">945 BLOCK customers ค้างชำระเกิน 180 วัน</span>
+          </div>
+
+          <!-- KPI row -->
+          <div class="kpi-grid cols-6">
+            <div class="kpi sel" onclick="filterFBStatus('')">
+              <div class="kpi-icon blue">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="16" cy="7" r="2.5"/></svg>
+              </div>
+              <div class="kpi-label" data-th="ลูกค้าทั้งหมด" data-en="Total Customers">ลูกค้าทั้งหมด</div>
+              <div class="kpi-val">1,264</div>
+              <div class="kpi-sub" data-th="ลูกค้าทั้งหมด" data-en="all customers">ลูกค้าทั้งหมด</div>
+            </div>
+            <div class="kpi" onclick="filterFBStatus('block')">
+              <div class="kpi-icon red">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l10 17H2L12 3z"/><path d="M12 10v5M12 17v.01"/></svg>
+              </div>
+              <div class="kpi-label">BLOCK</div>
+              <div class="kpi-val red">945</div>
+              <div class="kpi-sub" data-th="ค้าง > 180 วัน" data-en="overdue > 180 days">ค้าง &gt; 180 วัน</div>
+            </div>
+            <div class="kpi" onclick="filterFBStatus('warning')">
+              <div class="kpi-icon yellow">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 16V10a6 6 0 1112 0v6l2 2H4l2-2z"/></svg>
+              </div>
+              <div class="kpi-label">WARNING</div>
+              <div class="kpi-val yellow">147</div>
+              <div class="kpi-sub" data-th="ค้าง > 90 วัน" data-en="overdue > 90 days">ค้าง &gt; 90 วัน</div>
+            </div>
+            <div class="kpi" onclick="filterFBStatus('normal')">
+              <div class="kpi-icon green">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>
+              </div>
+              <div class="kpi-label">NORMAL</div>
+              <div class="kpi-val green">172</div>
+              <div class="kpi-sub" data-th="ลูกค้าปกติ" data-en="active customers">ลูกค้าปกติ</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon blue">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h8l4 4v14H7V3z"/><path d="M15 3v4h4"/><path d="M10 12h6M10 16h6"/></svg>
+              </div>
+              <div class="kpi-label">BR Active</div>
+              <div class="kpi-val fs-22">16,380</div>
+              <div class="kpi-sub" data-th="ใบยืมที่เปิดอยู่" data-en="open borrow records">ใบยืมที่เปิดอยู่</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon brand">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M16 6H10a3 3 0 000 6h4a3 3 0 010 6H8"/></svg>
+              </div>
+              <div class="kpi-label" data-th="มูลค่าค้างรวม" data-en="Outstanding Value">มูลค่าค้างรวม</div>
+              <div class="kpi-val fs-20 brand">฿178.4M</div>
+              <div class="kpi-sub" data-th="มูลค่ายืมทั้งหมด" data-en="total borrow value">มูลค่ายืมทั้งหมด</div>
+            </div>
+          </div>
+
+          <!-- Customer table -->
+          <div class="section">
+            <div class="section-header">
+              <div>
+                <div class="section-title" data-th="รายการลูกค้า" data-en="Customers">รายการลูกค้า</div>
+                <div class="section-sub" id="fb-count">แสดง 12 จาก 1,264 รายการ</div>
+              </div>
+              <div class="search-row">
+                <div class="search-input" style="min-width:240px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                  <input type="text" placeholder="ค้นหาชื่อลูกค้า, รหัส..." id="fb-search" oninput="filterFB()"/>
+                </div>
+                <select class="filter-sel" id="fb-filter-sale" onchange="filterFB()">
+                  <option value="">All Sales</option>
+                  <option>OPAL</option><option>PAT</option><option>MAMAEW</option>
+                  <option>SHIRLEY</option><option>ANN</option><option>NEO BIOTECH</option>
+                </select>
+                <select class="filter-sel" id="fb-filter-status" onchange="filterFB()">
+                  <option value="">All Status</option>
+                  <option value="block">BLOCK</option>
+                  <option value="warning">WARNING</option>
+                  <option value="normal">NORMAL</option>
+                </select>
+                <button class="btn btn-sm" onclick="showToast('Export Excel — ฟีเจอร์ production','info')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4v12M6 10l6 6 6-6M3 20h18"/></svg>
+                  Export
+                </button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table id="fb-table">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Code</th><th data-th="ชื่อลูกค้า" data-en="Customer Name">ชื่อลูกค้า</th><th data-th="ที่อยู่" data-en="Address">ที่อยู่</th>
+                    <th>Sale</th><th>BR</th><th data-th="วัน" data-en="Days">วัน</th><th data-th="มูลค่า" data-en="Value">มูลค่า</th><th data-th="สถานะ" data-en="Status">สถานะ</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="fb-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- /fb-sale-view -->
+
+        <!-- ─── FB ADMIN VIEW ─── -->
+        <div id="fb-admin-view" class="view-scroll" style="display:none;">
+
+          <!-- Team filter chips + sale/status filters -->
+          <div class="team-bar">
+            <button class="team-chip active" onclick="selectTeam(this,'all')">All Teams</button>
+            <button class="team-chip t-bkk" onclick="selectTeam(this,'bkk')">Bangkok</button>
+            <button class="team-chip t-north" onclick="selectTeam(this,'north')">North</button>
+            <button class="team-chip t-ne" onclick="selectTeam(this,'ne')">North-East</button>
+            <button class="team-chip t-east" onclick="selectTeam(this,'east')">East</button>
+            <button class="team-chip t-south" onclick="selectTeam(this,'south')">South</button>
+            <button class="team-chip" onclick="selectTeam(this,'office')">Office</button>
+            <div style="flex:1"></div>
+            <select class="filter-sel">
+              <option>ทุก Sale</option><option>OPAL</option><option>PAT</option>
+              <option>MAMAEW</option><option>SHIRLEY</option><option>EVE</option>
+            </select>
+            <select class="filter-sel">
+              <option>ทุกสถานะ</option><option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
+            </select>
+            <div class="search-input" style="min-width:180px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input type="text" placeholder="ค้นหาลูกค้า..."/>
+            </div>
+          </div>
+
+          <!-- KPI row -->
+          <div class="kpi-grid cols-6">
+            <div class="kpi">
+              <div class="kpi-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg></div>
+              <div class="kpi-label">Total Customers</div>
+              <div class="kpi-val">1,264</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l10 17H2L12 3z"/></svg></div>
+              <div class="kpi-label">BLOCK</div>
+              <div class="kpi-val red">945</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon yellow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 16V10a6 6 0 1112 0v6l2 2H4l2-2z"/></svg></div>
+              <div class="kpi-label">WARNING</div>
+              <div class="kpi-val yellow">147</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></div>
+              <div class="kpi-label">NORMAL</div>
+              <div class="kpi-val green">172</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h8l4 4v14H7V3z"/></svg></div>
+              <div class="kpi-label">BR Active</div>
+              <div class="kpi-val">16,380</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon brand"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M16 6H10a3 3 0 000 6h4a3 3 0 010 6H8"/></svg></div>
+              <div class="kpi-label">Outstanding Value</div>
+              <div class="kpi-val fs-20 brand">฿178.4M</div>
+            </div>
+          </div>
+
+          <!-- Sync bar -->
+          <div class="sync-bar">
+            <span class="sync-dot"></span>
+            <span class="sync-label">Last Sync:</span>
+            <span class="sync-time">2026-05-10T03:27:00.025958+00:00</span>
+            <span class="sync-pill">Sheet 1,500 rows</span>
+            <span class="sync-pill new">+0 new</span>
+            <span class="sync-pill changed">~1500 changed</span>
+            <span class="sync-pill">-0 closed</span>
+            <span class="sync-pill ok">0 error</span>
+            <span class="sync-pill">10.9s</span>
+          </div>
+
+          <!-- Row 1: Donut + Team picker -->
+          <div class="row-2">
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title" data-th="All Teams Proportion" data-en="All Teams Proportion">All Teams Proportion</div></div>
+              <div class="section-body">
+                <div class="donut-section">
+                  <div class="donut-wrap">
+                    <div class="donut"></div>
+                    <div class="donut-center">
+                      <div class="donut-num">1,264</div>
+                      <div class="donut-sub">customers</div>
+                    </div>
+                  </div>
+                  <div class="donut-legend">
+                    <div class="donut-row block">
+                      <span class="dr-dot block"></span>
+                      <span class="dr-label">BLOCK</span>
+                      <span class="dr-val red">945</span>
+                      <span class="dr-pct">75%</span>
+                    </div>
+                    <div class="donut-row warning">
+                      <span class="dr-dot warn"></span>
+                      <span class="dr-label">WARNING</span>
+                      <span class="dr-val yellow">147</span>
+                      <span class="dr-pct">12%</span>
+                    </div>
+                    <div class="donut-row normal">
+                      <span class="dr-dot normal"></span>
+                      <span class="dr-label">NORMAL</span>
+                      <span class="dr-val green">172</span>
+                      <span class="dr-pct">14%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title" data-th="เลือกทีมเพื่อดู" data-en="Select a team to view">เลือกทีมเพื่อดู</div></div>
+              <div class="section-body">
+                <div class="team-picker">
+                  <button class="team-chip t-bkk" onclick="showToast('Bangkok team selected','info')">Bangkok</button>
+                  <button class="team-chip t-north" onclick="showToast('North team selected','info')">North</button>
+                  <button class="team-chip t-ne" onclick="showToast('North-East team selected','info')">North-East</button>
+                  <button class="team-chip t-east" onclick="showToast('East team selected','info')">East</button>
+                  <button class="team-chip t-south" onclick="showToast('South team selected','info')">South</button>
+                  <button class="team-chip" onclick="showToast('Office team selected','info')">Office</button>
+                </div>
+                <div class="placeholder-box" data-th="เลือกทีมเพื่อดูข้อมูลแยก" data-en="Select a team to view details">เลือกทีมเพื่อดูข้อมูลแยก</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Top 5 Overdue + Sale Summary -->
+          <div class="row-2">
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title" data-th="Top 5 ค้างนานสุด" data-en="Top 5 Longest Overdue">Top 5 ค้างนานสุด</div></div>
+              <div class="section-body">
+                <div class="overdue-list">
+                  <div class="overdue-item"><span class="overdue-rank r1">1</span><span class="overdue-name">มหาวิทยาลัยธรรมศาสตร์</span><span class="overdue-days">1,542 days</span></div>
+                  <div class="overdue-item"><span class="overdue-rank r2">2</span><span class="overdue-name">กพ.พิสุทธิ์ แสนมใน</span><span class="overdue-days">1,529 days</span></div>
+                  <div class="overdue-item"><span class="overdue-rank r3">3</span><span class="overdue-name">โรงพยาบาลกุยบุรี</span><span class="overdue-days">1,518 days</span></div>
+                  <div class="overdue-item"><span class="overdue-rank">4</span><span class="overdue-name">เอเดลไวซ์ เดนทัลเจ้าส์</span><span class="overdue-days">1,516 days</span></div>
+                  <div class="overdue-item"><span class="overdue-rank">5</span><span class="overdue-name">กพ.สุเทพ ม่วงสีเสียด</span><span class="overdue-days">1,516 days</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title">Sale Summary — BLOCK / WARNING / Value</div></div>
+              <div class="section-body">
+                <div class="sale-sum-head">
+                  <span>Sale</span><span>BLOCK%</span>
+                  <span style="text-align:center;">BL</span>
+                  <span style="text-align:center;">WA</span>
+                  <span style="text-align:right;">Value</span>
+                </div>
+                <div class="sale-sum-row"><span class="ss-name">EVE</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:91%"></div></div><span class="ss-bl">109</span><span class="ss-wa">13</span><span class="ss-val">฿16.9M</span></div>
+                <div class="sale-sum-row"><span class="ss-name">JONG</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:82%"></div></div><span class="ss-bl">97</span><span class="ss-wa">3</span><span class="ss-val">฿16.6M</span></div>
+                <div class="sale-sum-row"><span class="ss-name">OPAL</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:62%"></div></div><span class="ss-bl">74</span><span class="ss-wa">7</span><span class="ss-val">฿25.4M</span></div>
+                <div class="sale-sum-row"><span class="ss-name">TANG</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:55%"></div></div><span class="ss-bl">66</span><span class="ss-wa">14</span><span class="ss-val">฿7.0M</span></div>
+                <div class="sale-sum-row"><span class="ss-name">MAMAEW</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:50%"></div></div><span class="ss-bl">59</span><span class="ss-wa">11</span><span class="ss-val">฿12.1M</span></div>
+                <div class="sale-sum-row"><span class="ss-name">PAT</span><div class="ss-bar-wrap"><div class="ss-bar" style="width:47%"></div></div><span class="ss-bl">56</span><span class="ss-wa">9</span><span class="ss-val">฿9.8M</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: Top 10 Outstanding + Compare Sale -->
+          <div class="row-2">
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title" data-th="Top 10 มูลค่าค้างสูงสุด" data-en="Top 10 Highest Outstanding">Top 10 มูลค่าค้างสูงสุด</div></div>
+              <div class="tbl-wrap">
+                <table>
+                  <thead><tr><th>#</th><th>Customer Name</th><th>Sale</th><th>Value</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr><td class="text-mono text-sub">1</td><td class="br-cust-name">บริษัท สไมล์แกลลอรี่ จำกัด</td><td class="text-sub">OPAL</td><td class="text-mono"><strong>฿8.4M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">2</td><td class="br-cust-name">Neo_Damage / Expire</td><td class="text-sub">NEO BIOTECH</td><td class="text-mono"><strong>฿5.3M</strong></td><td><span class="pill warning"><span class="pill-dot"></span>WARNING</span></td></tr>
+                    <tr><td class="text-mono text-sub">3</td><td class="br-cust-name">TG BIC W.H</td><td class="text-sub">NEO BIOTECH</td><td class="text-mono"><strong>฿4.3M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">4</td><td class="br-cust-name">โรงพยาบาลกันตกรรม มหาจักรีสิรินธร</td><td class="text-sub">MAMAEW</td><td class="text-mono"><strong>฿4.3M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">5</td><td class="br-cust-name">บริษัท มอสเดนทอล จำกัด</td><td class="text-sub">PAT</td><td class="text-mono"><strong>฿3.7M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">6</td><td class="br-cust-name">บริษัท สไมล์ซีชันส์ จำกัด</td><td class="text-sub">OPAL</td><td class="text-mono"><strong>฿2.9M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">7</td><td class="br-cust-name">IMMO W.H</td><td class="text-sub">NEO BIOTECH</td><td class="text-mono"><strong>฿2.9M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">8</td><td class="br-cust-name">มหาวิทยาลัยขอนแก่น</td><td class="text-sub">JONG</td><td class="text-mono"><strong>฿2.8M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">9</td><td class="br-cust-name">BTU W.H</td><td class="text-sub">NEO BIOTECH</td><td class="text-mono"><strong>฿2.8M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                    <tr><td class="text-mono text-sub">10</td><td class="br-cust-name">บริษัท สไมล์ แอนด์ ชายน์ เดนทอล จำกัด</td><td class="text-sub">GAM</td><td class="text-mono"><strong>฿2.7M</strong></td><td><span class="pill block"><span class="pill-dot"></span>BLOCK</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="section" style="margin-bottom:0;">
+              <div class="section-header"><div class="section-title" data-th="เปรียบเทียบ Sale" data-en="Compare Sale">เปรียบเทียบ Sale</div></div>
+              <div class="section-body">
+                <div class="compare-wrap">
+                  <select class="filter-sel compare-select"><option>เลือก Sale A</option><option>EVE</option><option>JONG</option><option>OPAL</option><option>TANG</option></select>
+                  <span class="compare-vs">VS</span>
+                  <select class="filter-sel compare-select"><option>เลือก Sale B</option><option>EVE</option><option>JONG</option><option>OPAL</option><option>TANG</option></select>
+                </div>
+                <div class="placeholder-box" data-th="เลือก Sale 2 คนเพื่อเปรียบเทียบ" data-en="Choose two sales to compare">เลือก Sale 2 คนเพื่อเปรียบเทียบ</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sync Log -->
+          <div class="section" style="margin-bottom:0;">
+            <div class="section-header"><div class="section-title">Sync Log</div></div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>เวลา</th><th>สถานะ</th><th>ใหม่</th><th>เปลี่ยน</th><th>ปิด</th><th>error</th><th>เวลา(s)</th><th>หมายเหตุ</th></tr></thead>
+                <tbody>
+                  <tr><td class="text-mono">10:27:00</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">10.9</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:25:58</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">10.6</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:24:55</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">7.4</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:23:59</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">7.4</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:22:59</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">10.9</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:21:54</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">7.2</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:21:00</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">11.1</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:19:57</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">7.5</td><td class="text-sub">—</td></tr>
+                  <tr><td class="text-mono">10:18:59</td><td><span class="sync-success-badge">Success</span></td><td class="text-sub">—</td><td class="text-mono">1500</td><td class="text-sub">—</td><td class="text-sub">—</td><td class="text-mono">10.7</td><td class="text-sub">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /fb-admin-view -->
+      </section><!-- /panel-fb -->
+
+
+      <!-- ═════════════ MODULE: BR RETURN ═════════════ -->
+      <section class="module-panel" id="panel-br">
+
+        <!-- Page header -->
+        <div class="page-header">
+          <div>
+            <h1>
+              <span data-th="ระบบคืนสินค้ายืม (BR Return)" data-en="Borrow Return (BR Return)">ระบบคืนสินค้ายืม (BR Return)</span>
+              <span class="page-header-badge beta"><span class="pill-dot" style="background:var(--brand)"></span>BETA</span>
+              <span class="page-header-badge live"><span class="pill-dot" style="background:var(--green)"></span>LIVE</span>
+            </h1>
+            <p data-th="สร้างคำขอคืน · ติดตามและตรวจสอบรายการสินค้าจากใบยืม" data-en="Create return requests · track and verify items from BR">สร้างคำขอคืน · ติดตามและตรวจสอบรายการสินค้าจากใบยืม</p>
+          </div>
+        </div>
+
+        <!-- Sale | Admin tabs -->
+        <div class="tabbar">
+          <button class="tab-btn active-br" id="br-tab-sale" onclick="switchBRTab('sale')">
+            <span class="tab-dot" style="background:var(--green)"></span>
+            <span data-th="Sale View" data-en="Sale View">Sale View</span>
+          </button>
+          <button class="tab-btn" id="br-tab-admin" onclick="switchBRTab('admin')">
+            <span class="tab-dot" style="background:var(--brand)"></span>
+            <span data-th="Admin View" data-en="Admin View">Admin View</span>
+          </button>
+        </div>
+
+        <!-- ─── BR SALE VIEW ─── -->
+        <div id="br-sale-view" class="view-scroll">
+
+          <!-- Sale dropdown bar -->
+          <div class="brs-top-bar">
+            <span class="brs-label">SALE :</span>
+            <div class="dd-wrap" id="brs-dd-wrap">
+              <button class="dd-btn" id="brs-dd-btn" onclick="toggleBRSaleDD()">
+                <span id="brs-dd-text">ทั้งหมด</span>
+                <svg id="brs-caret" width="10" height="6" viewBox="0 0 10 6" fill="none" style="transition:transform 0.2s"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </button>
+              <div class="dd-list" id="brs-dd-list">
+                <div class="dd-item active" onclick="selectBRSale(this,'ทั้งหมด','')"><span class="dd-check">✓</span><span>ทั้งหมด</span><span class="dd-count"></span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'BEN','BEN')"><span class="dd-check">✓</span><span>BEN</span><span class="dd-count">3</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'CHOMPOO','CHOMPOO')"><span class="dd-check">✓</span><span>CHOMPOO</span><span class="dd-count">4</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'EVE','EVE')"><span class="dd-check">✓</span><span>EVE</span><span class="dd-count"></span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'GAM','GAM')"><span class="dd-check">✓</span><span>GAM</span><span class="dd-count">29</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'HONGFAH','HONGFAH')"><span class="dd-check">✓</span><span>HONGFAH</span><span class="dd-count">10</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'ICE','ICE')"><span class="dd-check">✓</span><span>ICE</span><span class="dd-count">5</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'JONG','JONG')"><span class="dd-check">✓</span><span>JONG</span><span class="dd-count">2</span></div>
+                <div class="dd-item" onclick="selectBRSale(this,'MAI','MAI')"><span class="dd-check">✓</span><span>MAI</span><span class="dd-count"></span></div>
+              </div>
+            </div>
+            <div style="flex:1"></div>
+            <button class="btn btn-primary" onclick="showToast('สร้างคำขอคืน — ฟีเจอร์ production','info')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <span data-th="สร้างคำขอคืน" data-en="Create Return">สร้างคำขอคืน</span>
+            </button>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="kpi-grid cols-4">
+            <div class="kpi" onclick="filterBRStatus('pending')">
+              <div class="kpi-icon yellow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+              <div class="kpi-label" data-th="รอตรวจสอบ" data-en="Pending">รอตรวจสอบ</div>
+              <div class="kpi-val yellow">0</div>
+              <div class="kpi-sub" data-th="คำขอ Admin ตรวจสอบ" data-en="awaiting admin review">คำขอ Admin ตรวจสอบ</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('approved')">
+              <div class="kpi-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></div>
+              <div class="kpi-label" data-th="อนุมัติแล้ว" data-en="Approved">อนุมัติแล้ว</div>
+              <div class="kpi-val green">79</div>
+              <div class="kpi-sub" data-th="รายการที่อนุมัติเรียบร้อย" data-en="approved successfully">รายการที่อนุมัติเรียบร้อย</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('rejected')">
+              <div class="kpi-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+              <div class="kpi-label" data-th="แก้ไขคำขอ" data-en="Needs Revision">แก้ไขคำขอ</div>
+              <div class="kpi-val red">0</div>
+              <div class="kpi-sub" data-th="ต้องแก้ไขและส่งใหม่" data-en="needs resubmission">ต้องแก้ไขและส่งใหม่</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('cancelled')">
+              <div class="kpi-icon gray"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg></div>
+              <div class="kpi-label" data-th="ยกเลิกแล้ว" data-en="Cancelled">ยกเลิกแล้ว</div>
+              <div class="kpi-val">5</div>
+              <div class="kpi-sub" data-th="รายการที่ยกเลิก" data-en="cancelled records">รายการที่ยกเลิก</div>
+            </div>
+          </div>
+
+          <!-- BR Table -->
+          <div class="section" style="margin-bottom:0;">
+            <div class="section-header">
+              <div>
+                <div class="section-title" data-th="รายการคำขอคืนสินค้า" data-en="Return Requests">รายการคำขอคืนสินค้า</div>
+                <div class="section-sub">84 รายการ</div>
+              </div>
+              <div class="search-row">
+                <div class="search-input">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                  <input type="text" placeholder="ค้นหา เลขคำขอ / ลูกค้า / BR..." id="brs-search"/>
+                </div>
+                <select class="filter-sel" id="brs-status">
+                  <option value="">ทุกสถานะ</option>
+                  <option value="pending">รอตรวจสอบ</option>
+                  <option value="approved">อนุมัติแล้ว</option>
+                  <option value="rejected">แก้ไขคำขอ</option>
+                  <option value="cancelled">ยกเลิกแล้ว</option>
+                </select>
+                <button class="date-btn" onclick="showToast('เลือกช่วงวันที่ — ฟีเจอร์ production','info')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                  กรองวันที่
+                </button>
+                <button class="clear-btn" onclick="showToast('ล้างตัวกรอง','info')">✕ ล้าง</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th data-th="เลขคำขอ" data-en="Request ID">เลขคำขอ</th>
+                    <th data-th="วันที่" data-en="Date">วันที่</th>
+                    <th>รหัส</th>
+                    <th data-th="ลูกค้า / สถานพยาบาล" data-en="Customer">ลูกค้า / สถานพยาบาล</th>
+                    <th data-th="ใบยืม" data-en="BR No.">ใบยืม</th>
+                    <th data-th="รายการ" data-en="Items">รายการ</th>
+                    <th data-th="สถานะ" data-en="Status">สถานะ</th>
+                    <th>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody id="br-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /br-sale-view -->
+
+        <!-- ─── BR ADMIN VIEW ─── -->
+        <div id="br-admin-view" class="view-scroll" style="display:none;">
+
+          <!-- KPI Cards -->
+          <div class="kpi-grid cols-4">
+            <div class="kpi" onclick="filterBRStatus('pending')">
+              <div class="kpi-icon yellow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+              <div class="kpi-label" data-th="รอตรวจสอบ" data-en="Pending">รอตรวจสอบ</div>
+              <div class="kpi-val yellow">0</div>
+              <div class="kpi-sub" data-th="คำขอ Admin ตรวจสอบ" data-en="awaiting admin review">คำขอ Admin ตรวจสอบ</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('approved')">
+              <div class="kpi-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></div>
+              <div class="kpi-label" data-th="อนุมัติแล้ว" data-en="Approved">อนุมัติแล้ว</div>
+              <div class="kpi-val green">79</div>
+              <div class="kpi-sub" data-th="รายการที่อนุมัติเรียบร้อย" data-en="approved successfully">รายการที่อนุมัติเรียบร้อย</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('rejected')">
+              <div class="kpi-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+              <div class="kpi-label" data-th="รอแก้ไขคำขอ" data-en="Needs Revision">รอแก้ไขคำขอ</div>
+              <div class="kpi-val red">0</div>
+              <div class="kpi-sub" data-th="ต้องแก้ไขและส่งใหม่" data-en="needs resubmission">ต้องแก้ไขและส่งใหม่</div>
+            </div>
+            <div class="kpi" onclick="filterBRStatus('cancelled')">
+              <div class="kpi-icon gray"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg></div>
+              <div class="kpi-label" data-th="ยกเลิกแล้ว" data-en="Cancelled">ยกเลิกแล้ว</div>
+              <div class="kpi-val">5</div>
+              <div class="kpi-sub" data-th="รายการที่ยกเลิก" data-en="cancelled records">รายการที่ยกเลิก</div>
+            </div>
+          </div>
+
+          <!-- Admin Table -->
+          <div class="section" style="margin-bottom:0;">
+            <div class="section-header">
+              <div>
+                <div class="section-title">
+                  <span data-th="รายการทั้งหมด" data-en="All Requests">รายการทั้งหมด</span>
+                  <span style="color:var(--sub2);font-weight:400;">(Admin View)</span>
+                </div>
+                <div class="section-sub">84 รายการ</div>
+              </div>
+              <div class="search-row">
+                <select class="filter-sel">
+                  <option>ทุกสถานะ</option>
+                  <option>รอตรวจสอบ</option><option>อนุมัติแล้ว</option>
+                  <option>แก้ไขคำขอ</option><option>ยกเลิกแล้ว</option>
+                </select>
+                <select class="filter-sel">
+                  <option>ทุก Sale</option>
+                  <option>BEN</option><option>CHOMPOO</option><option>EVE</option>
+                  <option>GAM</option><option>HONGFAH</option><option>JONG</option>
+                </select>
+                <button class="date-btn" onclick="showToast('เลือกช่วงวันที่ — ฟีเจอร์ production','info')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                  กรองวันที่
+                </button>
+                <button class="clear-btn" onclick="showToast('ล้างตัวกรอง','info')">✕ ล้าง</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>เลขคำขอ</th>
+                    <th>วันที่</th>
+                    <th>ลูกค้า</th>
+                    <th>ใบยืม</th>
+                    <th>SALE</th>
+                    <th>รายการ</th>
+                    <th>สถานะ</th>
+                    <th>ACTION</th>
+                    <th>SHEET SYNC</th>
+                  </tr>
+                </thead>
+                <tbody id="br-admin-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /br-admin-view -->
+      </section><!-- /panel-br -->
+
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   CLOCK
+══════════════════════════════════════════════════ */
+function updateClock(){
+  var d = new Date();
+  var h = String(d.getHours()).padStart(2,'0');
+  var m = String(d.getMinutes()).padStart(2,'0');
+  var s = String(d.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h + ':' + m + ':' + s;
+}
+setInterval(updateClock, 1000); updateClock();
+
+/* ══════════════════════════════════════════════════
+   THEME (light/dark)
+══════════════════════════════════════════════════ */
+function setTheme(t){
+  if(t === 'light') document.documentElement.classList.add('light');
+  else document.documentElement.classList.remove('light');
+  document.getElementById('themeLabel').textContent = t === 'light' ? 'Light' : 'Dark';
+  var icon = document.getElementById('themeIcon');
+  if(t === 'light'){
+    icon.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+  } else {
+    icon.innerHTML = '<path d="M20 14a8 8 0 01-10-10 8 8 0 1010 10z"/>';
+  }
+  localStorage.setItem('bc-theme', t);
+}
+function toggleTheme(){
+  var cur = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+  setTheme(cur === 'light' ? 'dark' : 'light');
+}
+(function(){ setTheme(localStorage.getItem('bc-theme') || 'dark'); })();
+
+/* ══════════════════════════════════════════════════
+   LANGUAGE (TH/EN)
+══════════════════════════════════════════════════ */
+function setLang(lang){
+  document.querySelectorAll('[data-th]').forEach(function(el){
+    var txt = el.getAttribute('data-' + lang);
+    if(txt) el.textContent = txt;
+  });
+  document.getElementById('langLabel').textContent = lang.toUpperCase();
+  document.documentElement.lang = lang;
+  localStorage.setItem('bc-lang', lang);
+}
+function toggleLang(){
+  var cur = localStorage.getItem('bc-lang') || 'th';
+  setLang(cur === 'th' ? 'en' : 'th');
+}
+(function(){ setLang(localStorage.getItem('bc-lang') || 'th'); })();
+
+/* ══════════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════════ */
+function showToast(msg, type){
+  type = type || 'success';
+  var icons = { success: '✓', warn: '⚠', info: 'ℹ' };
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.innerHTML = '<span>' + icons[type] + '</span><span>' + msg + '</span>';
+  document.getElementById('toast').appendChild(el);
+  setTimeout(function(){
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    el.style.transition = 'all .3s';
+    setTimeout(function(){ el.remove(); }, 300);
+  }, 2800);
+}
+
+/* ══════════════════════════════════════════════════
+   MODULE SWITCH (sidebar)
+══════════════════════════════════════════════════ */
+function switchModule(mod){
+  document.getElementById('nav-fb').className = 'sb-item' + (mod === 'fb' ? ' active-fb' : '');
+  document.getElementById('nav-br').className = 'sb-item' + (mod === 'br' ? ' active-br' : '');
+  document.getElementById('panel-fb').classList.toggle('active', mod === 'fb');
+  document.getElementById('panel-br').classList.toggle('active', mod === 'br');
+  var label = mod === 'fb' ? 'Find Borrow' : 'BR Return';
+  showToast('Switched to ' + label, 'info');
+}
+
+/* ══════════════════════════════════════════════════
+   FB TAB SWITCH
+══════════════════════════════════════════════════ */
+function switchFBTab(tab){
+  var isSale = tab === 'sale';
+  document.getElementById('fb-tab-sale').className = 'tab-btn' + (isSale ? ' active-fb' : '');
+  document.getElementById('fb-tab-admin').className = 'tab-btn' + (isSale ? '' : ' active-admin');
+  document.getElementById('fb-sale-view').style.display = isSale ? 'block' : 'none';
+  document.getElementById('fb-admin-view').style.display = isSale ? 'none' : 'block';
+}
+function selectTeam(el, team){
+  document.querySelectorAll('#fb-admin-view .team-chip').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  showToast('Filtered: ' + (team === 'all' ? 'All Teams' : el.textContent.trim()), 'info');
+}
+
+/* ══════════════════════════════════════════════════
+   FIND BORROW DATA
+══════════════════════════════════════════════════ */
+var FB_DATA = [
+  {code:'50742', name:'มหาวิทยาลัยธรรมศาสตร์',         addr:'คณะแพทยศาสตร์ 99 หมู่18 ถ.พหลโยธิน ต.คลองหลวง อ.รังสิต จ.ปทุมธานี 12121', sale:'OPAL',       br:146, days:1542, value:'฿858,900', status:'block'},
+  {code:'50122', name:'กพ.พิสุทธิ์ แสนมใน',            addr:'คลินิกกันตกรรมพิสุทธิ์ 181 ซ.พร้อมศรี 1 สุขุมวิท 49 ถ.สุขุมวิท แขวงคลองเตยเหนือ กรุงเทพ 10110', sale:'PAT',        br:23,  days:1529, value:'฿179,100', status:'block'},
+  {code:'50074', name:'โรงพยาบาลกุยบุรี',               addr:'41 ต.กุยบุรี อ.กุยบุรี จ.ประจวบคีรีขันธ์ 77150',                              sale:'MAMAEW',     br:7,   days:1518, value:'฿30,400',  status:'block'},
+  {code:'50532', name:'เอเดลไวซ์ เดนทัลเจ้าส์',        addr:'210 212 ถ.วิภาวดีรังสิต แขวงรัชดาภิเษก เขตดินแดง กทม. 10400',               sale:'OPAL',       br:35,  days:1516, value:'฿960,500', status:'block'},
+  {code:'50746', name:'กพ.สุเทพ ม่วงสีเสียด',          addr:'คณะแพทยศาสตร์ 99 หมู่ 18, ถ.พหลโยธิน, คลองหลวง, รังสิต, ปทุมธานี 12121',  sale:'OPAL',       br:116, days:1516, value:'฿1.1M',    status:'block'},
+  {code:'Z10001', name:'NEO BIOTECH',                   addr:'#VALUE!',                                                                       sale:'NEO BIOTECH', br:67,  days:1489, value:'฿475,600', status:'block'},
+  {code:'50534', name:'บริษัท โรงพยาบาลพญาไท 2 จำกัด', addr:'943 ถ.พหลโยธิน แขวงสามเสนใน เขตพญาไท กรุงเทพ 10400',                        sale:'SHIRLEY',    br:3,   days:1483, value:'฿14,500',  status:'block'},
+  {code:'50312', name:'โรงพยาบาล บางปะกอก 9 อินเตอร์', addr:'362 ถ.พระราม 2 แขวงแสมดำ เขตบางขุนเทียน กรุงเทพ 10150',                    sale:'ANN',        br:12,  days:245,  value:'฿125,000', status:'warning'},
+  {code:'50891', name:'คลินิกเวชกรรม พริ้มเฮลธ์',      addr:'88/12 ถ.รัตนาธิเบศร์ ต.บางกระสอ อ.เมือง จ.นนทบุรี 11000',                  sale:'PAT',        br:4,   days:180,  value:'฿38,200',  status:'warning'},
+  {code:'MHD003', name:'ศูนย์วิจัยวิทยาศาสตร์ มหิดล',  addr:'999 ถ.พุทธมณฑลสาย 4 ต.ศาลายา อ.พุทธมณฑล จ.นครปฐม 73170',                 sale:'MAMAEW',     br:8,   days:22,   value:'฿125,000', status:'normal'},
+  {code:'BGS005', name:'ห้องแล็บ บีจีเอส',             addr:'123 ถ.สุขุมวิท 71 แขวงคลองเตย เขตวัฒนา กรุงเทพ 10110',                     sale:'OPAL',       br:15,  days:71,   value:'฿67,300',  status:'normal'},
+  {code:'NKP010', name:'โรงพยาบาล นครปฐม',             addr:'316 ถ.หลวงพ่อโอภาสี ต.พระปฐมเจดีย์ อ.เมือง จ.นครปฐม 73000',               sale:'ANN',        br:6,   days:11,   value:'฿56,000',  status:'normal'},
+];
+var FB_FILTERED = FB_DATA.slice();
+
+function getCustStatusBadge(s){
+  var labels = { block: 'BLOCK', warning: 'WARNING', normal: 'NORMAL' };
+  return '<span class="pill ' + s + '"><span class="pill-dot"></span>' + labels[s] + '</span>';
+}
+function getDaysClass(d, status){
+  if(status === 'normal') return '';
+  if(d >= 180) return 'num-danger';
+  if(d >= 90) return 'num-warn';
+  return '';
+}
+function renderFBTable(){
+  var tbody = document.getElementById('fb-tbody');
+  if(!FB_FILTERED.length){
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--sub2);">ไม่พบข้อมูล</td></tr>';
+    return;
+  }
+  var h = '';
+  FB_FILTERED.forEach(function(r, i){
+    var rowCls = r.status === 'block' ? 'row-block' : (r.status === 'warning' ? 'row-warn' : '');
+    h += '<tr class="' + rowCls + '">';
+    h += '<td class="text-sub text-mono">' + (i+1) + '</td>';
+    h += '<td class="text-sub text-mono">' + r.code + '</td>';
+    h += '<td><strong>' + r.name + '</strong></td>';
+    h += '<td class="text-sub" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + r.addr + '</td>';
+    h += '<td><strong style="font-size:11px;">' + r.sale + '</strong></td>';
+    h += '<td class="text-mono text-sub">' + r.br + '</td>';
+    h += '<td class="text-mono ' + getDaysClass(r.days, r.status) + '">' + r.days + ' วัน</td>';
+    h += '<td class="text-mono"><strong>' + r.value + '</strong></td>';
+    h += '<td>' + getCustStatusBadge(r.status) + '</td>';
+    h += '<td><button class="btn btn-sm" onclick="showToast(\'View Details — ฟีเจอร์ production\',\'info\')">View Details</button></td>';
+    h += '</tr>';
+  });
+  tbody.innerHTML = h;
+  document.getElementById('fb-count').textContent = 'แสดง ' + FB_FILTERED.length + ' จาก 1,264 รายการ';
+}
+function filterFB(){
+  var q = (document.getElementById('fb-search').value || '').toLowerCase();
+  var sale = document.getElementById('fb-filter-sale').value;
+  var status = document.getElementById('fb-filter-status').value;
+  FB_FILTERED = FB_DATA.filter(function(r){
+    var mq = !q || r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q) || r.addr.toLowerCase().includes(q);
+    var ms = !sale || r.sale === sale;
+    var mst = !status || r.status === status;
+    return mq && ms && mst;
+  });
+  renderFBTable();
+}
+function filterFBStatus(s){
+  document.getElementById('fb-filter-status').value = s;
+  var cards = document.querySelectorAll('#fb-sale-view .kpi');
+  cards.forEach(function(c){ c.classList.remove('sel'); });
+  var idx = { '': 0, 'block': 1, 'warning': 2, 'normal': 3 };
+  if(idx[s] !== undefined && cards[idx[s]]) cards[idx[s]].classList.add('sel');
+  filterFB();
+}
+
+/* ══════════════════════════════════════════════════
+   BR RETURN DATA
+══════════════════════════════════════════════════ */
+var BR_DATA = [
+  {id:'RT-202605100002', date:'10 พ.ค. 2569', code:'50532', cust:'เอเดลไวซ์ เดนทัลเจ้าส์',        br:'BR102512180078', sale:'OPAL',    items:1,  status:'cancelled'},
+  {id:'RT-202605100001', date:'10 พ.ค. 2569', code:'50224', cust:'กพญ.รติรัตน์ โชติพันธุ์วิทยากุล', br:'BR102604210327', sale:'BEN',     items:1,  status:'approved'},
+  {id:'RT-202605090002', date:'9 พ.ค. 2569',  code:'51352', cust:'กพญ.อรุณโรจน์ สาธุรัตน์',        br:'BR2023120777',   sale:'BEN',     items:1,  status:'cancelled'},
+  {id:'RT-202605090001', date:'9 พ.ค. 2569',  code:'50224', cust:'กพญ.รติรัตน์ โชติพันธุ์วิทยากุล', br:'BR202302245',    sale:'BEN',     items:2,  status:'cancelled'},
+  {id:'RT-202605080029', date:'8 พ.ค. 2569',  code:'50881', cust:'Dr.AnousoneToukhenchan',           br:'BR102605050661', sale:'JONG',    items:1,  status:'approved'},
+  {id:'RT-202605080023', date:'8 พ.ค. 2569',  code:'50443', cust:'บริษัท แอสชามายน์ จำกัด (บ้านสีขาว)', br:'BR102603190302', sale:'CHOMPOO', items:13, status:'approved'},
+  {id:'RT-202605080018', date:'8 พ.ค. 2569',  code:'50118', cust:'โรงพยาบาล สมิติเวช พัทยา',         br:'BR102602140089', sale:'GAM',     items:4,  status:'approved'},
+  {id:'RT-202605070011', date:'7 พ.ค. 2569',  code:'50672', cust:'คลินิกทันตกรรม สไมล์ดีไซน์',       br:'BR102601090044', sale:'HONGFAH', items:2,  status:'cancelled'},
+  {id:'RT-202605060005', date:'6 พ.ค. 2569',  code:'50312', cust:'โรงพยาบาล บางปะกอก 9 อินเตอร์',    br:'BR102512260033', sale:'ICE',     items:3,  status:'approved'},
+  {id:'RT-202605050003', date:'5 พ.ค. 2569',  code:'50891', cust:'คลินิกเวชกรรม พริ้มเฮลธ์',          br:'BR102511180091', sale:'MAI',     items:1,  status:'pending'},
+];
+
+function getBRStatusBadge(s){
+  var labels = { pending: 'รอตรวจสอบ', approved: 'อนุมัติแล้ว', rejected: 'แก้ไขคำขอ', cancelled: 'ยกเลิกแล้ว' };
+  return '<span class="pill ' + s + '"><span class="pill-dot"></span>' + labels[s] + '</span>';
+}
+function getSheetSync(status){
+  if(status === 'approved')
+    return '<span class="sync-chip done"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> synced</span>';
+  return '<span class="sync-chip so"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg> so approve</span>';
+}
+function renderBRSaleTable(){
+  var tbody = document.getElementById('br-tbody');
+  if(!tbody) return;
+  var h = '';
+  BR_DATA.forEach(function(r){
+    h += '<tr>';
+    h += '<td><span class="br-rt-chip">' + r.id + '</span></td>';
+    h += '<td class="text-sub" style="white-space:nowrap;">' + r.date + '</td>';
+    h += '<td class="text-mono text-sub">' + r.code + '</td>';
+    h += '<td class="br-cust-name">' + r.cust + '</td>';
+    h += '<td><span class="chip-br">' + r.br + '</span></td>';
+    h += '<td class="br-item-count">' + r.items + ' รายการ</td>';
+    h += '<td>' + getBRStatusBadge(r.status) + '</td>';
+    h += '<td><button class="btn btn-sm" onclick="showToast(\'ดูรายละเอียด ' + r.id + '\',\'info\')">ดูรายละเอียด</button></td>';
+    h += '</tr>';
+  });
+  tbody.innerHTML = h;
+}
+function renderBRAdminTable(){
+  var tbody = document.getElementById('br-admin-tbody');
+  if(!tbody) return;
+  var h = '';
+  BR_DATA.forEach(function(r){
+    h += '<tr>';
+    h += '<td><span class="br-rt-chip">' + r.id + '</span></td>';
+    h += '<td class="text-sub" style="white-space:nowrap;">' + r.date + '</td>';
+    h += '<td class="br-cust-name">' + r.cust + '</td>';
+    h += '<td><span class="chip-br">' + r.br + '</span></td>';
+    h += '<td><span class="br-sale-tag">' + r.sale + '</span></td>';
+    h += '<td class="br-item-count">' + r.items + ' รายการ</td>';
+    h += '<td>' + getBRStatusBadge(r.status) + '</td>';
+    h += '<td><button class="btn btn-sm" onclick="showToast(\'ดูรายละเอียด ' + r.id + '\',\'info\')">ดูรายละเอียด</button></td>';
+    h += '<td>' + getSheetSync(r.status) + '</td>';
+    h += '</tr>';
+  });
+  tbody.innerHTML = h;
+}
+
+function switchBRTab(tab){
+  document.getElementById('br-tab-sale').className = 'tab-btn' + (tab === 'sale' ? ' active-br' : '');
+  document.getElementById('br-tab-admin').className = 'tab-btn' + (tab === 'admin' ? ' active-admin' : '');
+  document.getElementById('br-sale-view').style.display = tab === 'sale' ? 'block' : 'none';
+  document.getElementById('br-admin-view').style.display = tab === 'admin' ? 'block' : 'none';
+}
+
+/* Sale dropdown */
+function toggleBRSaleDD(){
+  var btn = document.getElementById('brs-dd-btn');
+  var list = document.getElementById('brs-dd-list');
+  var open = list.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  document.getElementById('brs-caret').style.transform = open ? 'rotate(180deg)' : '';
+}
+function selectBRSale(el, label, val){
+  document.getElementById('brs-dd-text').textContent = label;
+  document.querySelectorAll('.dd-item').forEach(function(i){ i.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('brs-dd-list').classList.remove('open');
+  document.getElementById('brs-dd-btn').classList.remove('open');
+  document.getElementById('brs-caret').style.transform = '';
+}
+document.addEventListener('click', function(e){
+  var wrap = document.getElementById('brs-dd-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    document.getElementById('brs-dd-list').classList.remove('open');
+    document.getElementById('brs-dd-btn').classList.remove('open');
+    document.getElementById('brs-caret').style.transform = '';
+  }
+});
+
+function filterBRStatus(s){
+  document.querySelectorAll('#panel-br .kpi').forEach(function(c){ c.classList.remove('sel'); });
+  var idx = { pending: 0, approved: 1, rejected: 2, cancelled: 3 };
+  var cards = document.querySelectorAll('#panel-br .kpi');
+  if(idx[s] !== undefined){
+    if(cards[idx[s]]) cards[idx[s]].classList.add('sel');
+    if(cards[idx[s] + 4]) cards[idx[s] + 4].classList.add('sel');
+  }
+}
+
+/* INIT */
+renderFBTable();
+renderBRSaleTable();
+renderBRAdminTable();
+</script>
+</body>
+</html>

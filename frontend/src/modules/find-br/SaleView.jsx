@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { StatusBadge, T } from "../App";
+import { StatusBadge, T } from "../../App";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
