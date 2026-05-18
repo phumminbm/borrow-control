@@ -4971,6 +4971,79 @@ document.addEventListener('click', function(e){
   var wrap = el('pills-wrap');
   if(wrap && !wrap.contains(e.target)) closeSaleDD();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// V2 SHELL POSTMESSAGE BRIDGE  (additive, safe-by-default)
+// ───────────────────────────────────────────────────────────────
+// This block is the ONE addition to br-return.html for the v2 merge.
+// It lets the new combined React shell (modules/v2-shell/ShellApp.jsx)
+// drive theme + lang from outside the iframe, and surfaces a pending-
+// count badge back to the shell.
+//
+// SAFETY:
+//   • Entirely wrapped in try/catch — if anything fails (e.g. direct
+//     standalone access at /br-return with no parent), the page works
+//     exactly as before.
+//   • No business logic, no fetch, no Apps Script, no DOM mutation
+//     beyond calling existing setTheme() / setLang() helpers.
+//   • Does NOT block the page if window.parent === window.
+// ═══════════════════════════════════════════════════════════════
+try {
+  (function v2ShellBridge(){
+    var embedded = false;
+    try { embedded = (window.parent && window.parent !== window); } catch(e) {}
+    if(!embedded) return; // Standalone access — bridge is a no-op.
+
+    // Listen for messages FROM the shell.
+    window.addEventListener('message', function(ev){
+      var d = ev.data;
+      if(!d || d.source !== 'v2-shell') return;
+      try {
+        if(d.type === 'theme:set' && (d.theme === 'dark' || d.theme === 'light')){
+          if(typeof setTheme === 'function') setTheme(d.theme);
+        } else if(d.type === 'lang:set' && (d.lang === 'th' || d.lang === 'en')){
+          if(typeof setLang === 'function') setLang(d.lang);
+        }
+      } catch(err) {
+        // Swallow — never let a bridge error break standalone behavior.
+      }
+    });
+
+    // Tell the shell we're ready so it can replay current theme/lang.
+    function announceReady(){
+      try {
+        window.parent.postMessage({ source:'br-return', type:'ready' }, '*');
+      } catch(e) {}
+    }
+    if(document.readyState === 'complete' || document.readyState === 'interactive'){
+      // Defer a tick so RECENT etc. has had a chance to populate.
+      setTimeout(announceReady, 50);
+    } else {
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(announceReady, 50); });
+    }
+
+    // Pending-count badge sync: lightweight observer that re-counts when
+    // the global RECENT array changes shape. Posts back to the shell so
+    // the sidebar badge stays in step with reality. We avoid hooking into
+    // any specific render function to stay decoupled from business logic.
+    var lastCount = -1;
+    function recomputeAndPost(){
+      try {
+        if(!Array.isArray(window.RECENT)) return;
+        var n = 0;
+        for(var i=0;i<window.RECENT.length;i++){
+          if(window.RECENT[i] && window.RECENT[i].status === 'pending') n++;
+        }
+        if(n === lastCount) return;
+        lastCount = n;
+        window.parent.postMessage({ source:'br-return', type:'badge:update', pendingCount:n }, '*');
+      } catch(e) {}
+    }
+    setInterval(recomputeAndPost, 5000);
+  })();
+} catch(_v2BridgeErr) {
+  // Bridge install failed — page continues unaffected.
+}
 </script>
 
 <!-- Calendar Panel -->

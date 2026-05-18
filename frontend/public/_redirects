@@ -1,0 +1,7 @@
+# Render Static Site rewrite rules (Netlify-style format).
+# Required so client-side routes like /v2 serve index.html and let the
+# React app's path-based router (isV2Mode in src/App.jsx) take over.
+#
+# 200 = rewrite (URL stays the same; server returns index.html).
+# Without this, /v2 returns a 404 from Render's static file server.
+/*    /index.html   200
