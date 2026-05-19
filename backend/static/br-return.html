@@ -90,6 +90,61 @@
   --v2-radius-xl:    14px;
 }
 
+/* ═════════════════════════════════════════════════════════════════════
+   Task 1B-C C4a (2026-05-19): EMBEDDED MODE
+   Activated by the head-script that adds .embedded to <html> when the
+   page is inside an iframe (window.parent !== window). Standalone
+   access (direct URL hit) NEVER has this class, so every rule below
+   applies ONLY to the iframe context.
+
+   Purpose: make BR Return look like a native module of the v2 shell
+   by hiding its own duplicate chrome (topbar, sidebar, module banner)
+   and letting the v2 shell's chrome own those slots.
+   ═════════════════════════════════════════════════════════════════════ */
+:root.embedded #topbar,
+:root.embedded #sidebar,
+:root.embedded #module-banner {
+  display: none !important;
+}
+
+/* When sidebar is hidden, #main no longer needs to be a horizontal
+   flex container (sidebar | content). Stack #content as the sole
+   child taking full width. */
+:root.embedded #main {
+  display: block;
+}
+:root.embedded #content {
+  width: 100%;
+}
+
+/* The Test Mode button lives inside #topbar in the standalone layout.
+   When embedded, we keep #topbar hidden BUT lift just the test-mode
+   button into a position-fixed slot at the top-right of the tabbar
+   row. This preserves access to the safety toggle and the visual
+   "test mode is on" cue (the JS-driven amber styling on the button
+   itself still works because applyTestModeChrome() only touches the
+   button's own background/border, not the topbar). */
+:root.embedded #btn-test-mode {
+  position: absolute;
+  top: 7px;
+  right: 18px;
+  margin-left: 0 !important;
+  z-index: 12;
+}
+/* #tabbar becomes the new relative anchor for the floating test btn */
+:root.embedded #tabbar {
+  position: relative;
+}
+
+/* When embedded AND test mode is ACTIVE, paint the amber safety stripe
+   on the tabbar instead of the (now-hidden) topbar. applyTestModeChrome
+   already toggles inline styles on #topbar's box-shadow when test mode
+   flips; we mirror that via a CSS-only fallback so the cue is visible
+   in embedded mode regardless of JS timing. */
+:root.embedded #tabbar.embedded-test-mode-active {
+  box-shadow: inset 0 -2px 0 0 #EF9F27;
+}
+
 /* ── Light Mode ── */
 :root.light {
   --bg:     #F0F2F5;
@@ -2062,6 +2117,15 @@ function applyTestModeChrome(){
     } else {
       topbar.style.boxShadow = '';
     }
+  }
+  // Task 1B-C C4a: when embedded in the v2 shell, the topbar is hidden, so
+  // the amber safety cue would be invisible. Mirror the cue onto the
+  // tabbar by toggling a class. The matching CSS rule (.embedded
+  // #tabbar.embedded-test-mode-active) is scoped to .embedded so this
+  // class toggle is a no-op for standalone access.
+  var tabbar = el('tabbar');
+  if(tabbar){
+    tabbar.classList.toggle('embedded-test-mode-active', TEST_MODE);
   }
 }
 
