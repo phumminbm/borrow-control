@@ -524,16 +524,26 @@ function CustomerModal({ customer, onClose, dark, t }) {
   );
 }
 
+// Number of customers shown per page in the Sale View table. Increase
+// only with care — large page sizes negate the perf benefit of pagination
+// (the whole point is to render at most this many <tr> nodes at once).
+const PAGE_SIZE = 50;
+
 export default function SaleView({ customers, dark, custValues = {}, analytics, lang = "th" }) {
   const [search, setSearch]           = useState("");
   const [saleFilter, setSaleFilter]   = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [page, setPage] = useState(1);    // 1-based current page index
 
   const t = T[lang];
   const S = getS(dark);
   const allSales = [...new Set(customers.map(c => c.sale))].sort();
 
+  // Filtering happens on the FULL customers array — pagination is applied
+  // afterwards. So a search/filter that matches a customer on conceptual
+  // "page 10" will still find them; the user just lands on page 1 of the
+  // resulting filtered set.
   const filtered = customers.filter(c =>
     (!search ||
       c.customer_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -546,6 +556,23 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
 
   const bl = filtered.filter(c => c.status==="BLOCK").length;
   const wa = filtered.filter(c => c.status==="WARNING").length;
+
+  // Reset to page 1 whenever the filter set changes — otherwise the user
+  // might be stuck on a no-longer-existent page (e.g. page 8 of 3).
+  useEffect(() => { setPage(1); }, [search, saleFilter, statusFilter]);
+
+  // Pagination math — `filtered` is the full filtered set; `paged` is the
+  // slice currently rendered. totalPages is at least 1 so the controls
+  // always show "1 / 1" even for empty results.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const endIdx   = Math.min(startIdx + PAGE_SIZE, filtered.length);
+  const paged    = filtered.slice(startIdx, endIdx);
+  const goHome   = () => setPage(1);
+  const goPrev   = () => setPage(p => Math.max(1, p - 1));
+  const goNext   = () => setPage(p => Math.min(totalPages, p + 1));
+  const goLast   = () => setPage(totalPages);
 
   const rowBg = s => s==="BLOCK"?(dark?"#1e0e0e":"#FDF0F0"):s==="WARNING"?(dark?"#1e1600":"#FDF6E8"):"transparent";
 
@@ -638,7 +665,12 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
         <div className="v2-section-header">
           <div>
             <div className="v2-section-title">{t.custName} ({filtered.length.toLocaleString()})</div>
-            <div className="v2-section-sub">{t.show} {filtered.length.toLocaleString()} {t.from} {customers.length.toLocaleString()} {t.items}</div>
+            <div className="v2-section-sub">
+              {filtered.length === 0
+                ? `${t.show} 0 ${t.from} ${customers.length.toLocaleString()} ${t.items}`
+                : `${t.show} ${(startIdx + 1).toLocaleString()}-${endIdx.toLocaleString()} ${t.from} ${filtered.length.toLocaleString()} ${t.items}${filtered.length !== customers.length ? ` (${customers.length.toLocaleString()} total)` : ""}`
+              }
+            </div>
           </div>
           <div className="v2-search-row">
             <div className="v2-search-input" style={{minWidth:260}}>
@@ -674,11 +706,13 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={10} style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>{t.noCustomer}</td></tr>
-              ) : filtered.map((c,i)=>{
+              ) : paged.map((c,i)=>{
+                // i is the index within the current page slice; show the absolute row number
+                // (startIdx is the index of the first row on this page in `filtered`).
                 const rowCls = c.status === "BLOCK" ? "row-block" : c.status === "WARNING" ? "row-warn" : "";
                 return (
                   <tr key={c.cust_code} className={rowCls}>
-                    <td className="v2-text-mono v2-text-sub">{i+1}</td>
+                    <td className="v2-text-mono v2-text-sub">{startIdx + i + 1}</td>
                     <td className="v2-text-mono v2-text-sub">{c.cust_code}</td>
                     <td><strong>{c.customer_name}</strong></td>
                     <td className="v2-text-sub" style={{maxWidth:260,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
@@ -698,6 +732,29 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls — always visible if there is at least 1 row.
+            Hidden entirely when the filtered set is empty (the empty-state
+            row in the table body already communicates the situation). */}
+        {filtered.length > 0 && (
+          <div style={{
+            display:"flex", justifyContent:"space-between", alignItems:"center",
+            padding:"10px 18px", borderTop:"1px solid var(--v2-border)",
+            background:"var(--v2-card)", fontSize:12,
+          }}>
+            <span style={{color:"var(--v2-sub)"}}>
+              {lang === "en"
+                ? `Page ${currentPage} of ${totalPages}`
+                : `หน้า ${currentPage} / ${totalPages}`}
+            </span>
+            <div style={{display:"flex",gap:6}}>
+              <button className="v2-btn v2-btn-sm" onClick={goHome}  disabled={currentPage <= 1}            aria-label="Go to first page"  style={{opacity: currentPage <= 1 ? 0.5 : 1}}>{lang === "en" ? "« Home" : "« หน้าแรก"}</button>
+              <button className="v2-btn v2-btn-sm" onClick={goPrev}  disabled={currentPage <= 1}            aria-label="Previous page"     style={{opacity: currentPage <= 1 ? 0.5 : 1}}>{lang === "en" ? "‹ Prev" : "‹ ก่อนหน้า"}</button>
+              <button className="v2-btn v2-btn-sm" onClick={goNext}  disabled={currentPage >= totalPages}   aria-label="Next page"         style={{opacity: currentPage >= totalPages ? 0.5 : 1}}>{lang === "en" ? "Next ›" : "ถัดไป ›"}</button>
+              <button className="v2-btn v2-btn-sm" onClick={goLast}  disabled={currentPage >= totalPages}   aria-label="Go to last page"   style={{opacity: currentPage >= totalPages ? 0.5 : 1}}>{lang === "en" ? "Last »" : "หน้าสุดท้าย »"}</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedCustomer && (

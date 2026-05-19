@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { TEAMS, TEAM_COLORS, SC, StatusBadge, T } from "../../App";
+import { TEAMS, TEAM_COLORS, T } from "../../App";
 
 // lookup team จาก sale name
 function getTeam(sale) {
@@ -502,40 +502,10 @@ export default function AdminView({ customers, syncLogs, syncHealth, dark, analy
           </div>
         </div>
 
-        {/* Row 4: Full table */}
-        <div style={{background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,overflow:"hidden"}}>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
-              <thead>
-                <tr style={{position:"sticky",top:0,zIndex:5,background:dark?"#1a1a1a":"#f9f9f7"}}>
-                  {["#",t.custCode,t.custName,t.team,"Sale",t.br,t.daysOverdue,t.status,t.updated].map((h,i)=>(
-                    <th key={i} style={{padding:"8px 11px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,
-                      width:i===0?"28px":i===1?"85px":i===3?"80px":i===4?"80px":i===5?"45px":i===6?"80px":i===7?"85px":i===8?"70px":"auto"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c,i)=>{
-                  const bg=c.status==="BLOCK"?(dark?"#1e0e0e":"#FDF0F0"):c.status==="WARNING"?(dark?"#1e1600":"#FDF6E8"):"transparent";
-                  const tc=TEAM_COLORS[c.team]||"#888";
-                  return (
-                    <tr key={c.cust_code} style={{background:bg,borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.05)"}`}}>
-                      <td style={{padding:"7px 11px",fontSize:11,color:"#555"}}>{i+1}</td>
-                      <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                      <td style={{padding:"7px 11px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
-                      <td style={{padding:"7px 11px"}}><span style={{fontSize:10,fontWeight:500,color:tc,background:tc+"22",border:`0.5px solid ${tc}55`,borderRadius:4,padding:"1px 6px"}}>{c.team}</span></td>
-                      <td style={{padding:"7px 11px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
-                      <td style={{padding:"7px 11px",fontSize:11,color:dark?"#ddd":"#aaa"}}>{c.active_br_count}</td>
-                      <td style={{padding:"7px 11px",fontSize:11,fontWeight:c.max_days>90?500:400,color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#ddd":"#1a1a1a")}}>{c.max_days} {t.days}</td>
-                      <td style={{padding:"7px 11px"}}><StatusBadge status={c.status}/></td>
-                      <td style={{padding:"7px 11px",fontSize:10,color:dark?"#ddd":"#bbb"}}>{c.updated_at?new Date(c.updated_at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}):"—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Row 4 (Full customer table) intentionally removed (2026-05-19) — per
+            user direction, Admin View should focus on aggregate / analytical
+            content (KPIs, team summaries, donut, ranking, Top 5, sync logs).
+            The per-customer table lives in Sale View only. */}
 
         {/* Row 5: Sync log */}
         <div>
