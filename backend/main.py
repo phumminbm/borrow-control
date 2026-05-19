@@ -27,7 +27,7 @@
 #   and disambiguates same-product / different-qty rows in the same BR.
 # =============================================================================
 
-from fastapi import FastAPI, Depends, Query, HTTPException
+from fastapi import FastAPI, Depends, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import create_engine, text
@@ -71,6 +71,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 app = FastAPI(title="Borrow Control API", version="1.0.0")
 BR_RETURN_HTML = Path(os.getenv("BR_RETURN_HTML", Path(__file__).resolve().parent / "static" / "br-return.html"))
+BR_RETURN_DEV_TOKEN = os.getenv("BR_RETURN_DEV_TOKEN", "").strip()
+BR_RETURN_ALLOWED_EMBED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "BR_RETURN_ALLOWED_EMBED_ORIGINS",
+        "https://borrow-control-app.onrender.com,http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+}
 
 # ═════════════════════════════════════════════════════════════════════════
 # Migration mode (2026-05-19)
@@ -542,12 +551,60 @@ class ReturnRequestPayload(BaseModel):
 def health():
     return {"status": "ok"}
 
+def _request_origin(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(value)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    except Exception:
+        return ""
+    return ""
+
+def _is_local_dev_host(host: str) -> bool:
+    host = (host or "").split(":")[0].lower()
+    return host in {"localhost", "127.0.0.1", "::1"}
+
+def _br_return_dev_authorized(request: Request) -> bool:
+    if not BR_RETURN_DEV_TOKEN:
+        return False
+    supplied = request.query_params.get("dev_key") or request.cookies.get("br_return_dev")
+    return supplied == BR_RETURN_DEV_TOKEN
+
+def _br_return_embed_authorized(request: Request) -> bool:
+    host = request.headers.get("host", "")
+    if _is_local_dev_host(host):
+        return True
+    origin = _request_origin(request.headers.get("referer")) or _request_origin(request.headers.get("origin"))
+    return origin in BR_RETURN_ALLOWED_EMBED_ORIGINS
+
 @app.get("/br-return")
 @app.get("/br-return.html")
-def br_return_page():
+def br_return_page(request: Request):
     if not BR_RETURN_HTML.exists():
         raise HTTPException(404, "BR Return page not found")
-    return FileResponse(str(BR_RETURN_HTML), media_type="text/html")
+    if not (_br_return_embed_authorized(request) or _br_return_dev_authorized(request)):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": "standalone_br_return_disabled",
+                "message": "BR Return is available from the main Borrow Control app only.",
+                "app_url": "https://borrow-control-app.onrender.com/",
+            },
+        )
+    response = FileResponse(str(BR_RETURN_HTML), media_type="text/html")
+    if BR_RETURN_DEV_TOKEN and request.query_params.get("dev_key") == BR_RETURN_DEV_TOKEN:
+        response.set_cookie(
+            "br_return_dev",
+            BR_RETURN_DEV_TOKEN,
+            max_age=60 * 60 * 24 * 30,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+        )
+    return response
 
 @app.get("/customers")
 def get_customers(
