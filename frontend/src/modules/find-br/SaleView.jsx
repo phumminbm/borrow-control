@@ -106,84 +106,97 @@ function badge(status, dark) {
   );
 }
 
-function BRDetailModal({ br, onClose, dark, t }) {
+function BRDetailModal({ br, onClose, t }) {
   if (!br) return null;
-  const S = getS(dark);
   const items = br.items || [];
   const total = items.reduce((s,i) => s + (Number(i.price)||0) * (Number(i.quantity)||0), 0);
-  const txt = dark ? "#ddd" : "#111";
-  const sub = dark ? "#666" : "#555";
-  const bdr = dark ? "#2a2a2a" : "rgba(0,0,0,0.08)";
+
+  // Days-overdue color follows the same convention as the customer table.
+  const daysColor =
+    br.days_borrowed > 180 ? "var(--v2-red)" :
+    br.days_borrowed > 90  ? "var(--v2-yellow)" :
+                              "var(--v2-sub)";
+  const alertPill = (s) => {
+    const cls = s === "BLOCK" ? "block" : s === "WARNING" ? "warning" : "normal";
+    return <span className={"v2-pill " + cls}><span className="v2-pill-dot"/>{s || "NORMAL"}</span>;
+  };
 
   return (
-    <div style={{...S.overlay, zIndex:1100}} onClick={e => e.target===e.currentTarget&&onClose()}>
-      <div style={S.modal} onClick={e=>e.stopPropagation()}>
-        <div style={S.mhead}>
-          <div>
-            <div style={{fontSize:13,fontWeight:600,color:txt}}>{br.borrow_no}</div>
-            <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+    <div className="v2-modal-overlay" style={{zIndex:1100}} onClick={e => e.target===e.currentTarget&&onClose()}>
+      <div className="v2-modal" onClick={e=>e.stopPropagation()}>
+        <div className="v2-modal-header">
+          <div className="v2-modal-title-block">
+            <div className="v2-modal-title">{br.borrow_no}</div>
+            <div className="v2-modal-subtitle">
               <span>{br.borrow_date}</span><span>·</span>
-              <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):sub,fontWeight:500}}>{br.days_borrowed} {t.days}</span>
-              <span>·</span>{badge(br.borrow_alert, dark)}
+              <span style={{color: daysColor, fontWeight: 500}}>{br.days_borrowed} {t.days}</span>
+              <span>·</span>
+              {alertPill(br.borrow_alert)}
             </div>
           </div>
-          <button style={S.closeBtn} onClick={onClose}>✕</button>
+          <button className="v2-modal-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <div style={{padding:"12px 14px",flex:1}}>
+
+        <div className="v2-modal-body flush">
           {items.length === 0 ? (
-            <div style={{padding:"20px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.noProduct}</div>
+            <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>{t.noProduct}</div>
           ) : (
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <table className="v2-data-table">
               <thead>
-                <tr style={{background:dark?"#222":"#f5f5f3"}}>
-                  {["#",t.productCode,t.productName,t.qty,t.price,t.total].map(h=>(
-                    <th key={h} style={{padding:"6px 10px",textAlign:[t.qty,t.price,t.total].includes(h)?"right":"left",fontWeight:600,color:sub,borderBottom:`0.5px solid ${bdr}`,width:h==="#"?"32px":undefined}}>{h}</th>
-                  ))}
+                <tr>
+                  <th style={{width:36}}>#</th>
+                  <th style={{width:120}}>{t.productCode}</th>
+                  <th>{t.productName}</th>
+                  <th style={{width:70,textAlign:"right"}}>{t.qty}</th>
+                  <th style={{width:100,textAlign:"right"}}>{t.price}</th>
+                  <th style={{width:120,textAlign:"right"}}>{t.total}</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item,i)=>(
-                  <tr key={i} style={{borderBottom:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.05)"}`}}>
-                    <td style={{padding:"6px 10px",color:"#888",fontWeight:500}}>{i+1}</td>
-                    <td style={{padding:"6px 10px",color:dark?"#aaa":"#333",fontWeight:500}}>{item.product_code}</td>
-                    <td style={{padding:"6px 10px",color:txt}}>{item.product_name}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",color:dark?"#aaa":"#333"}}>{item.quantity}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",color:dark?"#aaa":"#333"}}>{Number(item.price).toLocaleString()}</td>
-                    <td style={{padding:"6px 10px",textAlign:"right",fontWeight:600,color:txt}}>{(Number(item.price) * Number(item.quantity)).toLocaleString()}</td>
+                  <tr key={i}>
+                    <td className="v2-text-mono v2-text-sub">{i+1}</td>
+                    <td className="v2-text-mono v2-text-sub">{item.product_code}</td>
+                    <td>{item.product_name}</td>
+                    <td className="v2-text-mono" style={{textAlign:"right"}}>{item.quantity}</td>
+                    <td className="v2-text-mono v2-text-sub" style={{textAlign:"right"}}>{Number(item.price).toLocaleString()}</td>
+                    <td className="v2-text-mono" style={{textAlign:"right",fontWeight:600}}>{(Number(item.price) * Number(item.quantity)).toLocaleString()}</td>
                   </tr>
                 ))}
-                <tr style={{borderTop:`0.5px solid ${dark?"#333":"rgba(0,0,0,0.12)"}`,background:dark?"#222":"#f9f9f7"}}>
-                  <td colSpan={5} style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:sub}}>{t.grandTotal}</td>
-                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:txt}}>{total.toLocaleString()} บาท</td>
+                <tr style={{background:"var(--v2-card2)"}}>
+                  <td colSpan={5} style={{textAlign:"right",fontWeight:700,color:"var(--v2-sub)"}}>{t.grandTotal}</td>
+                  <td className="v2-text-mono" style={{textAlign:"right",fontWeight:700}}>{total.toLocaleString()} บาท</td>
                 </tr>
               </tbody>
             </table>
           )}
+
+          {br.remark && (
+            <div style={{padding:"16px 20px",borderTop:"1px solid var(--v2-border)"}}>
+              <div className="v2-modal-section-label">Remark</div>
+              <div className="v2-modal-note">{br.remark}</div>
+            </div>
+          )}
         </div>
-        {br.remark && (
-          <div style={{padding:"10px 14px",borderTop:`0.5px solid ${bdr}`}}>
-            <div style={{fontSize:10,fontWeight:600,color:sub,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Remark</div>
-            <div style={{fontSize:12,color:txt,background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${bdr}`,borderRadius:7,padding:"7px 10px"}}>{br.remark}</div>
-          </div>
-        )}
-        <div style={S.mfoot}>
-          <button style={S.btnGray} onClick={onClose}>← กลับ</button>
-          <div style={{display:"flex",gap:8}}>
+
+        <div className="v2-modal-footer">
+          <button className="v2-btn v2-btn-sm" onClick={onClose}>← กลับ</button>
+          <div className="v2-modal-actions">
             <button
+              className="v2-btn v2-btn-sm v2-btn-primary"
               onClick={() => window.open(`${API_BASE}/brs/${br.borrow_no}/pdf`, "_blank")}
-              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:7,border:"none",background:"#D4357A",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 13h12v1.5H2V13zm6-2L4.5 7.5l1.1-1.1 1.65 1.65V2h1.5v6.05l1.65-1.65L11.5 7.5 8 11z"/></svg>
               Export PDF
             </button>
             <button
+              className="v2-btn v2-btn-sm v2-btn-blue"
               onClick={() => printPdfFromUrl(`${API_BASE}/brs/${br.borrow_no}/pdf`, br.borrow_no)}
-              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:7,border:"0.5px solid #185FA5",background:dark?"#0C2A4A":"#E6F1FB",color:dark?"#7BB8F5":"#0C447C",fontSize:12,fontWeight:600,cursor:"pointer"}}
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5h8v3H4v-3Zm-1 9.75h10v3.25H3v-3.25ZM2 5.5h12A1.5 1.5 0 0 1 15.5 7v4.25H13.8V9.7H2.2v1.55H.5V7A1.5 1.5 0 0 1 2 5.5Zm10.5 1.65a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5h8v3H4v-3Zm-1 9.75h10v3.25H3v-3.25ZM2 5.5h12A1.5 1.5 0 0 1 15.5 7v4.25H13.8V9.7H2.2v1.55H.5V7A1.5 1.5 0 0 1 2 5.5Zm10.5 1.65a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>
               Print
             </button>
-            <button style={S.btnGray} onClick={onClose}>ปิด</button>
+            <button className="v2-btn v2-btn-sm" onClick={onClose}>ปิด</button>
           </div>
         </div>
       </div>
@@ -333,30 +346,32 @@ function CustomerModal({ customer, onClose, dark, t }) {
         </div>
       )}
 
-      <div style={S.overlay} onClick={e => e.target===e.currentTarget&&onClose()}>
-        <div style={S.modal} onClick={e=>e.stopPropagation()}>
-          <div style={S.mhead}>
-            <div>
-              <div style={{fontSize:14,fontWeight:600,color:txt}}>{customer.customer_name}</div>
+      <div className="v2-modal-overlay" onClick={e => e.target===e.currentTarget&&onClose()}>
+        <div className="v2-modal v2-modal-lg" onClick={e=>e.stopPropagation()}>
+          <div className="v2-modal-header">
+            <div className="v2-modal-title-block">
+              <div className="v2-modal-title">{customer.customer_name}</div>
               {customer.address && (
-                <div style={{display:"flex",alignItems:"flex-start",gap:5,marginTop:3,marginBottom:4}}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={dark?"#eee":"#111"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:2}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:6,fontSize:11,color:"var(--v2-sub)",lineHeight:1.5}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:2}} aria-hidden="true">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                   </svg>
-                  <span style={{fontSize:11,color:dark?"#eee":"#111",fontWeight:400,lineHeight:1.5}}>{customer.address}</span>
+                  <span>{customer.address}</span>
                 </div>
               )}
-              <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{background:dark?"#222":"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:dark?"#aaa":"#555"}}>{customer.cust_code}</span>
-                <span>·</span><span style={{color:"#888"}}>Sale: {customer.sale}</span><span>·</span>
-                <span style={{color:"#888"}}>{customer.active_br_count} {t.brActive}</span><span>·</span>
-                <span style={{color:customer.max_days>180?(dark?"#F09595":"#A32D2D"):customer.max_days>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:500}}>
+              <div className="v2-modal-subtitle">
+                <span className="v2-modal-meta-chip">{customer.cust_code}</span>
+                <span>·</span><span>Sale: <strong style={{color:"var(--v2-text)"}}>{customer.sale}</strong></span><span>·</span>
+                <span>{customer.active_br_count} {t.brActive}</span><span>·</span>
+                <span style={{color: customer.max_days>180?"var(--v2-red)":customer.max_days>90?"var(--v2-yellow)":"var(--v2-sub)", fontWeight:500}}>
                   วันค้างสูงสุด {customer.max_days} วัน
                 </span><span>·</span>
-                {badge(customer.status, dark)}
+                <span className={"v2-pill " + (customer.status==="BLOCK"?"block":customer.status==="WARNING"?"warning":"normal")}>
+                  <span className="v2-pill-dot"/>{customer.status}
+                </span>
               </div>
             </div>
-            <button style={S.closeBtn} onClick={onClose}>✕</button>
+            <button className="v2-modal-close" onClick={onClose} aria-label="Close">✕</button>
           </div>
 
           {/* ── Select toolbar ── */}
@@ -473,49 +488,68 @@ function CustomerModal({ customer, onClose, dark, t }) {
             </div>
           )}
 
-          <div style={{flex:1,overflowY:"auto"}}>
+          <div className="v2-modal-body flush" style={{padding:0}}>
             {loading ? (
-              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.brLoading}</div>
+              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>{t.brLoading}</div>
             ) : filteredBrs.length === 0 ? (
-              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>
+              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>
                 {brSearch || brFilter ? "ไม่พบ BR ที่ตรงกัน" : t.noBR}
               </div>
             ) : filteredBrs.map(br => {
               const items = br.items || [];
               const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
               const isChk = selected.has(br.borrow_no);
+              const rowBg = isChk ? "rgba(212,53,122,0.10)"
+                          : br.borrow_alert==="BLOCK"   ? "rgba(226,75,74,0.05)"
+                          : br.borrow_alert==="WARNING" ? "rgba(239,159,39,0.05)"
+                          : "transparent";
+              const alertPillCls = br.borrow_alert==="BLOCK" ? "block" : br.borrow_alert==="WARNING" ? "warning" : "normal";
               return (
-                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,
-                  background:isChk?(dark?"#2D1020":"#FFF0F5"):br.borrow_alert==="BLOCK"?(dark?"#1e0e0e":"transparent"):br.borrow_alert==="WARNING"?(dark?"#1e1600":"transparent"):"transparent"}}>
-                  {/* Checkbox */}
+                <div key={br.borrow_no} style={{
+                  padding:"12px 18px", borderBottom:"1px solid var(--v2-border)",
+                  display:"flex",alignItems:"center",gap:12,
+                  background: rowBg,
+                }}>
+                  {/* Checkbox — keeps its custom appearance to match the select-all toolbar */}
                   <div
                     onClick={() => toggleOne(br.borrow_no)}
-                    style={{width:15,height:15,borderRadius:3,border:`1.5px solid ${isChk?"#D4357A":dark?"#444":"#bbb"}`,background:isChk?"#D4357A":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
+                    style={{width:16,height:16,borderRadius:4,border:`1.5px solid ${isChk?"var(--v2-brand)":"var(--v2-border2)"}`,background:isChk?"var(--v2-brand)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
                   >
-                    {isChk && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                    {isChk && <svg width="10" height="8" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round"/></svg>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
-                      <span style={{fontSize:12,fontWeight:600,color:txt}}>{br.borrow_no}</span>
-                      <span style={{fontSize:11,color:"#888"}}>{br.borrow_date}</span>
-                      {badge(br.borrow_alert, dark)}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"var(--v2-text)",fontFamily:"var(--v2-mono)"}}>{br.borrow_no}</span>
+                      <span style={{fontSize:11,color:"var(--v2-sub)"}}>{br.borrow_date}</span>
+                      <span className={"v2-pill " + alertPillCls}>
+                        <span className="v2-pill-dot"/>{br.borrow_alert || "NORMAL"}
+                      </span>
                     </div>
-                    <div style={{fontSize:11,color:"#888"}}>
-                      <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:br.days_borrowed>90?600:400}}>
+                    <div style={{fontSize:11,color:"var(--v2-sub)"}}>
+                      <span style={{
+                        color: br.days_borrowed>180 ? "var(--v2-red)"
+                             : br.days_borrowed>90  ? "var(--v2-yellow)"
+                             : "var(--v2-sub)",
+                        fontWeight: br.days_borrowed>90 ? 600 : 400,
+                      }}>
                         {br.days_borrowed} วัน
                       </span>
                       {" · "}{items.length} รายการสินค้า{" · "}
-                      <span style={{color:dark?"#aaa":"#333",fontWeight:500}}>{total.toLocaleString()} บาท</span>
+                      <span className="v2-text-mono" style={{color:"var(--v2-text)",fontWeight:600}}>{total.toLocaleString()} บาท</span>
                     </div>
                   </div>
-                  <button style={{...S.btnBlue,flexShrink:0}} onClick={()=>setSelectedBr(br)}>{t.detail}</button>
+                  <button className="v2-btn v2-btn-sm" onClick={()=>setSelectedBr(br)} style={{flexShrink:0}}>{t.detail}</button>
                 </div>
               );
             })}
           </div>
-          <div style={S.mfoot}>
-            <div/>
-            <button style={S.btnGray} onClick={onClose}>ปิด</button>
+          <div className="v2-modal-footer">
+            <div style={{fontSize:11,color:"var(--v2-sub)"}}>
+              {!loading && brs.length > 0 && (
+                <span>{filteredBrs.length === brs.length ? `${brs.length} BR` : `${filteredBrs.length} / ${brs.length} BR`}</span>
+              )}
+            </div>
+            <button className="v2-btn v2-btn-sm" onClick={onClose}>ปิด</button>
           </div>
         </div>
       </div>
