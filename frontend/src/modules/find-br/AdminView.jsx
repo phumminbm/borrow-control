@@ -176,97 +176,141 @@ export default function AdminView({ customers, syncLogs, syncHealth, dark, analy
   const da = h2hA ? h2hStats(h2hA) : null;
   const db2 = h2hB ? h2hStats(h2hB) : null;
 
-  const inp = {padding:"7px 10px",fontSize:12,border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`,borderRadius:8,background:dark?"#1a1a1a":"#fff",color:dark?"#ddd":"#111"};
   const cardStyle = {background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10,padding:14};
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 50px)"}}>
+    <div style={{display:"flex",flexDirection:"column",minHeight:"100%",padding:"22px 28px 40px"}}>
 
       {/* ── FIXED TOP ── */}
-      <div style={{flexShrink:0}}>
+      <div>
 
-        {/* Filter row */}
-        <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+        {/* Team chip filter row (mockup-styled) + search/select cluster */}
+        <div className="v2-team-chip-row" style={{justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
-            <button onClick={()=>{setTeamFilter("");setSelTeam(null);setSaleFilter("");}} style={{
-              padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
-              border:`1px solid ${dark?"#333":"rgba(0,0,0,0.15)"}`,
-              background:!teamFilter?(dark?"#eee":"#111"):(dark?"#222":"#fff"),
-              color:!teamFilter?(dark?"#111":"#fff"):(dark?"#888":"#555"),transition:"all .15s",
-            }}>{t.allTeams}</button>
+            <button
+              type="button"
+              className={"v2-team-chip" + (teamFilter ? "" : " active")}
+              style={{
+                background: teamFilter ? "transparent" : "var(--v2-text)",
+                color: teamFilter ? "var(--v2-sub)" : "var(--v2-bg)",
+                borderColor: teamFilter ? "var(--v2-border2)" : "var(--v2-text)",
+              }}
+              onClick={()=>{setTeamFilter("");setSelTeam(null);setSaleFilter("");}}
+            >{t.allTeams}</button>
             {Object.keys(TEAMS).map(tm=>(
-              <button key={tm} onClick={()=>{setTeamFilter(tm===teamFilter?"":tm);setSelTeam(tm===teamFilter?null:tm);setSaleFilter("");}} style={{
-                padding:"5px 12px",fontSize:11,fontWeight:500,borderRadius:20,cursor:"pointer",
-                border:`1px solid ${TEAM_COLORS[tm]}`,
-                background:teamFilter===tm?TEAM_COLORS[tm]:(dark?"#1a1a1a":"#fff"),
-                color:teamFilter===tm?"#fff":TEAM_COLORS[tm],transition:"all .15s",
-              }}>{tm}</button>
+              <button
+                type="button"
+                key={tm}
+                className={"v2-team-chip" + (teamFilter===tm ? " active" : "")}
+                style={{
+                  borderColor: TEAM_COLORS[tm],
+                  background: teamFilter===tm ? TEAM_COLORS[tm] : "transparent",
+                  color: teamFilter===tm ? "#fff" : TEAM_COLORS[tm],
+                }}
+                onClick={()=>{setTeamFilter(tm===teamFilter?"":tm);setSelTeam(tm===teamFilter?null:tm);setSaleFilter("");}}
+              >{tm}</button>
             ))}
           </div>
-          <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
-            <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,width:130}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+            <select className="v2-filter-sel" value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{minWidth:130}}>
               <option value="">ทุก Sale</option>
-              {[...new Set(allSales)].map(s=><option key={s}>{s}</option>)}
+              {[...new Set(allSales)].map(s=><option key={s} value={s}>{s}</option>)}
             </select>
-            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,width:120}}>
+            <select className="v2-filter-sel" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{minWidth:120}}>
               <option value="">ทุกสถานะ</option>
               <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
             </select>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."
-              style={{...inp,width:150,outline:"none"}}/>
+            <div className="v2-search-input" style={{minWidth:180}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ค้นหาลูกค้า..."/>
+            </div>
           </div>
         </div>
 
-        {/* KPI */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
-          {[
-            [t.totalCustomers, filtered.length.toLocaleString(), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#2a2a2a":"var(--color-border-secondary)", dark?"#eee":"var(--color-text-primary)", dark?"#ddd":"#888"],
-            ["BLOCK", filteredBl, dark?"#2D1010":"#FCEBEB", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D"],
-            ["WARNING", filteredWa, dark?"#2D1E00":"#FAEEDA", dark?"#7A5500":"#FAC775", dark?"#FAC775":"#854F0B", dark?"#FAC775":"#854F0B"],
-            ["NORMAL", filteredNo, dark?"#162010":"#EAF3DE", dark?"#3A6014":"#C0DD97", dark?"#C0DD97":"#3B6D11", dark?"#C0DD97":"#3B6D11"],
-            [t.brActive, filteredBR.toLocaleString(), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#2a2a2a":"var(--color-border-secondary)", dark?"#eee":"var(--color-text-primary)", dark?"#ddd":"#888"],
-            // 7th element = full exact value shown on hover (browser-native title tooltip).
-            // Used only for the Outstanding Value card so admins can read the full ฿ figure
-            // during reconciliation without affecting any sync/calculation logic.
-            [t.totalValue, fmtVal(filteredValue), dark?"#1a1a1a":"var(--color-background-primary)", dark?"#7A2020":"#F09595", dark?"#F09595":"#A32D2D", dark?"#F09595":"#A32D2D", `฿ ${Math.round(filteredValue).toLocaleString()}`],
-          ].map(([label,val,bg,bd,vc,lc,fullTitle],i)=>(
-            <div key={i} title={fullTitle} style={{background:bg,border:`1.5px solid ${bd}`,borderRadius:10,padding:"10px 12px",cursor:fullTitle?"help":"default"}}>
-              <div style={{fontSize:10,color:lc,marginBottom:2,fontWeight:i>0&&i<4?500:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
-              <div style={{fontSize:i===5?17:19,fontWeight:600,color:vc}}>{val}</div>
+        {/* KPI strip (mockup-styled, 6 cards) */}
+        <div className="v2-kpi-grid cols-6">
+          <div className="v2-kpi" onClick={() => setStatusFilter("")}>
+            <div className="v2-kpi-icon blue">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
             </div>
-          ))}
+            <div className="v2-kpi-label">{t.totalCustomers}</div>
+            <div className="v2-kpi-val">{filtered.length.toLocaleString()}</div>
+          </div>
+          <div className={"v2-kpi" + (statusFilter==="BLOCK" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="BLOCK" ? "" : "BLOCK")}>
+            <div className="v2-kpi-icon red">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            </div>
+            <div className="v2-kpi-label">BLOCK</div>
+            <div className="v2-kpi-val red">{filteredBl.toLocaleString()}</div>
+          </div>
+          <div className={"v2-kpi" + (statusFilter==="WARNING" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="WARNING" ? "" : "WARNING")}>
+            <div className="v2-kpi-icon yellow">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            </div>
+            <div className="v2-kpi-label">WARNING</div>
+            <div className="v2-kpi-val yellow">{filteredWa.toLocaleString()}</div>
+          </div>
+          <div className={"v2-kpi" + (statusFilter==="NORMAL" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="NORMAL" ? "" : "NORMAL")}>
+            <div className="v2-kpi-icon green">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div className="v2-kpi-label">NORMAL</div>
+            <div className="v2-kpi-val green">{filteredNo.toLocaleString()}</div>
+          </div>
+          <div className="v2-kpi">
+            <div className="v2-kpi-icon purple">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div className="v2-kpi-label">{t.brActive}</div>
+            <div className="v2-kpi-val fs-22">{filteredBR.toLocaleString()}</div>
+          </div>
+          <div className="v2-kpi" title={`฿ ${Math.round(filteredValue).toLocaleString()}`} style={{cursor:"help"}}>
+            <div className="v2-kpi-icon red">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div className="v2-kpi-label">{t.totalValue}</div>
+            <div className="v2-kpi-val red fs-20">{fmtVal(filteredValue)}</div>
+          </div>
         </div>
 
-        {/* Sync bar */}
+        {/* Sync bar (mockup-styled card-look) */}
         {syncHealth && syncHealth.status && (() => {
           const palette = {
-            green:  { dot: "#639922", bg: dark?"#1a2b14":"#f0f7e8", text: dark?"#cfe2b6":"#3e6a13" },
-            yellow: { dot: "#EF9F27", bg: dark?"#2b220e":"#fdf5e5", text: dark?"#f0d7a2":"#8a5a0f" },
-            red:    { dot: "#A32D2D", bg: dark?"#2b1414":"#fbeaea", text: dark?"#f0a5a5":"#7a1818" },
-          }[syncHealth.status] || { dot: "#888", bg: "transparent", text: "#888" };
+            green:  "var(--v2-green)",
+            yellow: "var(--v2-yellow)",
+            red:    "var(--v2-red)",
+          }[syncHealth.status] || "var(--v2-sub)";
           const hrs = syncHealth.hours_since_last_swap;
           const ago = hrs == null ? "—"
                     : hrs < 1 ? `${Math.round(hrs*60)} min ago`
                     : hrs < 48 ? `${hrs.toFixed(1)} h ago`
                     : `${Math.floor(hrs/24)} days ago`;
           return (
-            <div style={{background:palette.bg,border:`1px solid ${palette.dot}33`,borderRadius:8,padding:"7px 14px",marginBottom:10,fontSize:12,color:palette.text,display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
-              <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:palette.dot}}/>
+            <div style={{
+              background:"var(--v2-card)", border:`1px solid var(--v2-border)`, borderLeft:`3px solid ${palette}`,
+              borderRadius:8, padding:"10px 14px", marginBottom:12, fontSize:12,
+              color:"var(--v2-text)", display:"flex",flexWrap:"wrap",gap:14,alignItems:"center",
+            }}>
+              <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:palette}}/>
               <strong>Snapshot:</strong>
               <span>last swap {ago}</span>
-              <span style={{opacity:0.7}}>· {syncHealth.message}</span>
+              <span style={{color:"var(--v2-sub)"}}>· {syncHealth.message}</span>
             </div>
           );
         })()}
 
         {lastSync && (
-          <div style={{background:dark?"#1a1a1a":"#f9f9f7",border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,borderRadius:8,padding:"7px 14px",marginBottom:10,fontSize:11,color:"#888",display:"flex",flexWrap:"wrap",gap:12,alignItems:"center"}}>
-            <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"#639922":"#EF9F27",marginRight:5}}/><strong style={{color:dark?"#ddd":"#555"}}>{t.syncLatest}:</strong> {lastSync.synced_at}</span>
+          <div style={{
+            background:"var(--v2-card)", border:"1px solid var(--v2-border)",
+            borderRadius:8, padding:"8px 14px", marginBottom:14, fontSize:11,
+            color:"var(--v2-sub)", display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",
+          }}>
+            <span><span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:lastSync.status==="success"?"var(--v2-green)":"var(--v2-yellow)",marginRight:5}}/><strong style={{color:"var(--v2-text)"}}>{t.syncLatest}:</strong> {lastSync.synced_at}</span>
             <span>Sheet {lastSync.sheet_rows?.toLocaleString()} {t.rows}</span>
-            <span style={{color:"#378ADD"}}>+{lastSync.br_inserted} {t.new}</span>
+            <span style={{color:"var(--v2-blue)"}}>+{lastSync.br_inserted} {t.new}</span>
             <span>~{lastSync.br_updated} {t.change}</span>
             <span>-{lastSync.br_closed} {t.close}</span>
-            <span style={{color:lastSync.errors>0?(dark?"#F09595":"#A32D2D"):"#639922"}}>{lastSync.errors} error</span>
+            <span style={{color:lastSync.errors>0?"var(--v2-red)":"var(--v2-green)"}}>{lastSync.errors} error</span>
             <span>{(lastSync.duration_ms/1000).toFixed(1)}s</span>
           </div>
         )}
