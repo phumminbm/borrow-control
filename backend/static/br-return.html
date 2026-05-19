@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <style>
 :root {
+  /* ── BR Return original tokens (kept byte-identical) ───────────── */
   --pink:   #D4357A;
   --green:  #4ECDA0;
   --yellow: #F0B429;
@@ -25,6 +26,51 @@
   --sub:    #C8D0E0;
   --sub2:   #8B95A8;
   --mono:   'JetBrains Mono', monospace;
+
+  /* ─────────────────────────────────────────────────────────────────
+     Task 1B-C C1 (2026-05-19): v2-shell-aligned tokens (additive)
+     ─────────────────────────────────────────────────────────────────
+     These tokens mirror frontend/src/modules/v2-shell/shellTokens.css
+     so that BR Return's components can progressively adopt the same
+     palette/shapes as the rest of the Desktop shell without forcing a
+     big-bang rewrite. Original tokens above are intentionally unchanged
+     — every existing selector that references --pink, --green, --blue,
+     etc. continues to render exactly as before this commit.
+     Subsequent sub-phases (C2 topbar, C3 KPI/filters, C4 table) will
+     opt specific selectors INTO the v2 tokens as they're restyled.
+     ───────────────────────────────────────────────────────────────── */
+  --v2-brand:        #D4357A;
+  --v2-brand-2:      #9A1A56;
+  --v2-fb-accent:    #378ADD;
+  --v2-br-accent:    #D4357A;
+
+  --v2-green:        #639922;
+  --v2-green-soft:   #97C459;
+  --v2-yellow:       #EF9F27;
+  --v2-red:          #E24B4A;
+  --v2-blue:         #378ADD;
+  --v2-purple:       #7F77DD;
+
+  --v2-bg:           #0a0a0a;
+  --v2-card:         #141414;
+  --v2-card2:        #1a1a1a;
+  --v2-border:       #222;
+  --v2-border2:      #2a2a2a;
+  --v2-text:         #eeeeee;
+  --v2-sub:          #888888;
+  --v2-sub2:         #555555;
+  --v2-nav-bg:       #111111;
+  --v2-nav-border:   #1f1f1f;
+
+  --v2-sans:         'Inter', 'IBM Plex Sans Thai', -apple-system, sans-serif;
+  --v2-mono:         'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+  --v2-easing:       cubic-bezier(0.22,1,0.36,1);
+
+  /* Shared shape scale that v2 components use */
+  --v2-radius-sm:    6px;
+  --v2-radius-md:    8px;
+  --v2-radius-lg:    11px;
+  --v2-radius-xl:    14px;
 }
 
 /* ── Light Mode ── */
@@ -40,6 +86,21 @@
   --sub:    #1F2937;
   --sub2:   #4B5563;
   --mono:   'JetBrains Mono', monospace;
+
+  /* v2-aligned tokens under light theme (parallel to shellTokens.css's
+     :root.v2-light block). Note: BR Return uses :root.light (without
+     the v2- prefix) for its theme switch — we ride on the same class
+     so dark/light auto-applies to v2 tokens too. */
+  --v2-bg:           #f5f5f3;
+  --v2-card:         #ffffff;
+  --v2-card2:        #fafaf8;
+  --v2-border:       rgba(0,0,0,0.08);
+  --v2-border2:      rgba(0,0,0,0.12);
+  --v2-text:         #111111;
+  --v2-sub:          #666666;
+  --v2-sub2:         #999999;
+  --v2-nav-bg:       #ffffff;
+  --v2-nav-border:   rgba(0,0,0,0.06);
 }
 
 /* ── Topbar / Sidebar ── */
