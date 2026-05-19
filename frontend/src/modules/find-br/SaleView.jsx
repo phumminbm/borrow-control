@@ -346,30 +346,32 @@ function CustomerModal({ customer, onClose, dark, t }) {
         </div>
       )}
 
-      <div style={S.overlay} onClick={e => e.target===e.currentTarget&&onClose()}>
-        <div style={S.modal} onClick={e=>e.stopPropagation()}>
-          <div style={S.mhead}>
-            <div>
-              <div style={{fontSize:14,fontWeight:600,color:txt}}>{customer.customer_name}</div>
+      <div className="v2-modal-overlay" onClick={e => e.target===e.currentTarget&&onClose()}>
+        <div className="v2-modal v2-modal-lg" onClick={e=>e.stopPropagation()}>
+          <div className="v2-modal-header">
+            <div className="v2-modal-title-block">
+              <div className="v2-modal-title">{customer.customer_name}</div>
               {customer.address && (
-                <div style={{display:"flex",alignItems:"flex-start",gap:5,marginTop:3,marginBottom:4}}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={dark?"#eee":"#111"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:2}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:6,fontSize:11,color:"var(--v2-sub)",lineHeight:1.5}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:2}} aria-hidden="true">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                   </svg>
-                  <span style={{fontSize:11,color:dark?"#eee":"#111",fontWeight:400,lineHeight:1.5}}>{customer.address}</span>
+                  <span>{customer.address}</span>
                 </div>
               )}
-              <div style={{fontSize:11,color:"#888",marginTop:3,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{background:dark?"#222":"#f1f0eb",borderRadius:4,padding:"1px 7px",fontWeight:500,color:dark?"#aaa":"#555"}}>{customer.cust_code}</span>
-                <span>·</span><span style={{color:"#888"}}>Sale: {customer.sale}</span><span>·</span>
-                <span style={{color:"#888"}}>{customer.active_br_count} {t.brActive}</span><span>·</span>
-                <span style={{color:customer.max_days>180?(dark?"#F09595":"#A32D2D"):customer.max_days>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:500}}>
+              <div className="v2-modal-subtitle">
+                <span className="v2-modal-meta-chip">{customer.cust_code}</span>
+                <span>·</span><span>Sale: <strong style={{color:"var(--v2-text)"}}>{customer.sale}</strong></span><span>·</span>
+                <span>{customer.active_br_count} {t.brActive}</span><span>·</span>
+                <span style={{color: customer.max_days>180?"var(--v2-red)":customer.max_days>90?"var(--v2-yellow)":"var(--v2-sub)", fontWeight:500}}>
                   วันค้างสูงสุด {customer.max_days} วัน
                 </span><span>·</span>
-                {badge(customer.status, dark)}
+                <span className={"v2-pill " + (customer.status==="BLOCK"?"block":customer.status==="WARNING"?"warning":"normal")}>
+                  <span className="v2-pill-dot"/>{customer.status}
+                </span>
               </div>
             </div>
-            <button style={S.closeBtn} onClick={onClose}>✕</button>
+            <button className="v2-modal-close" onClick={onClose} aria-label="Close">✕</button>
           </div>
 
           {/* ── Select toolbar ── */}
@@ -486,49 +488,68 @@ function CustomerModal({ customer, onClose, dark, t }) {
             </div>
           )}
 
-          <div style={{flex:1,overflowY:"auto"}}>
+          <div className="v2-modal-body flush" style={{padding:0}}>
             {loading ? (
-              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>{t.brLoading}</div>
+              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>{t.brLoading}</div>
             ) : filteredBrs.length === 0 ? (
-              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"#aaa"}}>
+              <div style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>
                 {brSearch || brFilter ? "ไม่พบ BR ที่ตรงกัน" : t.noBR}
               </div>
             ) : filteredBrs.map(br => {
               const items = br.items || [];
               const total = items.reduce((s,i) => s+(Number(i.price)||0)*(Number(i.quantity)||0), 0);
               const isChk = selected.has(br.borrow_no);
+              const rowBg = isChk ? "rgba(212,53,122,0.10)"
+                          : br.borrow_alert==="BLOCK"   ? "rgba(226,75,74,0.05)"
+                          : br.borrow_alert==="WARNING" ? "rgba(239,159,39,0.05)"
+                          : "transparent";
+              const alertPillCls = br.borrow_alert==="BLOCK" ? "block" : br.borrow_alert==="WARNING" ? "warning" : "normal";
               return (
-                <div key={br.borrow_no} style={{padding:"11px 16px",borderBottom:`0.5px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,
-                  background:isChk?(dark?"#2D1020":"#FFF0F5"):br.borrow_alert==="BLOCK"?(dark?"#1e0e0e":"transparent"):br.borrow_alert==="WARNING"?(dark?"#1e1600":"transparent"):"transparent"}}>
-                  {/* Checkbox */}
+                <div key={br.borrow_no} style={{
+                  padding:"12px 18px", borderBottom:"1px solid var(--v2-border)",
+                  display:"flex",alignItems:"center",gap:12,
+                  background: rowBg,
+                }}>
+                  {/* Checkbox — keeps its custom appearance to match the select-all toolbar */}
                   <div
                     onClick={() => toggleOne(br.borrow_no)}
-                    style={{width:15,height:15,borderRadius:3,border:`1.5px solid ${isChk?"#D4357A":dark?"#444":"#bbb"}`,background:isChk?"#D4357A":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
+                    style={{width:16,height:16,borderRadius:4,border:`1.5px solid ${isChk?"var(--v2-brand)":"var(--v2-border2)"}`,background:isChk?"var(--v2-brand)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}
                   >
-                    {isChk && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                    {isChk && <svg width="10" height="8" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round"/></svg>}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
-                      <span style={{fontSize:12,fontWeight:600,color:txt}}>{br.borrow_no}</span>
-                      <span style={{fontSize:11,color:"#888"}}>{br.borrow_date}</span>
-                      {badge(br.borrow_alert, dark)}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"var(--v2-text)",fontFamily:"var(--v2-mono)"}}>{br.borrow_no}</span>
+                      <span style={{fontSize:11,color:"var(--v2-sub)"}}>{br.borrow_date}</span>
+                      <span className={"v2-pill " + alertPillCls}>
+                        <span className="v2-pill-dot"/>{br.borrow_alert || "NORMAL"}
+                      </span>
                     </div>
-                    <div style={{fontSize:11,color:"#888"}}>
-                      <span style={{color:br.days_borrowed>180?(dark?"#F09595":"#A32D2D"):br.days_borrowed>90?(dark?"#FAC775":"#854F0B"):"#888",fontWeight:br.days_borrowed>90?600:400}}>
+                    <div style={{fontSize:11,color:"var(--v2-sub)"}}>
+                      <span style={{
+                        color: br.days_borrowed>180 ? "var(--v2-red)"
+                             : br.days_borrowed>90  ? "var(--v2-yellow)"
+                             : "var(--v2-sub)",
+                        fontWeight: br.days_borrowed>90 ? 600 : 400,
+                      }}>
                         {br.days_borrowed} วัน
                       </span>
                       {" · "}{items.length} รายการสินค้า{" · "}
-                      <span style={{color:dark?"#aaa":"#333",fontWeight:500}}>{total.toLocaleString()} บาท</span>
+                      <span className="v2-text-mono" style={{color:"var(--v2-text)",fontWeight:600}}>{total.toLocaleString()} บาท</span>
                     </div>
                   </div>
-                  <button style={{...S.btnBlue,flexShrink:0}} onClick={()=>setSelectedBr(br)}>{t.detail}</button>
+                  <button className="v2-btn v2-btn-sm" onClick={()=>setSelectedBr(br)} style={{flexShrink:0}}>{t.detail}</button>
                 </div>
               );
             })}
           </div>
-          <div style={S.mfoot}>
-            <div/>
-            <button style={S.btnGray} onClick={onClose}>ปิด</button>
+          <div className="v2-modal-footer">
+            <div style={{fontSize:11,color:"var(--v2-sub)"}}>
+              {!loading && brs.length > 0 && (
+                <span>{filteredBrs.length === brs.length ? `${brs.length} BR` : `${filteredBrs.length} / ${brs.length} BR`}</span>
+              )}
+            </div>
+            <button className="v2-btn v2-btn-sm" onClick={onClose}>ปิด</button>
           </div>
         </div>
       </div>
