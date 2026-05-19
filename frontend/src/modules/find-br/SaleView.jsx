@@ -561,104 +561,143 @@ export default function SaleView({ customers, dark, custValues = {}, analytics, 
 
   const filteredValue = filtered.reduce((sum, c) => sum + (custValues[c.cust_code] || 0), 0);
   const fmtVal = (v) => v >= 1000000 ? `฿ ${(v/1000000).toFixed(1)}M` : `฿ ${Math.round(v).toLocaleString()}`;
-  const inp = { padding:"7px 10px", fontSize:12, border:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.15)"}`, borderRadius:8, outline:"none", background:dark?"#1a1a1a":"#fff", color:dark?"#ddd":"#111" };
+
+  const statusPill = (s) => {
+    const label = s === "BLOCK" ? "BLOCK" : s === "WARNING" ? "WARNING" : "NORMAL";
+    const cls = s === "BLOCK" ? "block" : s === "WARNING" ? "warning" : "normal";
+    return <span className={"v2-pill " + cls}><span className="v2-pill-dot"/>{label}</span>;
+  };
+  const daysClass = (days, status) => {
+    if (status === "NORMAL") return "v2-text-mono";
+    if (days >= 180) return "v2-text-mono v2-num-danger";
+    if (days >=  90) return "v2-text-mono v2-num-warn";
+    return "v2-text-mono";
+  };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 50px)"}}>
-      {/* Fixed top section */}
-      <div style={{flexShrink:0}}>
-        {bl > 0 && (
-          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`0.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:8,padding:"9px 14px",marginBottom:10,fontSize:12,color:dark?"#F09595":"#791F1F",display:"flex",gap:6,flexWrap:"wrap"}}>
-            <strong>แจ้งเตือน:</strong> {t.alertMsg(bl)}
-          </div>
-        )}
-
-        {/* KPI */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:dark?"#ddd":"#888",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.totalCustomers}</div>
-            <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.length}</div>
-          </div>
-          <div style={{background:dark?"#2D1010":"#FCEBEB",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500}}>BLOCK</div>
-            <div style={{fontSize:20,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{bl}</div>
-          </div>
-          <div style={{background:dark?"#2D1E00":"#FAEEDA",border:`1.5px solid ${dark?"#7A5500":"#FAC775"}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:dark?"#FAC775":"#854F0B",marginBottom:3,fontWeight:500}}>WARNING</div>
-            <div style={{fontSize:20,fontWeight:600,color:dark?"#FAC775":"#854F0B"}}>{wa}</div>
-          </div>
-          <div style={{background:dark?"#162010":"#EAF3DE",border:`1.5px solid ${dark?"#3A6014":"#C0DD97"}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:dark?"#C0DD97":"#3B6D11",marginBottom:3,fontWeight:500}}>NORMAL</div>
-            <div style={{fontSize:20,fontWeight:600,color:dark?"#C0DD97":"#3B6D11"}}>{filtered.length-bl-wa}</div>
-          </div>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#2a2a2a":"var(--color-border-secondary)"}`,borderRadius:10,padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:dark?"#ddd":"#888",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.brActive}</div>
-            <div style={{fontSize:20,fontWeight:600,color:dark?"#eee":"var(--color-text-primary)"}}>{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
-          </div>
-          <div style={{background:dark?"#1a1a1a":"var(--color-background-primary)",border:`1.5px solid ${dark?"#7A2020":"#F09595"}`,borderRadius:10,padding:"10px 12px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-            <div>
-              <div style={{fontSize:10,color:dark?"#F09595":"#A32D2D",marginBottom:3,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.totalValue}</div>
-              <div style={{fontSize:18,fontWeight:600,color:dark?"#F09595":"#A32D2D"}}>{fmtVal(filteredValue)}</div>
-            </div>
-            {myTeam && <span style={{fontSize:9,fontWeight:500,color:"#185FA5",background:dark?"#0C2A4A":"#E6F1FB",border:"0.5px solid #185FA5",borderRadius:4,padding:"1px 6px",alignSelf:"flex-start",marginTop:3}}>ทีม {myTeam}</span>}
-          </div>
+    <div style={{display:"flex",flexDirection:"column",minHeight:"100%",padding:"22px 28px 40px"}}>
+      {bl > 0 && (
+        <div className="v2-alert-banner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span><strong>{t.alert}:</strong> {t.alertMsg(bl)}</span>
         </div>
+      )}
 
-        {/* Filters */}
-        <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search} style={{...inp,width:"calc(100% / 6 * 2)",maxWidth:320,minWidth:160,outline:"none"}}/>
-          <select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{...inp,width:130,flexShrink:0}}>
-            <option value="">{t.allSale}</option>
-            {allSales.map(s=><option key={s}>{s}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{...inp,width:120,flexShrink:0}}>
-            <option value="">{t.allStatus}</option>
-            <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
-          </select>
+      {/* KPI strip */}
+      <div className="v2-kpi-grid cols-6">
+        <div className="v2-kpi" onClick={() => setStatusFilter("")}>
+          <div className="v2-kpi-icon blue">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div className="v2-kpi-label">{t.totalCustomers}</div>
+          <div className="v2-kpi-val">{filtered.length.toLocaleString()}</div>
+        </div>
+        <div className={"v2-kpi" + (statusFilter==="BLOCK" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="BLOCK" ? "" : "BLOCK")}>
+          <div className="v2-kpi-icon red">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          </div>
+          <div className="v2-kpi-label">BLOCK</div>
+          <div className="v2-kpi-val red">{bl.toLocaleString()}</div>
+        </div>
+        <div className={"v2-kpi" + (statusFilter==="WARNING" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="WARNING" ? "" : "WARNING")}>
+          <div className="v2-kpi-icon yellow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div className="v2-kpi-label">WARNING</div>
+          <div className="v2-kpi-val yellow">{wa.toLocaleString()}</div>
+        </div>
+        <div className={"v2-kpi" + (statusFilter==="NORMAL" ? " sel" : "")} onClick={() => setStatusFilter(statusFilter==="NORMAL" ? "" : "NORMAL")}>
+          <div className="v2-kpi-icon green">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div className="v2-kpi-label">NORMAL</div>
+          <div className="v2-kpi-val green">{(filtered.length - bl - wa).toLocaleString()}</div>
+        </div>
+        <div className="v2-kpi">
+          <div className="v2-kpi-icon purple">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
+          </div>
+          <div className="v2-kpi-label">{t.brActive}</div>
+          <div className="v2-kpi-val fs-22">{filtered.reduce((s,c)=>s+c.active_br_count,0).toLocaleString()}</div>
+        </div>
+        <div className="v2-kpi">
+          <div className="v2-kpi-icon red">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          </div>
+          <div className="v2-kpi-label">{t.totalValue}</div>
+          <div className="v2-kpi-val red fs-20">{fmtVal(filteredValue)}</div>
+          {myTeam && <div className="v2-kpi-sub" style={{color:"var(--v2-blue)"}}>ทีม {myTeam}</div>}
         </div>
       </div>
 
-      {/* Scrollable table */}
-      <div style={{flex:1,overflow:"auto",background:dark?"#141414":"#fff",border:`0.5px solid ${dark?"#222":"rgba(0,0,0,0.1)"}`,borderRadius:10}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}>
-          <thead>
-            <tr style={{position:"sticky",top:0,zIndex:10,background:dark?"#1a1a1a":"#f9f9f7"}}>
-              {["#",t.custCode,t.custName,t.address,"Sale",t.br,t.daysOverdue,t.value,t.status,""].map((h,i)=>(
-                <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:500,color:dark?"#ddd":"#888",
-                  borderBottom:`0.5px solid ${dark?"#2a2a2a":"rgba(0,0,0,0.08)"}`,
-                  width:i===0?"28px":i===1?"75px":i===2?"180px":i===4?"65px":i===5?"38px":i===6?"85px":i===7?"95px":i===8?"80px":i===9?"85px":"auto"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={9} style={{padding:"32px",textAlign:"center",fontSize:12,color:"#888"}}>{t.noCustomer}</td></tr>
-            ) : filtered.map((c,i)=>(
-              <tr key={c.cust_code} style={{background:rowBg(c.status),borderBottom:`0.5px solid ${dark?"#1e1e1e":"rgba(0,0,0,0.06)"}`}}>
-                <td style={{padding:"9px 10px",fontSize:11,color:"#ddd"}}>{i+1}</td>
-                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,color:dark?"#ddd":"#555",fontFamily:"monospace"}}>{c.cust_code}</td>
-                <td style={{padding:"9px 10px",fontSize:12,fontWeight:500,color:dark?"#ddd":"#111"}}>{c.customer_name}</td>
-                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#111",maxWidth:0}}>
-                  {c.address ? (
-                    <div style={{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",lineHeight:1.5}}>{c.address}</div>
-                  ) : <span style={{color:dark?"#333":"#ccc"}}>—</span>}
-                </td>
-                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.sale}</td>
-                <td style={{padding:"9px 10px",fontSize:11,color:dark?"#ddd":"#777"}}>{c.active_br_count}</td>
-                <td style={{padding:"9px 10px",fontSize:12,fontWeight:c.max_days>90?500:400,
-                  color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#ddd":"#1a1a1a")}}>{c.max_days} วัน</td>
-                <td style={{padding:"9px 10px",fontSize:11,fontWeight:500,
-                  color:c.max_days>180?(dark?"#F09595":"#A32D2D"):c.max_days>90?(dark?"#FAC775":"#854F0B"):(dark?"#ddd":"#888")}}>
-                  {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
-                </td>
-                <td style={{padding:"9px 10px"}}><StatusBadge status={c.status}/></td>
-                <td style={{padding:"9px 10px"}}>
-                  <button style={S.btnBlue} onClick={()=>setSelectedCustomer(c)}>{t.detail}</button>
-                </td>
+      {/* Section: search + table */}
+      <div className="v2-section" style={{display:"flex",flexDirection:"column",flex:1,minHeight:0,marginBottom:0}}>
+        <div className="v2-section-header">
+          <div>
+            <div className="v2-section-title">{t.custName} ({filtered.length.toLocaleString()})</div>
+            <div className="v2-section-sub">{t.show} {filtered.length.toLocaleString()} {t.from} {customers.length.toLocaleString()} {t.items}</div>
+          </div>
+          <div className="v2-search-row">
+            <div className="v2-search-input" style={{minWidth:260}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.search}/>
+            </div>
+            <select className="v2-filter-sel" value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{minWidth:130}}>
+              <option value="">{t.allSale}</option>
+              {allSales.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="v2-filter-sel" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{minWidth:130}}>
+              <option value="">{t.allStatus}</option>
+              <option>BLOCK</option><option>WARNING</option><option>NORMAL</option>
+            </select>
+          </div>
+        </div>
+        <div className="v2-section-body flush" style={{flex:1,overflow:"auto",minHeight:0}}>
+          <table className="v2-data-table">
+            <thead>
+              <tr>
+                <th style={{width:34}}>#</th>
+                <th style={{width:90}}>{t.custCode}</th>
+                <th>{t.custName}</th>
+                <th>{t.address}</th>
+                <th style={{width:80}}>Sale</th>
+                <th style={{width:50,textAlign:"right"}}>{t.br}</th>
+                <th style={{width:100,textAlign:"right"}}>{t.daysOverdue}</th>
+                <th style={{width:110,textAlign:"right"}}>{t.value}</th>
+                <th style={{width:100}}>{t.status}</th>
+                <th style={{width:110}}></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={10} style={{padding:"32px",textAlign:"center",fontSize:12,color:"var(--v2-sub2)"}}>{t.noCustomer}</td></tr>
+              ) : filtered.map((c,i)=>{
+                const rowCls = c.status === "BLOCK" ? "row-block" : c.status === "WARNING" ? "row-warn" : "";
+                return (
+                  <tr key={c.cust_code} className={rowCls}>
+                    <td className="v2-text-mono v2-text-sub">{i+1}</td>
+                    <td className="v2-text-mono v2-text-sub">{c.cust_code}</td>
+                    <td><strong>{c.customer_name}</strong></td>
+                    <td className="v2-text-sub" style={{maxWidth:260,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {c.address || "—"}
+                    </td>
+                    <td><strong style={{fontSize:11}}>{c.sale}</strong></td>
+                    <td className="v2-text-mono v2-text-sub" style={{textAlign:"right"}}>{c.active_br_count}</td>
+                    <td className={daysClass(c.max_days, c.status)} style={{textAlign:"right"}}>{c.max_days} {t.days}</td>
+                    <td className="v2-text-mono" style={{textAlign:"right",fontWeight:600}}>
+                      {custValues[c.cust_code] ? fmtVal(custValues[c.cust_code]) : "—"}
+                    </td>
+                    <td>{statusPill(c.status)}</td>
+                    <td><button className="v2-btn v2-btn-sm" onClick={()=>setSelectedCustomer(c)}>{t.detail}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {selectedCustomer && (
