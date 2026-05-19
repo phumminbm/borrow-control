@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>BR Return — NeoBiotech</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<script>
+  // Task 1B-C C4a (2026-05-19): "embedded mode" detection.
+  // When this page is loaded inside an iframe (e.g. from the v2 shell at
+  // /v2 → BR Return), add an `embedded` class to <html> BEFORE any CSS
+  // evaluates. CSS rules under :root.embedded then hide BR Return's own
+  // topbar / sidebar / module-banner so the v2 shell can own that chrome
+  // without visual duplication. Standalone access (no parent frame) keeps
+  // the full original chrome unchanged.
+  // Wrapped in try/catch so cross-origin restrictions or other quirks can
+  // never break the page — worst case, embedded mode just doesn't activate
+  // and the full chrome shows (the pre-C4a behavior).
+  try {
+    if (window.parent && window.parent !== window) {
+      document.documentElement.classList.add('embedded');
+    }
+  } catch(_) {}
+</script>
 <style>
 :root {
   /* ── BR Return original tokens (kept byte-identical) ───────────── */
