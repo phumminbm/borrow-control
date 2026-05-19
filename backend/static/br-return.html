@@ -1253,6 +1253,189 @@ tbody tr:last-child td{border-bottom:none;}
 .cal-range-display{font-size:12px;font-family:var(--mono);color:var(--text);}
 .cal-range-display span{color:var(--sub2);}
 .cal-hint{font-size:11px;color:var(--sub2);}
+
+/* Desktop BR Return mockup parity (visual only).
+   Keeps all existing data/process logic untouched; these rules only align
+   the embedded desktop surface to docs/mockups/Borrow_Mockup_Combine_Modules.html. */
+@media (min-width: 900px) {
+  :root.embedded body,
+  :root.embedded #app,
+  :root.embedded #content {
+    background: var(--v2-bg);
+  }
+
+  :root.embedded #content {
+    min-height: 100vh;
+  }
+
+  :root.embedded #tabbar {
+    height: 45px;
+    padding: 0 28px;
+    background: var(--v2-bg);
+    border-bottom: 1px solid var(--v2-border);
+  }
+
+  :root.embedded .tab-btn {
+    height: 45px;
+    padding: 0 22px;
+    font-size: 13px;
+    gap: 8px;
+    margin-bottom: -1px;
+  }
+
+  :root.embedded #sale-bar {
+    min-height: 58px;
+    padding: 9px 28px;
+    background: var(--v2-bg);
+    border-bottom: 1px solid var(--v2-border);
+    justify-content: space-between;
+  }
+
+  :root.embedded #sale-bar .bar-left {
+    gap: 9px;
+  }
+
+  :root.embedded #sale-bar .bar-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--v2-text);
+  }
+
+  :root.embedded .sale-dd-btn {
+    min-width: 160px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--v2-card2);
+    border-color: var(--v2-border2);
+    color: var(--v2-text);
+  }
+
+  :root.embedded .btn-create {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 9px;
+    background: var(--green);
+    color: #0a1a0f;
+    box-shadow: 0 2px 12px rgba(78,205,160,0.25);
+  }
+
+  :root.embedded #scroll-area {
+    padding: 16px 20px 40px;
+    background: var(--v2-bg);
+  }
+
+  :root.embedded .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 16px;
+  }
+
+  :root.embedded .kpi-card {
+    min-height: 112px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--v2-card);
+    border: 1px solid var(--v2-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  :root.embedded .kpi-card::before {
+    width: 3px;
+    border-radius: 12px 0 0 12px;
+  }
+
+  :root.embedded .kpi-icon {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :root.embedded .kpi-icon.yellow { background: rgba(239,159,39,0.15); color: var(--v2-yellow); }
+  :root.embedded .kpi-icon.green  { background: rgba(99,153,34,0.15);  color: var(--v2-green); }
+  :root.embedded .kpi-icon.red    { background: rgba(226,75,74,0.15);  color: var(--v2-red); }
+  :root.embedded .kpi-icon.gray   { background: rgba(128,128,128,0.15); color: var(--v2-sub); }
+
+  :root.embedded .kpi-label {
+    margin-bottom: 6px;
+    color: var(--v2-sub);
+  }
+
+  :root.embedded .kpi-val {
+    font-size: 26px;
+    line-height: 1.05;
+  }
+
+  :root.embedded .kpi-sub {
+    margin-top: 6px;
+  }
+
+  :root.embedded .filter-bar {
+    gap: 10px;
+    margin: 0 0 14px;
+  }
+
+  :root.embedded .filter-bar input,
+  :root.embedded .filter-bar select,
+  :root.embedded .btn-date-range,
+  :root.embedded .btn-clear {
+    height: 34px;
+    border-radius: 8px;
+    background-color: var(--v2-card);
+    border-color: var(--v2-border2);
+  }
+
+  :root.embedded .filter-input-wrap input {
+    width: 260px !important;
+  }
+
+  :root.embedded .table-wrap {
+    background: var(--v2-card);
+    border: 1px solid var(--v2-border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+
+  :root.embedded .table-header {
+    min-height: 52px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--v2-border);
+  }
+
+  :root.embedded .table-title {
+    font-size: 13px;
+    color: var(--v2-text);
+  }
+
+  :root.embedded .table-count {
+    font-size: 11px;
+    color: var(--v2-sub2);
+  }
+
+  :root.embedded thead tr {
+    background: var(--v2-card2);
+  }
+
+  :root.embedded th {
+    padding: 11px 14px;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+    color: var(--v2-sub);
+    border-bottom: 1px solid var(--v2-border);
+  }
+
+  :root.embedded td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+}
 </style>
 </head>
 <body>
@@ -2052,12 +2235,15 @@ function setLang(l){
   var thBtn = el('lang-th'); var enBtn = el('lang-en');
   if(thBtn) thBtn.className = (l === 'th') ? 'active' : '';
   if(enBtn) enBtn.className = (l === 'en') ? 'active' : '';
-  // Re-render every section that contains user-facing strings.
-  // Each render function is defensive (typeof check) so we don't
-  // crash if one isn't loaded yet during early init.
+  // Re-render the active section that contains user-facing strings.
+  // Rendering both Sale and Admin here lets the inactive Admin render
+  // overwrite the active Sale screen when the v2 shell sends lang:set.
   if(typeof renderSalePills === 'function') renderSalePills();
-  if(typeof renderContent === 'function') renderContent();
-  if(typeof renderAdminContent === 'function') renderAdminContent();
+  if(ACTIVE_TAB === 'admin'){
+    if(typeof renderAdminContent === 'function') renderAdminContent();
+  } else {
+    if(typeof renderContent === 'function') renderContent();
+  }
   if(typeof applyStaticI18n === 'function') applyStaticI18n();
 }
 
@@ -3085,8 +3271,16 @@ function renderContent(){
   rebuildTable();
 }
 
+function kpiIconHTML(status){
+  if(status==='pending') return '<div class="kpi-icon yellow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>';
+  if(status==='approved') return '<div class="kpi-icon green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></div>';
+  if(status==='rejected') return '<div class="kpi-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>';
+  return '<div class="kpi-icon gray"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg></div>';
+}
+
 function kpiCard(status, cls, label, val, sub){
   return '<div class="kpi-card '+cls+(FILTERS.status===status?' selected':'')+'" onclick="toggleKpiFilter(\''+status+'\')">'
+    +kpiIconHTML(status)
     +'<div class="kpi-label">'+label+'</div>'
     +'<div class="kpi-val">'+val+'</div>'
     +'<div class="kpi-sub">'+sub+'</div>'
@@ -3395,10 +3589,19 @@ function renderAdminContent(){
   rebuildAdminTable();
 }
 
+function kpiAdminSub(status){
+  if(status==='pending') return _t('br.kpi.pending.sub');
+  if(status==='approved') return _t('br.kpi.approved.sub');
+  if(status==='rejected') return _t('br.kpi.rejected.sub');
+  return _t('br.kpi.cancelled.sub');
+}
+
 function kpiAdminCard(status, cls, label, val){
   return '<div class="kpi-card '+cls+(ADMIN_FILTERS.status===status?' selected':'')+'" onclick="ADMIN_FILTERS.status=(ADMIN_FILTERS.status===\''+status+'\')?\'all\':\''+status+'\';rebuildAdminTable()">'
+    +kpiIconHTML(status)
     +'<div class="kpi-label">'+label+'</div>'
     +'<div class="kpi-val">'+val+'</div>'
+    +'<div class="kpi-sub">'+kpiAdminSub(status)+'</div>'
     +'</div>';
 }
 
