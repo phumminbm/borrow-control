@@ -72,6 +72,55 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 app = FastAPI(title="Borrow Control API", version="1.0.0")
 BR_RETURN_HTML = Path(os.getenv("BR_RETURN_HTML", Path(__file__).resolve().parent / "static" / "br-return.html"))
 
+# ═════════════════════════════════════════════════════════════════════════
+# Migration mode (2026-05-19)
+#
+# Set MIGRATION_MODE=1 env var to put the backend into a read-blocking
+# maintenance state during one-off data restores (e.g. the Supabase
+# migration). Apps Script /sync, /health checks, and read-only diagnostic
+# endpoints stay open. All other endpoints return HTTP 503 IMMEDIATELY —
+# they never reach the handler and therefore never call ensure_tables(),
+# which would otherwise issue ALTER TABLE statements that deadlock with
+# the ongoing /sync INSERTs.
+#
+# Default (env unset or "0"): middleware is fully inert; zero behavior
+# change from before this commit.
+#
+# After the restore is verified complete, unset MIGRATION_MODE (or set
+# it to "0") and behavior returns exactly to pre-flag.
+# ═════════════════════════════════════════════════════════════════════════
+MIGRATION_MODE = os.getenv("MIGRATION_MODE", "0") == "1"
+
+MIGRATION_MODE_ALLOW = (
+    "/health",
+    "/sync",
+    "/sync-health",
+    "/sync-logs",
+    "/staging-status",
+    "/br-return",
+    "/br-return.html",
+)
+
+def _is_migration_allowed(path: str) -> bool:
+    for p in MIGRATION_MODE_ALLOW:
+        if path == p or path.startswith(p + "/") or path.startswith(p + "?"):
+            return True
+    return False
+
+@app.middleware("http")
+async def migration_mode_middleware(request, call_next):
+    if MIGRATION_MODE and not _is_migration_allowed(request.url.path):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "migration_in_progress",
+                "message": "Data restore in progress. Try again in a few minutes.",
+                "retry_after_seconds": 60,
+            },
+            headers={"Retry-After": "60"},
+        )
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
