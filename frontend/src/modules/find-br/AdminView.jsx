@@ -450,14 +450,14 @@ export default function AdminView({ customers, syncLogs, syncHealth, dark, analy
           <div style={cardStyle}>
             <div style={{fontSize:12,fontWeight:600,color:dark?"#ddd":"#555",marginBottom:12}}>เปรียบเทียบ Sale</div>
             <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
-              <select value={h2hA} onChange={e=>setH2hA(e.target.value)} style={{...inp,flex:1}}>
+              <select className="v2-filter-sel" value={h2hA} onChange={e=>setH2hA(e.target.value)} style={{flex:1,minWidth:0}}>
                 <option value="">เลือก Sale A</option>
-                {allSaleNames.map(s=><option key={s}>{s}</option>)}
+                {allSaleNames.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
               <span style={{color:"#555",fontWeight:600,fontSize:13,flexShrink:0}}>VS</span>
-              <select value={h2hB} onChange={e=>setH2hB(e.target.value)} style={{...inp,flex:1}}>
+              <select className="v2-filter-sel" value={h2hB} onChange={e=>setH2hB(e.target.value)} style={{flex:1,minWidth:0}}>
                 <option value="">เลือก Sale B</option>
-                {allSaleNames.map(s=><option key={s}>{s}</option>)}
+                {allSaleNames.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             {(!h2hA||!h2hB)?(
