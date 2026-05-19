@@ -105,12 +105,17 @@
 
 /* ── Topbar / Sidebar ── */
 :root.light .logo { color: #E8ECF2; }
-:root.light #topbar .badge-ver { background: #252830; border-color: #363B47; color: #8B95A8; }
-:root.light #topbar .topbar-time { color: #8B95A8; }
-:root.light #topbar .topbar-user { border-left-color: #363B47; }
-:root.light #topbar .user-avatar { background: rgba(212,53,122,0.18); border-color: rgba(212,53,122,0.32); color: #D4357A; }
-:root.light #topbar .theme-toggle { background: #252830; border-color: #363B47; }
-:root.light #topbar { background: #1C1F26; border-bottom-color: #2E333D; box-shadow: none; }
+/* Task 1B-C C2 (2026-05-19): light-mode topbar keeps its dark
+   "chrome anchor" look (an intentional UX choice from before C2),
+   but the explicit hex values are now aligned with the v2 shell's
+   dark-mode token values so the colors match the rest of the system.
+   The user-avatar override is intentionally removed — the gradient
+   we now use in the base rule looks good on both themes. */
+:root.light #topbar              { background: #111111; border-bottom-color: #1f1f1f; box-shadow: none; }
+:root.light #topbar .badge-ver   { background: #1a1a1a; border-color: #2a2a2a; color: #888888; }
+:root.light #topbar .topbar-time { color: #888888; }
+:root.light #topbar .topbar-user { border-left-color: #2a2a2a; }
+:root.light #topbar .theme-toggle { background: #1a1a1a; border-color: #2a2a2a; }
 :root.light #sidebar { background: #FFFFFF; border-right-color: #E2E4E9; }
 :root.light .sidebar-label { color: #9CA3AF; }
 :root.light .sidebar-item { color: #5C6070; }
@@ -354,9 +359,12 @@
 :root.light #cal-backdrop { background: rgba(0,0,0,0.15); }
 
 /* ── Topbar user ── */
-:root.light .user-avatar { background: #FDE8F3; border-color: #F5C6DC; color: #D4357A; }
-:root.light .topbar-time { color: #9CA3AF; }
-:root.light .badge-ver { background: #F4F5F7; border-color: #D0D3DA; color: #5C6070; }
+/* Task 1B-C C2: light-mode overrides aligned with v2 shell. The user
+   avatar keeps its brand gradient (looks good on both themes), so it
+   no longer needs a per-theme override. badge-ver + topbar-time now
+   pick up var(--v2-*) automatically via :root.light. */
+:root.light .badge-ver  { background: var(--v2-card2); border-color: var(--v2-border2); color: var(--v2-sub); }
+:root.light .topbar-time { color: var(--v2-sub); }
 
 
 /* ── iPhone-style theme toggle (sliding switch with night→sunrise gradient) ── */
@@ -416,27 +424,42 @@ input,select,textarea,button{font-family:inherit;font-size:13px;}
 #app{display:flex;flex-direction:column;height:100vh;}
 
 /* Topbar */
+/* Task 1B-C C2 (2026-05-19): topbar opted into v2-shell tokens so that
+   BR Return's top chrome matches Find BR's shell. Visual delta vs C1:
+     - Background: slightly darker (more pure black, less bluish tint)
+     - Borders: subtler, matching the v2 nav-border
+     - User avatar: brand-gradient (matches mockup pattern)
+   No structural / layout / font changes. Heights and spacings preserved. */
 #topbar{
-  height:48px;background:#1C1F26;border-bottom:1px solid #2E333D;
+  height:48px;background:var(--v2-nav-bg);border-bottom:1px solid var(--v2-nav-border);
   display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;
   position:relative;z-index:10;
 }
-.logo{font-size:16px;font-weight:700;letter-spacing:-0.5px;color:#fff;}
-.logo em{font-style:normal;color:var(--pink);}
+.logo{font-size:16px;font-weight:700;letter-spacing:-0.5px;color:var(--v2-text);}
+.logo em{font-style:normal;color:var(--v2-brand);}
 .badge-module{
   font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--green);
   background:rgba(78,205,160,0.12);border:0.5px solid rgba(78,205,160,0.3);
   border-radius:3px;padding:2px 7px;text-transform:uppercase;
 }
 .badge-ver{
-  font-size:9px;font-weight:600;color:var(--sub);
-  background:var(--bg3);border:0.5px solid var(--border2);
-  border-radius:3px;padding:2px 6px;font-family:var(--mono);
+  font-size:9px;font-weight:600;color:var(--v2-sub);
+  background:var(--v2-card2);border:0.5px solid var(--v2-border2);
+  border-radius:3px;padding:2px 6px;font-family:var(--v2-mono);
 }
 .topbar-spacer{flex:1;}
-.topbar-time{font-size:11px;color:var(--sub);font-family:var(--mono);}
-.topbar-user{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:1px solid var(--border2);}
-.user-avatar{width:28px;height:28px;border-radius:8px;background:rgba(212,53,122,0.2);border:1px solid rgba(212,53,122,0.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--pink);cursor:pointer;}
+.topbar-time{font-size:11px;color:var(--v2-sub);font-family:var(--v2-mono);}
+.topbar-user{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:1px solid var(--v2-border2);}
+/* User avatar: linear-gradient mockup pattern (brand → brand-2). White
+   monogram in front; theme-aware via CSS vars. */
+.user-avatar{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(135deg,var(--v2-brand),var(--v2-brand-2));
+  border:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;cursor:pointer;
+  letter-spacing:0;
+}
 
 /* Main */
 #main{display:flex;flex:1;overflow:hidden;}
