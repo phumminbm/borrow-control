@@ -1315,9 +1315,14 @@ tbody tr:last-child td{border-bottom:none;}
     height: 36px;
     padding: 0 16px;
     border-radius: 9px;
-    background: var(--green);
-    color: #0a1a0f;
-    box-shadow: 0 2px 12px rgba(78,205,160,0.25);
+    background: var(--pink);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(212,53,122,0.25);
+  }
+
+  :root.embedded .btn-create:hover {
+    background: #c72d70;
+    box-shadow: 0 4px 16px rgba(212,53,122,0.35);
   }
 
   :root.embedded #scroll-area {
@@ -1378,7 +1383,9 @@ tbody tr:last-child td{border-bottom:none;}
 
   :root.embedded .filter-bar {
     gap: 10px;
-    margin: 0 0 14px;
+    margin: 0;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
   }
 
   :root.embedded .filter-bar input,
@@ -1407,6 +1414,14 @@ tbody tr:last-child td{border-bottom:none;}
     min-height: 52px;
     padding: 14px 18px;
     border-bottom: 1px solid var(--v2-border);
+    gap: 18px;
+  }
+
+  :root.embedded .table-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 180px;
   }
 
   :root.embedded .table-title {
@@ -3222,6 +3237,7 @@ function selectSale(s){
 // ═══════════════════════════════════════════════════════════════
 function renderContent(){
   var h = '';
+  var filterH = '';
 
   // KPI
   var kpi = countKPI(MSALE, false);
@@ -3233,28 +3249,28 @@ function renderContent(){
   h += '</div>';
 
   // Filter bar
-  h += '<div class="filter-bar">';
-  h += '<div class="filter-input-wrap">';
-  h += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>';
-  h += '<input type="text" placeholder="'+_t('br.search.placeholder')+'" value="'+FILTERS.search+'" oninput="FILTERS.search=this.value;rebuildTable()" style="width:260px"/>';
-  h += '</div>';
-  h += '<select onchange="FILTERS.status=this.value;rebuildTable()">';
+  filterH += '<div class="filter-bar">';
+  filterH += '<div class="filter-input-wrap">';
+  filterH += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>';
+  filterH += '<input type="text" placeholder="'+_t('br.search.placeholder')+'" value="'+FILTERS.search+'" oninput="FILTERS.search=this.value;rebuildTable()" style="width:260px"/>';
+  filterH += '</div>';
+  filterH += '<select onchange="FILTERS.status=this.value;rebuildTable()">';
   var statuses = [['all',_t('br.filter.allStatus')],['pending',_t('status.pending.short')],['approved',_t('status.approved')],['rejected',_t('status.rejected')],['cancelled',_t('status.cancelled')]];
   for(var si=0;si<statuses.length;si++){
-    h += '<option value="'+statuses[si][0]+'"'+(FILTERS.status===statuses[si][0]?' selected':'')+'>'+statuses[si][1]+'</option>';
+    filterH += '<option value="'+statuses[si][0]+'"'+(FILTERS.status===statuses[si][0]?' selected':'')+'>'+statuses[si][1]+'</option>';
   }
-  h += '</select>';
+  filterH += '</select>';
   var hasSaleDate = !!FILTERS.dateFrom;
-  h += '<button id="cal-btn-sale" class="btn-date-range'+(hasSaleDate?' active':'')+'" onclick="openCal(\'sale\',this)">';
-  h += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
-  h += (hasSaleDate ? getDateLabel('sale')+'<span onclick="clearDateFilter(\'sale\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
-  h += '</button>';
-  h += '<button class="btn-clear" onclick="FILTERS.status=\'all\';FILTERS.search=\'\';FILTERS.dateFrom=null;FILTERS.dateTo=null;COL_FILTERS.sale={};renderContent()">✕ '+_t('common.clear')+'</button>';
-  h += '</div>';
+  filterH += '<button id="cal-btn-sale" class="btn-date-range'+(hasSaleDate?' active':'')+'" onclick="openCal(\'sale\',this)">';
+  filterH += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
+  filterH += (hasSaleDate ? getDateLabel('sale')+'<span onclick="clearDateFilter(\'sale\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
+  filterH += '</button>';
+  filterH += '<button class="btn-clear" onclick="FILTERS.status=\'all\';FILTERS.search=\'\';FILTERS.dateFrom=null;FILTERS.dateTo=null;COL_FILTERS.sale={};renderContent()">✕ '+_t('common.clear')+'</button>';
+  filterH += '</div>';
 
   // Table
   h += '<div class="table-wrap">';
-  h += '<div class="table-header"><span class="table-title">'+_t('br.section.requests')+'</span><span class="table-count" id="sale-count"></span></div>';
+  h += '<div class="table-header"><div class="table-heading"><span class="table-title">'+_t('br.section.requests')+'</span><span class="table-count" id="sale-count"></span></div>'+filterH+'</div>';
   h += '<table><thead><tr>';
   h += '<th onclick="openColFilter(event,\'sale\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'sale\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
@@ -3543,6 +3559,7 @@ function rebuildTable(){
 // ═══════════════════════════════════════════════════════════════
 function renderAdminContent(){
   var h = '';
+  var filterH = '';
 
   var kpi = countKPI(null, true);
   h += '<div class="kpi-grid">';
@@ -3553,25 +3570,25 @@ function renderAdminContent(){
   h += '</div>';
 
   // Filter
-  h += '<div class="filter-bar">';
-  h += '<select onchange="ADMIN_FILTERS.status=this.value;rebuildAdminTable()">';
+  filterH += '<div class="filter-bar">';
+  filterH += '<select onchange="ADMIN_FILTERS.status=this.value;rebuildAdminTable()">';
   var ast = [['all',_t('br.filter.allStatus')],['pending',_t('status.pending.short')],['approved',_t('status.approved')],['rejected',_t('br.kpi.rejected')],['cancelled',_t('status.cancelled')]];
-  for(var ai=0;ai<ast.length;ai++) h += '<option value="'+ast[ai][0]+'"'+(ADMIN_FILTERS.status===ast[ai][0]?' selected':'')+'>'+ast[ai][1]+'</option>';
-  h += '</select>';
-  h += '<select onchange="ADMIN_FILTERS.sale=this.value;rebuildAdminTable()">';
-  h += '<option value="all">'+_t('br.filter.allSale')+'</option>';
-  for(var sj=0;sj<SALES.length;sj++) h += '<option value="'+SALES[sj]+'"'+(ADMIN_FILTERS.sale===SALES[sj]?' selected':'')+'>'+SALES[sj]+'</option>';
-  h += '</select>';
+  for(var ai=0;ai<ast.length;ai++) filterH += '<option value="'+ast[ai][0]+'"'+(ADMIN_FILTERS.status===ast[ai][0]?' selected':'')+'>'+ast[ai][1]+'</option>';
+  filterH += '</select>';
+  filterH += '<select onchange="ADMIN_FILTERS.sale=this.value;rebuildAdminTable()">';
+  filterH += '<option value="all">'+_t('br.filter.allSale')+'</option>';
+  for(var sj=0;sj<SALES.length;sj++) filterH += '<option value="'+SALES[sj]+'"'+(ADMIN_FILTERS.sale===SALES[sj]?' selected':'')+'>'+SALES[sj]+'</option>';
+  filterH += '</select>';
   var hasAdminDate = !!ADMIN_FILTERS.dateFrom;
-  h += '<button id="cal-btn-admin" class="btn-date-range'+(hasAdminDate?' active':'')+'" onclick="openCal(\'admin\',this)">';
-  h += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
-  h += (hasAdminDate ? getDateLabel('admin')+'<span onclick="clearDateFilter(\'admin\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
-  h += '</button>';
-  h += '<button class="btn-clear" onclick="ADMIN_FILTERS={status:\'all\',sale:\'all\',dateFrom:null,dateTo:null};COL_FILTERS.admin={};renderAdminContent()">✕ '+_t('common.clear')+'</button>';
-  h += '</div>';
+  filterH += '<button id="cal-btn-admin" class="btn-date-range'+(hasAdminDate?' active':'')+'" onclick="openCal(\'admin\',this)">';
+  filterH += '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="2"/><path d="M5 1v4M11 1v4M1 7h14"/></svg>';
+  filterH += (hasAdminDate ? getDateLabel('admin')+'<span onclick="clearDateFilter(\'admin\',event)" style="margin-left:4px;opacity:.6;font-size:11px">✕</span>' : _t('br.filter.dateRange'));
+  filterH += '</button>';
+  filterH += '<button class="btn-clear" onclick="ADMIN_FILTERS={status:\'all\',sale:\'all\',dateFrom:null,dateTo:null};COL_FILTERS.admin={};renderAdminContent()">✕ '+_t('common.clear')+'</button>';
+  filterH += '</div>';
 
   h += '<div class="table-wrap">';
-  h += '<div class="table-header"><span class="table-title">'+_t('br.section.adminAll')+'</span><span class="table-count" id="admin-count"></span></div>';
+  h += '<div class="table-header"><div class="table-heading"><span class="table-title">'+_t('br.section.adminAll')+'</span><span class="table-count" id="admin-count"></span></div>'+filterH+'</div>';
   h += '<table><thead><tr>';
   h += '<th onclick="openColFilter(event,\'admin\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'admin\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
