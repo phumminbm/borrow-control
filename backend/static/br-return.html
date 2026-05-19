@@ -101,9 +101,29 @@
    by hiding its own duplicate chrome (topbar, sidebar, module banner)
    and letting the v2 shell's chrome own those slots.
    ═════════════════════════════════════════════════════════════════════ */
-:root.embedded #topbar,
 :root.embedded #sidebar,
 :root.embedded #module-banner {
+  display: none !important;
+}
+
+/* Keep the topbar container alive in embedded mode so the Test Mode
+   button can still be used, but hide every duplicate chrome element
+   inside it. A child of display:none cannot be lifted back into view,
+   so #topbar itself must remain display:block. */
+:root.embedded #topbar {
+  display: block !important;
+  position: fixed !important;
+  inset: 0 0 auto 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  pointer-events: none;
+  z-index: 80;
+}
+:root.embedded #topbar > * {
   display: none !important;
 }
 
@@ -125,11 +145,15 @@
    itself still works because applyTestModeChrome() only touches the
    button's own background/border, not the topbar). */
 :root.embedded #btn-test-mode {
-  position: absolute;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  position: fixed;
   top: 7px;
   right: 18px;
   margin-left: 0 !important;
-  z-index: 12;
+  z-index: 81;
 }
 /* #tabbar becomes the new relative anchor for the floating test btn */
 :root.embedded #tabbar {
