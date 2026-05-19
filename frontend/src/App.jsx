@@ -265,11 +265,11 @@ function isPrototypeMode() {
 }
 
 // ── v2 shell gate ──────────────────────────────────────────────────────
-// Activated via the /v2 path (recommended) OR the ?v=2 query flag (handy
-// for sharing test links without changing the path). When set, renders
-// ShellApp — the new combined Find BR + BR Return shell — regardless of
-// viewport. Production users at the bare URL keep the legacy routing
-// untouched until Phase 4 cutover.
+// Activated via the /v2 path or the ?v=2 query flag. Before the Phase 4
+// cutover, this was the ONLY way to reach the new shell. After the
+// cutover (2026-05-19), the new shell is the default on desktop bare URLs
+// too — this gate is kept so /v2 bookmarks continue working and so the
+// shell can be force-loaded on mobile if ever needed (testing).
 function isV2Mode() {
   try {
     const p = window.location.pathname;
@@ -280,10 +280,31 @@ function isV2Mode() {
   }
 }
 
-// ── Root — auto-switch Desktop / Mobile (or Prototype / v2-shell) ──────
+// ── Legacy escape hatch (Phase 4 — 2026-05-19) ─────────────────────────
+// After the v2 cutover, desktop users at the bare URL get the new
+// combined shell by default. ?legacy=1 forces the old DesktopApp — the
+// emergency rollback path. Kept available for at least 2 weeks
+// post-cutover; Phase 6 cleanup will remove this branch once the new
+// shell is proven stable in production.
+function isLegacyMode() {
+  try {
+    return new URLSearchParams(window.location.search).get("legacy") === "1";
+  } catch {
+    return false;
+  }
+}
+
+// ── Root router — gate precedence (top wins) ───────────────────────────
+//   1. ?prototype=1                → MobilePrototypeApp (testers)
+//   2. /v2 OR ?v=2                  → ShellApp (explicit, any device)
+//   3. Mobile viewport              → MobileApp
+//   4. ?legacy=1 (desktop)          → DesktopApp (emergency rollback)
+//   5. Desktop default              → ShellApp (NEW after Phase 4 cutover)
 export default function App() {
-  if (isV2Mode()) return <ShellApp />;
   if (isPrototypeMode()) return <MobilePrototypeApp />;
+  if (isV2Mode())        return <ShellApp />;
   const isMobile = useIsMobile();
-  return isMobile ? <MobileApp /> : <DesktopApp />;
+  if (isMobile)          return <MobileApp />;
+  if (isLegacyMode())    return <DesktopApp />;
+  return <ShellApp />;
 }
