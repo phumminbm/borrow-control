@@ -41,14 +41,16 @@ const PAGE_HEADER = {
     eyebrow: "BR RETURN",
     title: "BR Return",
     subtitle: "สร้างคำขอคืน · ตรวจสอบ · อนุมัติ — เขียนกลับไป Logistics File อัตโนมัติ",
-    live: "PRODUCTION",
+    beta: "BETA",
+    live: "LIVE",
     loading: "กำลังโหลด BR Return...",
   },
   en: {
     eyebrow: "BR RETURN",
     title: "BR Return",
     subtitle: "Create return requests · review · approve — writes back to the Logistics File",
-    live: "PRODUCTION",
+    beta: "BETA",
+    live: "LIVE",
     loading: "Loading BR Return...",
   },
 };
@@ -118,8 +120,12 @@ export default function BRPanel({ theme, lang, onPendingCount }) {
           <div className="v2-page-header-eyebrow br">{L.eyebrow}</div>
           <h1 className="v2-page-header-h1">
             {L.title}
+            <span className="v2-page-header-badge beta">
+              <span className="v2-pill-dot" style={{ background: "var(--v2-brand)" }} />
+              {L.beta}
+            </span>
             <span className="v2-page-header-badge live">
-              <span className="v2-pill-dot" style={{ background: "#639922" }} />
+              <span className="v2-pill-dot" style={{ background: "var(--v2-green)" }} />
               {L.live}
             </span>
           </h1>
