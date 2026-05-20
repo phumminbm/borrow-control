@@ -745,26 +745,16 @@ input,select,textarea,button{font-family:inherit;font-size:13px;}
 .table-wrap{
   background:var(--bg2);border:1px solid var(--border2);border-radius:14px;
   overflow:hidden;
-  display:flex; flex-direction:column;
 }
-.table-wrap > .table-header{ flex-shrink:0; }
-.table-wrap > #sale-pagination,
-.table-wrap > #admin-pagination{ flex-shrink:0; }
-/* Scrollable region for the table body.
-   - flex:1 / min-height:0 makes the region take the leftover space inside
-     .table-wrap so the pagination sits at the bottom of the card.
-   - max-height keeps the card from growing past a comfortable size so the
-     pagination bar is always visible without scrolling the outer page.
-     65vh works for standalone and is overridden tighter for embedded mode
-     (where the iframe height is smaller). */
+/* The table body region used to be a fixed-height flex child with its own
+   scroll + pinned pagination footer. That made the pagination bar feel
+   "locked" on screen. Per UI requirement we now let the card grow to fit
+   its rows; the outer page scrolls naturally and the pagination bar sits
+   at the bottom of the card where the user finds it by scrolling. */
 .table-scroll{
-  flex:1 1 auto; min-height:0; overflow:auto;
-  max-height:65vh;
+  /* No max-height / no internal overflow → table grows with its rows,
+     pagination follows naturally as a normal sibling at the bottom. */
 }
-/* Sticky table header so column titles stay anchored while scrolling
-   through 20 rows. background is required so rows don't show through. */
-.table-scroll thead th{ position:sticky; top:0; z-index:5; background:var(--bg3); }
-:root.light .table-scroll thead th{ background:#F4F5F7; }
 
 .table-header{
   display:flex;align-items:center;justify-content:space-between;
@@ -1454,14 +1444,8 @@ tbody tr:last-child td{border-bottom:none;}
     overflow: hidden;
   }
 
-  /* In the embedded /v2 shell the iframe is shorter than the full viewport,
-     so the standalone 65vh would still push pagination off-screen. Constrain
-     the scrollable table region tighter so the pagination bar stays visible
-     inside the iframe. */
-  :root.embedded .table-scroll {
-    max-height: calc(100vh - 380px);
-    min-height: 240px;
-  }
+  /* Pagination is no longer pinned — it flows as a normal sibling below
+     the table. No embedded-specific max-height override needed. */
 
   :root.embedded .table-header {
     min-height: 52px;
