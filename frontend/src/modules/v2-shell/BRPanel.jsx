@@ -117,7 +117,6 @@ export default function BRPanel({ theme, lang, onPendingCount }) {
     <section className="v2-module-panel active" aria-label="BR Return module">
       <div className="v2-page-header">
         <div>
-          <div className="v2-page-header-eyebrow br">{L.eyebrow}</div>
           <h1 className="v2-page-header-h1">
             {L.title}
             <span className="v2-page-header-badge beta">

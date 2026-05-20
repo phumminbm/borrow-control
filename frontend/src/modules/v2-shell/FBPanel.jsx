@@ -47,7 +47,6 @@ export default function FBPanel({ theme, lang }) {
       {/* Page header */}
       <div className="v2-page-header">
         <div>
-          <div className="v2-page-header-eyebrow fb">{L.eyebrow}</div>
           <h1 className="v2-page-header-h1">
             {L.title}
             <span className="v2-page-header-badge live">
