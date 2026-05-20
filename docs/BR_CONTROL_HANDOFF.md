@@ -1,4 +1,10 @@
-# BR Control — Production Handoff
+# BR Control — Production Handoff (v1 era)
+
+> **📘 Read [`v2-architecture.md`](v2-architecture.md) first.** It is the primary handoff document
+> for the current combined shell + Supabase architecture (2026-05-20 onward). **This v1 doc
+> is still load-bearing** for write-back invariants, Logistics File schema, and the original
+> BR Return numbering-bug history — but for architecture, URLs, Render setup, Supabase,
+> embedded mode, and post-cutover process, see `v2-architecture.md`.
 
 **Last updated:** 2026-05-15
 **Period covered:** 2026-05-12 → 2026-05-15 (four days of active work, now in steady-state monitoring)
