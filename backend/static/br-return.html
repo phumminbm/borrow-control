@@ -129,12 +129,21 @@
 
 /* When sidebar is hidden, #main no longer needs to be a horizontal
    flex container (sidebar | content). Stack #content as the sole
-   child taking full width. */
+   child taking full width. Also drop the base overflow:hidden / height
+   constraints so embedded mode flows naturally (the iframe element
+   becomes the single scroll surface — see :root.embedded #scroll-area
+   override later in this file). */
 :root.embedded #main {
   display: block;
+  overflow: visible;
+  height: auto;
+  flex: none;
 }
 :root.embedded #content {
   width: 100%;
+  overflow: visible;
+  height: auto;
+  flex: none;
 }
 
 /* The Test Mode button lives inside #topbar in the standalone layout.
@@ -1359,7 +1368,30 @@ tbody tr:last-child td{border-bottom:none;}
     box-shadow: 0 4px 16px rgba(212,53,122,0.35);
   }
 
+  /* Embedded /v2 mode: switch from the standalone internal-scroll layout
+     to natural document flow. Find Borrow has a single scroll surface
+     (.v2-legacy-host) and no nested scroll trap; we replicate that here
+     by letting the iframe document grow with its content and letting
+     the iframe element itself scroll (native browser scrollbar — much
+     more discoverable than the standalone 4px inner scrollbar). The
+     v2-shell page header stays anchored outside the iframe.
+
+     Pagination then sits naturally at the bottom of the document, and
+     the user scrolls the iframe to reach it. */
+  :root.embedded,
+  :root.embedded body {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+  :root.embedded #app {
+    height: auto;
+    min-height: 100%;
+  }
   :root.embedded #scroll-area {
+    flex: none;
+    height: auto;
+    overflow: visible;
     padding: 16px 20px 40px;
     background: var(--v2-bg);
   }
