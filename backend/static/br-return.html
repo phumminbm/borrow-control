@@ -2695,11 +2695,11 @@ var ACTIVE_TAB = 'sale';
 var FILTERS = {status:'all', search:'', dateFrom:null, dateTo:null};
 var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
 
-// Pagination state for the BR Return Sale + Admin tables. 20 rows per
-// page matches the new UI requirement. Filters reset page to 1 via
+// Pagination state for the BR Return Sale + Admin tables. 50 rows per
+// page matches the current UI requirement. Filters reset page to 1 via
 // _lastFilterSig change detection inside rebuildTable / rebuildAdminTable
 // (so we don't have to wire a reset call into every filter onChange).
-var BR_PAGE_SIZE = 20;
+var BR_PAGE_SIZE = 50;
 var BR_PAGINATION = {
   sale:  { page: 1 },
   admin: { page: 1 }
