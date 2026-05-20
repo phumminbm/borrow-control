@@ -2959,6 +2959,109 @@ function renderBorrowPrintFallback(brNo, requestId, printTarget, sourceError){
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Hidden-iframe print (2026-05-20 hotfix)
+//
+// Previous implementation used window.open()+blob URLs to host the print
+// preview in a popup. That works in standalone mode, but when BR Return
+// is embedded inside the v2 shell (cross-origin iframe → popup), modern
+// browsers' COOP defaults sever the opener link. After that, navigating
+// the popup to the final PDF wrapper throws SecurityError, the async
+// fallback window.open() isn't tied to a user gesture, and gets blocked
+// by the popup blocker. Net result: user sees a loading popup that
+// never updates.
+//
+// The new approach skips popups entirely. A hidden iframe is appended
+// to the BR Return page itself, loads the PDF (same-origin), and the
+// page's JS calls iframe.contentWindow.print() to trigger the browser's
+// native print dialog. No popup → no COOP issue → no popup blocker.
+//
+// Reused helpers (left intact for any future callers):
+//   buildBorrowPrintBody, findReturnRequestForPrint, loadCustomerBorrowData,
+//   borrowRowsForPrint — all unchanged.
+// ─────────────────────────────────────────────────────────────────────────
+function _cleanupPrintFrame(iframe, blobUrl){
+  try { if(iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe); } catch(e){}
+  if(blobUrl){
+    try { URL.revokeObjectURL(blobUrl); } catch(e){}
+  }
+}
+
+function _attachAndPrintInHiddenIframe(srcUrl, opts){
+  // Replace any prior print frame (so rapid Print BR clicks don't pile up)
+  var prior = document.getElementById('br-print-frame');
+  if(prior) _cleanupPrintFrame(prior, prior.getAttribute('data-blob-url') || null);
+
+  var iframe = document.createElement('iframe');
+  iframe.id = 'br-print-frame';
+  // Hidden but rendered (display:none stops the PDF plugin from loading
+  // in some browsers — we instead use opacity:0 + 1x1px + pointer-events:none).
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+  if(opts && opts.blobUrlForCleanup) iframe.setAttribute('data-blob-url', opts.blobUrlForCleanup);
+
+  var blobUrl = (opts && opts.blobUrlForCleanup) || null;
+  var loadDelay = (opts && opts.loadDelay) || 600;
+
+  iframe.onload = function(){
+    setTimeout(function(){
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        try {
+          iframe.contentWindow.addEventListener('afterprint', function(){
+            setTimeout(function(){ _cleanupPrintFrame(iframe, blobUrl); }, 1500);
+          });
+        } catch(e){}
+        // Hard cleanup ceiling so a forgotten iframe doesn't linger forever
+        setTimeout(function(){ _cleanupPrintFrame(iframe, blobUrl); }, 5 * 60 * 1000);
+      } catch(e){
+        console.warn('[BR Return] iframe.print() failed:', e);
+        showToast('Print dialog could not open: ' + (e && e.message ? e.message : 'unknown error'), 'warn');
+        _cleanupPrintFrame(iframe, blobUrl);
+      }
+    }, loadDelay);
+  };
+
+  iframe.onerror = function(){
+    console.warn('[BR Return] print iframe failed to load:', srcUrl);
+    _cleanupPrintFrame(iframe, blobUrl);
+    if(opts && typeof opts.onerror === 'function') opts.onerror();
+  };
+
+  iframe.src = srcUrl;
+  document.body.appendChild(iframe);
+}
+
+function _renderClientPrintFallback(brNo, requestId, sourceError){
+  var req = findReturnRequestForPrint(brNo, requestId);
+  var needsBorrowLoad = req && req.custCode && (!ITEMS[brNo] || !ITEMS[brNo].length);
+  var load = needsBorrowLoad ? loadCustomerBorrowData(req.custCode) : Promise.resolve();
+  load.catch(function(){ return null; }).then(function(){
+    var rows = borrowRowsForPrint(brNo, req);
+    if(!rows.length) throw new Error('No BR or request item data available');
+    var safeTitle = htmlEscape(brNo);
+    var html =
+      '<!doctype html><html><head><meta charset="utf-8"><title>' + safeTitle + '</title>'
+      + '<style>'
+      + '@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Tahoma",sans-serif;color:#202124;background:#fff;font-size:12px}'
+      + '.page{max-width:190mm;margin:0 auto}.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #bbb;padding-bottom:10px;margin-bottom:8px}'
+      + '.brand{font-size:32px;font-weight:800;line-height:1;color:#555}.brand span{color:#D4357A}.tag{font-size:14px;color:#666;margin-top:3px}.company{text-align:right;font-size:14px;line-height:1.45}'
+      + '.title{background:#eee;text-align:center;font-size:24px;font-weight:800;padding:8px;margin:10px 0 12px}.title small{display:block;font-size:16px;font-weight:600;margin-top:2px}'
+      + '.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:0 24px;border-bottom:1px solid #eee;margin-bottom:14px}.field{display:grid;grid-template-columns:140px 1fr;gap:10px;border-top:1px solid #eee;padding:8px 0}.label{font-weight:800;color:#666}.val{font-size:15px}'
+      + 'table{width:100%;border-collapse:collapse;margin-top:8px}thead th{background:#eee;text-align:left;padding:9px 8px;font-size:13px}tbody td{padding:9px 8px;border-bottom:1px solid #eee;vertical-align:top}tfoot td{background:#f7f7f7;font-weight:800;padding:10px 8px}'
+      + '.num{text-align:right}.center{text-align:center}.muted{color:#777}.print-note{margin-top:12px;color:#777;font-size:11px}@media print{.no-print{display:none}}'
+      + '</style></head><body>' + buildBorrowPrintBody(brNo, req) + '</body></html>';
+    var blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    _attachAndPrintInHiddenIframe(url, { loadDelay: 350, blobUrlForCleanup: url });
+    showToast('Print BR opened from request data', 'success');
+  }).catch(function(err){
+    var msg = err && err.message ? err.message : (sourceError && sourceError.message ? sourceError.message : 'Unknown print error');
+    console.warn('[BR Return] client fallback failed:', err);
+    showToast('Print failed: ' + msg, 'warn');
+  });
+}
+
 function printBorrowPdf(brNo, requestId){
   if(!isDesktopPrintAvailable()){
     showToast('Print is available on desktop only', 'warn');
@@ -2968,21 +3071,27 @@ function printBorrowPdf(brNo, requestId){
     showToast('Missing BR number', 'warn');
     return;
   }
-  var printTarget = openPrintWindow(brNo);
-  if(!printTarget) return;
   showToast('Loading BR PDF...', 'success');
   fetch(BORROW_API_BASE + '/brs/' + encodeURIComponent(brNo) + '/pdf?include_closed=true', {cache:'no-store'})
     .then(function(r){
-      if(!r.ok) throw new Error('PDF request failed ('+r.status+')');
+      if(!r.ok) throw new Error('PDF request failed (' + r.status + ')');
       return r.blob();
     })
     .then(function(blob){
-      if(!blob || blob.size===0) throw new Error('PDF response was empty');
-      printPdfBlob(blob, brNo, printTarget);
+      if(!blob || blob.size === 0) throw new Error('PDF response was empty');
+      var blobUrl = URL.createObjectURL(blob);
+      _attachAndPrintInHiddenIframe(blobUrl, {
+        loadDelay: 600,
+        blobUrlForCleanup: blobUrl,
+        onerror: function(){
+          showToast('Server PDF could not display — using request data', 'warn');
+          _renderClientPrintFallback(brNo, requestId, new Error('iframe load error'));
+        }
+      });
     })
     .catch(function(err){
       console.warn('[BR Return] Server BR PDF failed; using request-data print fallback:', err);
-      renderBorrowPrintFallback(brNo, requestId, printTarget, err);
+      _renderClientPrintFallback(brNo, requestId, err);
     });
 }
 
