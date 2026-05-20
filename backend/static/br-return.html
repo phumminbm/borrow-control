@@ -720,6 +720,27 @@ input,select,textarea,button{font-family:inherit;font-size:13px;}
 }
 .btn-clear:hover{border-color:var(--v2-red);color:var(--v2-red);}
 
+/* Pagination bar (Task: BR Return table pagination — 20 rows / page) */
+.pagination-bar{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 18px; gap:12px; flex-wrap:wrap;
+  border-top:1px solid var(--v2-border);
+  background:var(--v2-card);
+  font-size:12px;
+}
+.pagination-info{ color:var(--v2-sub); }
+.pagination-controls{ display:flex; align-items:center; gap:6px; }
+.pagination-page-indicator{ color:var(--v2-sub); margin-right:6px; }
+.btn-page{
+  display:inline-flex; align-items:center; gap:4px;
+  height:30px; padding:0 12px; border-radius:8px;
+  border:1px solid var(--v2-border2); background:transparent;
+  color:var(--v2-text); font-size:11px; font-weight:600;
+  cursor:pointer; transition:all .12s; font-family:inherit;
+}
+.btn-page:hover:not(:disabled){ border-color:var(--v2-brand); color:var(--v2-brand); }
+.btn-page:disabled{ opacity:.4; cursor:not-allowed; }
+
 /* Table */
 .table-wrap{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;overflow:hidden;}
 .table-header{
@@ -2641,6 +2662,75 @@ var MSALE = null;
 var ACTIVE_TAB = 'sale';
 var FILTERS = {status:'all', search:'', dateFrom:null, dateTo:null};
 var ADMIN_FILTERS = {status:'all', sale:'all', dateFrom:null, dateTo:null};
+
+// Pagination state for the BR Return Sale + Admin tables. 20 rows per
+// page matches the new UI requirement. Filters reset page to 1 via
+// _lastFilterSig change detection inside rebuildTable / rebuildAdminTable
+// (so we don't have to wire a reset call into every filter onChange).
+var BR_PAGE_SIZE = 20;
+var BR_PAGINATION = {
+  sale:  { page: 1 },
+  admin: { page: 1 }
+};
+var _lastBrFilterSig = { sale: '', admin: '' };
+
+function _brFilterSig(view){
+  if(view === 'sale'){
+    return JSON.stringify({
+      m: MSALE || '',
+      s: FILTERS.status, q: FILTERS.search,
+      df: FILTERS.dateFrom, dt: FILTERS.dateTo,
+      col: COL_FILTERS.sale || {}
+    });
+  }
+  return JSON.stringify({
+    s: ADMIN_FILTERS.status, sale: ADMIN_FILTERS.sale,
+    df: ADMIN_FILTERS.dateFrom, dt: ADMIN_FILTERS.dateTo,
+    col: COL_FILTERS.admin || {}
+  });
+}
+
+function brGoToPage(view, action){
+  var ps = BR_PAGINATION[view];
+  if(!ps) return;
+  if(action === 'home') ps.page = 1;
+  else if(action === 'prev') ps.page = Math.max(1, ps.page - 1);
+  else if(action === 'next') ps.page = ps.page + 1;  // clamped in rebuild
+  else if(action === 'last') ps.page = 999999;       // clamped in rebuild
+  if(view === 'sale') rebuildTable();
+  else rebuildAdminTable();
+}
+
+function brPaginationBarHTML(view, total, totalPages){
+  if(total === 0) return '';
+  var ps = BR_PAGINATION[view];
+  var startIdx = (ps.page - 1) * BR_PAGE_SIZE;
+  var endIdx   = Math.min(startIdx + BR_PAGE_SIZE, total);
+  var isEn = (BR_LANG === 'en');
+  var showingText = isEn
+    ? 'Showing ' + (startIdx + 1) + '–' + endIdx + ' of ' + total.toLocaleString() + ' items'
+    : 'แสดง ' + (startIdx + 1) + '–' + endIdx + ' จาก ' + total.toLocaleString() + ' รายการ';
+  var pageText = isEn
+    ? 'Page ' + ps.page + ' / ' + totalPages
+    : 'หน้า ' + ps.page + ' / ' + totalPages;
+  var atFirst = (ps.page <= 1);
+  var atLast  = (ps.page >= totalPages);
+  function btn(action, label, disabled){
+    return '<button class="btn-page" type="button"' +
+      (disabled ? ' disabled' : '') +
+      ' onclick="brGoToPage(\'' + view + '\',\'' + action + '\')">' + label + '</button>';
+  }
+  return '<div class="pagination-bar">' +
+    '<span class="pagination-info">' + showingText + '</span>' +
+    '<div class="pagination-controls">' +
+      '<span class="pagination-page-indicator">' + pageText + '</span>' +
+      btn('home', (isEn ? '« First'   : '« หน้าแรก'),   atFirst) +
+      btn('prev', (isEn ? '‹ Prev'    : '‹ ก่อนหน้า'),  atFirst) +
+      btn('next', (isEn ? 'Next ›'    : 'ถัดไป ›'),    atLast)  +
+      btn('last', (isEn ? 'Last »'    : 'หน้าสุดท้าย »'), atLast) +
+    '</div>' +
+  '</div>';
+}
 var CAL = {open:false, target:null, step:0, from:null, to:null, viewY:2026, viewM:4};
 var ST = {sale:null,cust:null,custName:null,custCode:null,br:null,items:{},retQtys:{},clmQtys:{},saleQtys:{},freeQtys:{},bulkType:null,editId:null,editOnlyKeys:null,editQtyByKey:null};
 var ADMIN_REVIEW = {id:null,items:{},reasons:{},note:'',attachments:[]};
@@ -3649,6 +3739,7 @@ function renderContent(){
   h += '<th onclick="openColFilter(event,\'sale\',\'status\')"><div class="th-inner">'+_t('br.col.status')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th>'+_t('br.col.action')+'</th>';
   h += '</tr></thead><tbody id="sale-tbody"></tbody></table>';
+  h += '<div id="sale-pagination"></div>';
   h += '</div>';
 
   el('main-content').innerHTML = h;
@@ -3896,15 +3987,33 @@ function rebuildTable(){
 
   rows.sort(function(a,b){ return b.dateSort-a.dateSort||(a.id<b.id?1:-1); });
 
+  // Pagination: filter+sort always run over the FULL dataset above
+  // (so search & filters cover every request, not only the visible
+  // page). Slice to the current page AFTER sorting. Filter changes
+  // are detected by comparing _lastBrFilterSig — when filters change,
+  // page resets to 1.
+  var sig = _brFilterSig('sale');
+  if(sig !== _lastBrFilterSig.sale){
+    BR_PAGINATION.sale.page = 1;
+    _lastBrFilterSig.sale = sig;
+  }
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total / BR_PAGE_SIZE));
+  if(BR_PAGINATION.sale.page > totalPages) BR_PAGINATION.sale.page = totalPages;
+  if(BR_PAGINATION.sale.page < 1) BR_PAGINATION.sale.page = 1;
+  var startIdx = (BR_PAGINATION.sale.page - 1) * BR_PAGE_SIZE;
+  var endIdx   = Math.min(startIdx + BR_PAGE_SIZE, total);
+  var pageRows = rows.slice(startIdx, endIdx);
+
   var countEl = el('sale-count');
-  if(countEl) countEl.innerHTML = rows.length+' '+_t('common.items');
+  if(countEl) countEl.innerHTML = total+' '+_t('common.items');
 
   var h = '';
-  if(rows.length===0){
+  if(total === 0){
     h = '<tr><td colspan="8"><div class="empty-state"><div class="empty-text">'+_t('common.noResults')+'</div></div></td></tr>';
   } else {
-    for(var i=0;i<rows.length;i++){
-      var r = rows[i];
+    for(var i=0;i<pageRows.length;i++){
+      var r = pageRows[i];
       var cs = getCustStatus(r.custCode);
       h += '<tr>';
       h += '<td><span class="col-id">'+r.id+'</span></td>';
@@ -3920,6 +4029,9 @@ function rebuildTable(){
   }
   var tbody = el('sale-tbody');
   if(tbody) tbody.innerHTML = h;
+
+  var pagEl = el('sale-pagination');
+  if(pagEl) pagEl.innerHTML = brPaginationBarHTML('sale', total, totalPages);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3968,6 +4080,7 @@ function renderAdminContent(){
   h += '<th>'+_t('br.col.action')+'</th>';
   h += '<th onclick="openColFilter(event,\'admin\',\'sheetSync\')"><div class="th-inner">'+_t('br.col.sheetSync')+'<span class="th-arrow">▾</span></div></th>';
   h += '</tr></thead><tbody id="admin-tbody"></tbody></table>';
+  h += '<div id="admin-pagination"></div>';
   h += '</div>';
 
   el('main-content').innerHTML = h;
@@ -4005,15 +4118,31 @@ function rebuildAdminTable(){
   }
   rows.sort(function(a,b){ return b.dateSort-a.dateSort; });
 
+  // Pagination: same semantics as the Sale table — filter+sort run on
+  // the FULL dataset above; slice to current page after. Filter signature
+  // change resets page to 1.
+  var sig = _brFilterSig('admin');
+  if(sig !== _lastBrFilterSig.admin){
+    BR_PAGINATION.admin.page = 1;
+    _lastBrFilterSig.admin = sig;
+  }
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total / BR_PAGE_SIZE));
+  if(BR_PAGINATION.admin.page > totalPages) BR_PAGINATION.admin.page = totalPages;
+  if(BR_PAGINATION.admin.page < 1) BR_PAGINATION.admin.page = 1;
+  var startIdx = (BR_PAGINATION.admin.page - 1) * BR_PAGE_SIZE;
+  var endIdx   = Math.min(startIdx + BR_PAGE_SIZE, total);
+  var pageRows = rows.slice(startIdx, endIdx);
+
   var countEl = el('admin-count');
-  if(countEl) countEl.innerHTML = rows.length+' '+_t('common.items');
+  if(countEl) countEl.innerHTML = total+' '+_t('common.items');
 
   var h = '';
-  if(rows.length===0){
+  if(total === 0){
     h = '<tr><td colspan="9"><div class="empty-state"><div class="empty-text">'+_t('common.noResults')+'</div></div></td></tr>';
   } else {
-    for(var i=0;i<rows.length;i++){
-      var r = rows[i];
+    for(var i=0;i<pageRows.length;i++){
+      var r = pageRows[i];
       var cs2 = getCustStatus(r.custCode);
       var btn = r.status==='pending'
         ? '<button class="btn-review" onclick="openAdminReview(\''+r.id+'\')">'+_t('br.action.review')+'</button>'
@@ -4033,6 +4162,9 @@ function rebuildAdminTable(){
   }
   var tbody = el('admin-tbody');
   if(tbody) tbody.innerHTML = h;
+
+  var pagEl = el('admin-pagination');
+  if(pagEl) pagEl.innerHTML = brPaginationBarHTML('admin', total, totalPages);
 }
 
 // ═══════════════════════════════════════════════════════════════
