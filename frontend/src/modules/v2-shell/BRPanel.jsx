@@ -29,6 +29,8 @@ const BR_RETURN_URL =
   (import.meta.env.PROD
     ? "https://borrow-control-1.onrender.com/br-return"
     : "http://localhost:8000/br-return");
+const BR_RETURN_IFRAME_URL =
+  BR_RETURN_URL + (BR_RETURN_URL.includes("?") ? "&" : "?") + "v=br-i18n-20260520";
 
 // The iframe origin is everything before the path.
 function originOf(url) {
@@ -139,7 +141,7 @@ export default function BRPanel({ theme, lang, onPendingCount }) {
         <iframe
           ref={iframeRef}
           className="v2-iframe"
-          src={BR_RETURN_URL}
+          src={BR_RETURN_IFRAME_URL}
           title="BR Return"
           // sandbox intentionally omitted so localStorage / Apps Script
           // fetch / image uploads keep working exactly as they do standalone.

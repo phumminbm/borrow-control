@@ -2250,6 +2250,19 @@ function _t(key, vars){
   return raw;
 }
 
+function unitText(key){
+  var fallback = {
+    'common.day':       { th: 'วัน',       en: 'days' },
+    'common.daysMax':   { th: 'ค้างสูงสุด', en: 'oldest' },
+    'common.pieces':    { th: 'ชิ้น',      en: 'EA' },
+    'common.remaining': { th: 'คงเหลือ',   en: 'remaining' }
+  };
+  var translated = _t(key);
+  if(translated !== key) return translated;
+  var lang = BR_LANG === 'en' ? 'en' : 'th';
+  return fallback[key] ? fallback[key][lang] : key;
+}
+
 // Flip the language and re-render everything. localStorage key is
 // 'lang' (shared with Mobile) so the choice syncs across both clients.
 function setLang(l){
@@ -3716,7 +3729,7 @@ function renderCustList(){
     h += '<div class="'+cls+'" onclick="selectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)" ondblclick="quickSelectCust(\''+jsArg(c.code)+'\',\''+jsArg(c.name)+'\',this)">';
     h += '<div class="cust-info"><div class="cust-name">'+c.name+' '+custBadge(c.status)+'</div>';
     h += '<div class="cust-meta">'+c.code+' · '+c.addr.slice(0,40)+'...</div></div>';
-    h += '<div class="cust-right"><div class="cust-days '+daysCls+'">'+c.days+'<span style="font-size:9px;font-weight:400;margin-left:2px">'+_t('common.day')+'</span></div><div class="cust-days-label">'+_t('common.daysMax')+'</div></div>';
+    h += '<div class="cust-right"><div class="cust-days '+daysCls+'">'+c.days+'<span style="font-size:9px;font-weight:400;margin-left:2px">'+unitText('common.day')+'</span></div><div class="cust-days-label">'+unitText('common.daysMax')+'</div></div>';
     h += '</div>';
   }
   if(h==='') h = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">'+_t('empty.noCustomer')+'</div></div>';
@@ -3766,7 +3779,7 @@ function renderBRList(){
     var brDaysCls = b.status==='BLOCK'?'days-block':b.status==='WARNING'?'days-warning':'days-normal';
     var brCls = 'br-item'+(brStCls?' '+brStCls:'')+(sel?' selected':'');
     h += '<div class="'+brCls+'" onclick="selectBR(\''+jsArg(b.br)+'\',this)" ondblclick="quickSelectBR(\''+jsArg(b.br)+'\',this)">';
-    h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' '+_t('common.day')+'</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
+    h += '<div><div class="br-no">'+b.br+'</div><div class="br-info">'+b.date+' · <span class="br-days '+brDaysCls+'">'+b.days+' '+unitText('common.day')+'</span> · '+statusBadgeHTML(b.status,false)+'</div></div>';
     h += '<div class="br-val">'+fmtFullBaht(b.value)+'</div>';
     h += '</div>';
   }
@@ -3816,10 +3829,10 @@ function renderProductList(){
   h += '<th class="th-l" style="width:110px">'+_t('step3.productCode')+'</th>';
   h += '<th class="th-l">'+_t('step3.productName')+'</th>';
   h += '<th class="th-c" style="width:72px">'+_t('prod.outstanding')+'</th>';
-  h += '<th class="th-c" style="color:var(--green);width:100px">↩ '+_t('type.return')+' ('+_t('common.pieces')+')</th>';
-  h += '<th class="th-c" style="color:var(--yellow);width:100px">⚠ '+_t('type.claim')+' ('+_t('common.pieces')+')</th>';
-  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 '+_t('type.sale')+' ('+_t('common.pieces')+')</th>';
-  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 '+_t('type.free')+' ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--green);width:100px">↩ '+_t('type.return')+' ('+unitText('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--yellow);width:100px">⚠ '+_t('type.claim')+' ('+unitText('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 '+_t('type.sale')+' ('+unitText('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 '+_t('type.free')+' ('+unitText('common.pieces')+')</th>';
   h += '</tr></thead><tbody>';
 
   for(var i=0;i<prods.length;i++){
@@ -3839,7 +3852,7 @@ function renderProductList(){
     // name
     h += '<td><span class="product-name">'+p.name+'</span></td>';
     // stock
-    h += '<td><div class="stock-qty">'+p.qty+' '+_t('common.pieces')+'</div>'+(checked?'<div class="stock-rem">'+_t('common.remaining')+' '+rem+'</div>':'')+'</td>';
+    h += '<td><div class="stock-qty">'+p.qty+' '+unitText('common.pieces')+'</div>'+(checked?'<div class="stock-rem">'+unitText('common.remaining')+' '+rem+'</div>':'')+'</td>';
 
     // 4 spinners
     var spTypes=[
@@ -4609,7 +4622,7 @@ function renderRevisionSnapshot(s){
       var qty = it.quantity || ((it.retQty||0) + (it.clmQty||0) + (it.saleQty||0) + (it.freeQty||0));
       h += '<div style="padding:9px 12px;' + (i<s.submittedItems.length-1 ? 'border-bottom:0.5px solid var(--bd);' : '') + '">';
       h += '<div style="display:flex;justify-content:space-between;gap:10px"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:var(--text)">' + escapeHtml(name) + '</div><div style="font-size:10px;color:var(--sub);font-family:var(--mono);margin-top:2px">' + escapeHtml(code) + '</div></div>';
-      h += '<div style="font-size:11px;color:var(--sub);text-align:right">' + qty + ' '+_t('common.pieces')+' · ฿' + Number(it.totalPrice||0).toLocaleString() + '</div>';
+      h += '<div style="font-size:11px;color:var(--sub);text-align:right">' + qty + ' '+unitText('common.pieces')+' · ฿' + Number(it.totalPrice||0).toLocaleString() + '</div>';
       h += '</div></div>';
     }
     h += '</div></div>';
