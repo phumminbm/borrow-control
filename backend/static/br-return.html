@@ -742,7 +742,30 @@ input,select,textarea,button{font-family:inherit;font-size:13px;}
 .btn-page:disabled{ opacity:.4; cursor:not-allowed; }
 
 /* Table */
-.table-wrap{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;overflow:hidden;}
+.table-wrap{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:14px;
+  overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.table-wrap > .table-header{ flex-shrink:0; }
+.table-wrap > #sale-pagination,
+.table-wrap > #admin-pagination{ flex-shrink:0; }
+/* Scrollable region for the table body.
+   - flex:1 / min-height:0 makes the region take the leftover space inside
+     .table-wrap so the pagination sits at the bottom of the card.
+   - max-height keeps the card from growing past a comfortable size so the
+     pagination bar is always visible without scrolling the outer page.
+     65vh works for standalone and is overridden tighter for embedded mode
+     (where the iframe height is smaller). */
+.table-scroll{
+  flex:1 1 auto; min-height:0; overflow:auto;
+  max-height:65vh;
+}
+/* Sticky table header so column titles stay anchored while scrolling
+   through 20 rows. background is required so rows don't show through. */
+.table-scroll thead th{ position:sticky; top:0; z-index:5; background:var(--bg3); }
+:root.light .table-scroll thead th{ background:#F4F5F7; }
+
 .table-header{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;border-bottom:1px solid var(--border);
@@ -1429,6 +1452,15 @@ tbody tr:last-child td{border-bottom:none;}
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     overflow: hidden;
+  }
+
+  /* In the embedded /v2 shell the iframe is shorter than the full viewport,
+     so the standalone 65vh would still push pagination off-screen. Constrain
+     the scrollable table region tighter so the pagination bar stays visible
+     inside the iframe. */
+  :root.embedded .table-scroll {
+    max-height: calc(100vh - 380px);
+    min-height: 240px;
   }
 
   :root.embedded .table-header {
@@ -3729,7 +3761,10 @@ function renderContent(){
   // Table
   h += '<div class="table-wrap">';
   h += '<div class="table-header"><div class="table-heading"><span class="table-title">'+_t('br.section.requests')+'</span><span class="table-count" id="sale-count"></span></div>'+filterH+'</div>';
-  h += '<table><thead><tr>';
+  // .table-scroll provides the scrollable region that lets the table-wrap
+  // act as a fixed-height card: header on top, table scrolls in the middle,
+  // pagination pinned at the bottom of the card (sibling to .table-scroll).
+  h += '<div class="table-scroll"><table><thead><tr>';
   h += '<th onclick="openColFilter(event,\'sale\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'sale\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'sale\',\'code\')"><div class="th-inner">'+_t('br.col.custCode')+'<span class="th-arrow">▾</span></div></th>';
@@ -3738,7 +3773,7 @@ function renderContent(){
   h += '<th>'+_t('br.col.items')+'</th>';
   h += '<th onclick="openColFilter(event,\'sale\',\'status\')"><div class="th-inner">'+_t('br.col.status')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th>'+_t('br.col.action')+'</th>';
-  h += '</tr></thead><tbody id="sale-tbody"></tbody></table>';
+  h += '</tr></thead><tbody id="sale-tbody"></tbody></table></div>';
   h += '<div id="sale-pagination"></div>';
   h += '</div>';
 
@@ -4069,7 +4104,7 @@ function renderAdminContent(){
 
   h += '<div class="table-wrap">';
   h += '<div class="table-header"><div class="table-heading"><span class="table-title">'+_t('br.section.adminAll')+'</span><span class="table-count" id="admin-count"></span></div>'+filterH+'</div>';
-  h += '<table><thead><tr>';
+  h += '<div class="table-scroll"><table><thead><tr>';
   h += '<th onclick="openColFilter(event,\'admin\',\'id\')"><div class="th-inner">'+_t('br.col.id')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'admin\',\'date\')"><div class="th-inner">'+_t('br.col.date')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th onclick="openColFilter(event,\'admin\',\'cust\')"><div class="th-inner">'+_t('detail.cust')+'<span class="th-arrow">▾</span></div></th>';
@@ -4079,7 +4114,7 @@ function renderAdminContent(){
   h += '<th onclick="openColFilter(event,\'admin\',\'status\')"><div class="th-inner">'+_t('br.col.status')+'<span class="th-arrow">▾</span></div></th>';
   h += '<th>'+_t('br.col.action')+'</th>';
   h += '<th onclick="openColFilter(event,\'admin\',\'sheetSync\')"><div class="th-inner">'+_t('br.col.sheetSync')+'<span class="th-arrow">▾</span></div></th>';
-  h += '</tr></thead><tbody id="admin-tbody"></tbody></table>';
+  h += '</tr></thead><tbody id="admin-tbody"></tbody></table></div>';
   h += '<div id="admin-pagination"></div>';
   h += '</div>';
 
