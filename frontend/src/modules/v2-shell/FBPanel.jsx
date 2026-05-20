@@ -18,8 +18,8 @@ import { T } from "../../App";
 const PAGE_HEADER = {
   th: {
     eyebrow: "FIND BORROW",
-    title: "Find Borrow",
-    subtitle: "ภาพรวมการยืมสินค้า — รายลูกค้า, BR, มูลค่าค้างชำระ",
+    title: "ค้นหาใบยืม (Find Borrow)",
+    subtitle: "ค้นหาและติดตามใบยืม BR · วิเคราะห์สถานะการยืมสินค้าของลูกค้า",
     sale: "Sale",
     admin: "Admin",
     live: "PRODUCTION",

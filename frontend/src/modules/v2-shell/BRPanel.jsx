@@ -39,8 +39,8 @@ function originOf(url) {
 const PAGE_HEADER = {
   th: {
     eyebrow: "BR RETURN",
-    title: "BR Return",
-    subtitle: "สร้างคำขอคืน · ตรวจสอบ · อนุมัติ — เขียนกลับไป Logistics File อัตโนมัติ",
+    title: "ระบบคืนสินค้ายืม (BR Return)",
+    subtitle: "สร้างคำขอคืน · ติดตามและตรวจสอบรายการสินค้าจากใบยืม",
     beta: "BETA",
     live: "LIVE",
     loading: "กำลังโหลด BR Return...",
