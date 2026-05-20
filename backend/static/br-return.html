@@ -2697,31 +2697,84 @@ function isDesktopPrintAvailable(){
   return window.innerWidth >= 768;
 }
 
+function printBlobUrlFromHtml(html){
+  return URL.createObjectURL(new Blob([html], {type:'text/html;charset=utf-8'}));
+}
+
+function rememberPrintUrls(target, urls){
+  if(!target || !target.urls) return;
+  for(var i=0;i<urls.length;i++){
+    if(urls[i]) target.urls.push(urls[i]);
+  }
+}
+
+function schedulePrintUrlCleanup(target){
+  if(!target || target.cleanupScheduled) return;
+  target.cleanupScheduled = true;
+  setTimeout(function(){
+    var urls = target.urls || [];
+    for(var i=0;i<urls.length;i++){
+      try{ URL.revokeObjectURL(urls[i]); }catch(e){}
+    }
+    target.urls = [];
+  }, 5 * 60 * 1000);
+}
+
+function navigatePrintTarget(target, url){
+  if(!target || !target.win || !url) return false;
+  try{
+    if(target.win.location && target.win.location.replace) target.win.location.replace(url);
+    else target.win.location.href = url;
+    schedulePrintUrlCleanup(target);
+    return true;
+  }catch(e){
+    try{
+      target.win.location.href = url;
+      schedulePrintUrlCleanup(target);
+      return true;
+    }catch(e2){
+      return false;
+    }
+  }
+}
+
+function buildLoadingPrintHtml(title){
+  var safeTitle = htmlEscape(title || 'Print BR');
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+safeTitle+'</title>'
+    +'<style>body{margin:0;height:100vh;display:grid;place-items:center;font-family:Arial,Tahoma,sans-serif;color:#185FA5;background:#F8FAFC}'
+    +'.box{border:1px solid #BFDBFE;background:#EFF6FF;border-radius:12px;padding:18px 22px;font-weight:800}</style>'
+    +'</head><body><div class="box">Loading BR print...</div></body></html>';
+}
+
 function openPrintWindow(title){
-  var win = window.open('', '_blank');
+  var loadingUrl = printBlobUrlFromHtml(buildLoadingPrintHtml(title));
+  var win = window.open(loadingUrl, '_blank');
   if(!win){
+    URL.revokeObjectURL(loadingUrl);
     showToast('Please allow pop-ups to print PDF', 'warn');
     return null;
   }
-  var safeTitle = htmlEscape(title || 'Print PDF');
-  win.document.write(
-    '<!doctype html><html><head><title>'+safeTitle+'</title>'
-    +'<style>html,body{margin:0;height:100%;overflow:hidden}iframe{width:100%;height:100vh;border:0}</style>'
-    +'</head><body><iframe id="pdfFrame" title="'+safeTitle+'"></iframe>'
-    +'<script>var f=document.getElementById("pdfFrame");'
-    +'f.onload=function(){setTimeout(function(){f.contentWindow.focus();f.contentWindow.print();},350)};<\/script>'
-    +'</body></html>'
-  );
-  win.document.close();
-  return win;
+  return {win:win, urls:[loadingUrl], cleanupScheduled:false};
 }
 
-function printPdfBlob(blob, title, printWindow){
-  var win = printWindow || openPrintWindow(title);
-  if(!win) return;
-  var blobUrl = URL.createObjectURL(blob);
-  win.document.getElementById('pdfFrame').src = blobUrl;
-  win.addEventListener('beforeunload', function(){ URL.revokeObjectURL(blobUrl); }, {once:true});
+function printPdfBlob(blob, title, printTarget){
+  var target = printTarget || openPrintWindow(title);
+  if(!target) return;
+  var pdfUrl = URL.createObjectURL(blob);
+  var safeTitle = htmlEscape(title || 'Print PDF');
+  var frameTitle = safeTitle.replace(/'/g, '&#39;');
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>'+safeTitle+'</title>'
+    +'<style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}iframe{width:100%;height:100vh;border:0}</style>'
+    +'</head><body><iframe id="pdfFrame" title="'+frameTitle+'" src="'+pdfUrl+'"></iframe>'
+    +'<script>var f=document.getElementById("pdfFrame");'
+    +'f.onload=function(){setTimeout(function(){try{f.contentWindow.focus();f.contentWindow.print();}catch(e){window.print();}},450)};'
+    +'<\/script></body></html>';
+  var wrapperUrl = printBlobUrlFromHtml(html);
+  rememberPrintUrls(target, [pdfUrl, wrapperUrl]);
+  if(!navigatePrintTarget(target, wrapperUrl)){
+    window.open(wrapperUrl, '_blank');
+    schedulePrintUrlCleanup(target);
+  }
 }
 
 function findReturnRequestForPrint(brNo, requestId){
@@ -2823,10 +2876,9 @@ function printDateValue(value, req){
   return htmlEscape(req ? fmtRequestDate(req) : '');
 }
 
-function writePrintDocument(printWindow, title, bodyHtml){
+function writePrintDocument(printTarget, title, bodyHtml){
   var safeTitle = htmlEscape(title || 'Print BR');
-  printWindow.document.open();
-  printWindow.document.write(
+  var html =
     '<!doctype html><html><head><meta charset="utf-8"><title>'+safeTitle+'</title>'
     +'<style>'
     +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Tahoma",sans-serif;color:#202124;background:#fff;font-size:12px}'
@@ -2838,9 +2890,13 @@ function writePrintDocument(printWindow, title, bodyHtml){
     +'.num{text-align:right}.center{text-align:center}.muted{color:#777}.print-note{margin-top:12px;color:#777;font-size:11px}@media print{.no-print{display:none}}'
     +'</style></head><body>'+bodyHtml
     +'<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},350);});<\/script>'
-    +'</body></html>'
-  );
-  printWindow.document.close();
+    +'</body></html>';
+  var htmlUrl = printBlobUrlFromHtml(html);
+  rememberPrintUrls(printTarget, [htmlUrl]);
+  if(!navigatePrintTarget(printTarget, htmlUrl)){
+    window.open(htmlUrl, '_blank');
+    schedulePrintUrlCleanup(printTarget);
+  }
 }
 
 function buildBorrowPrintBody(brNo, req){
@@ -2881,24 +2937,24 @@ function buildBorrowPrintBody(brNo, req){
     +'</div>';
 }
 
-function writePrintError(printWindow, brNo, message){
-  writePrintDocument(printWindow, 'Print BR - ' + brNo,
+function writePrintError(printTarget, brNo, message){
+  writePrintDocument(printTarget, 'Print BR - ' + brNo,
     '<div class="page"><h2>Print BR failed</h2><p>BR: <strong>'+htmlEscape(brNo)+'</strong></p><p>'+htmlEscape(message || 'Unable to generate printable document.')+'</p></div>'
   );
 }
 
-function renderBorrowPrintFallback(brNo, requestId, printWindow, sourceError){
+function renderBorrowPrintFallback(brNo, requestId, printTarget, sourceError){
   var req = findReturnRequestForPrint(brNo, requestId);
   var needsBorrowLoad = req && req.custCode && (!ITEMS[brNo] || !ITEMS[brNo].length);
   var load = needsBorrowLoad ? loadCustomerBorrowData(req.custCode) : Promise.resolve();
   return load.catch(function(){ return null; }).then(function(){
     var rows = borrowRowsForPrint(brNo, req);
     if(!rows.length) throw new Error('No BR or request item data available');
-    writePrintDocument(printWindow, brNo, buildBorrowPrintBody(brNo, req));
+    writePrintDocument(printTarget, brNo, buildBorrowPrintBody(brNo, req));
     showToast('Print BR opened from request data', 'success');
   }).catch(function(err){
     var msg = err && err.message ? err.message : (sourceError && sourceError.message ? sourceError.message : 'Unknown print error');
-    writePrintError(printWindow, brNo, msg);
+    writePrintError(printTarget, brNo, msg);
     showToast('Print failed: '+msg, 'warn');
   });
 }
@@ -2912,8 +2968,8 @@ function printBorrowPdf(brNo, requestId){
     showToast('Missing BR number', 'warn');
     return;
   }
-  var printWindow = openPrintWindow(brNo);
-  if(!printWindow) return;
+  var printTarget = openPrintWindow(brNo);
+  if(!printTarget) return;
   showToast('Loading BR PDF...', 'success');
   fetch(BORROW_API_BASE + '/brs/' + encodeURIComponent(brNo) + '/pdf?include_closed=true', {cache:'no-store'})
     .then(function(r){
@@ -2922,11 +2978,11 @@ function printBorrowPdf(brNo, requestId){
     })
     .then(function(blob){
       if(!blob || blob.size===0) throw new Error('PDF response was empty');
-      printPdfBlob(blob, brNo, printWindow);
+      printPdfBlob(blob, brNo, printTarget);
     })
     .catch(function(err){
       console.warn('[BR Return] Server BR PDF failed; using request-data print fallback:', err);
-      renderBorrowPrintFallback(brNo, requestId, printWindow, err);
+      renderBorrowPrintFallback(brNo, requestId, printTarget, err);
     });
 }
 
