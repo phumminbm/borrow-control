@@ -1905,6 +1905,7 @@ var BR_STRINGS = {
   // ── New-request flow: Step 2 (select BR) ─────────────────────
   "step2.title":              { th: "เลือกใบยืม",            en: "Select BR" },
   "step2.searchPlaceholder":  { th: "ค้นหาเลขใบยืม เช่น BR2022...", en: "Search BR number, e.g. BR2022..." },
+  "step2.loadingBR":          { th: "กำลังโหลดข้อมูลใบยืม",   en: "Loading BR data" },
 
   // ── Step 3 (select items + qty) ──────────────────────────────
   "step3.title":              { th: "เลือกสินค้าและจำนวน",   en: "Select items and quantities" },
@@ -1921,6 +1922,8 @@ var BR_STRINGS = {
   "step3.bulk.sale":          { th: "💰 ขาย",                en: "💰 Sale" },
   "step3.bulk.free":          { th: "🎁 ฟรี",                en: "🎁 Free" },
   "step3.review":             { th: "ตรวจสอบ & ส่ง →",        en: "Review & submit →" },
+  "step3.productCode":        { th: "รหัสสินค้า",             en: "Product Code" },
+  "step3.productName":        { th: "ชื่อสินค้า",              en: "Product Name" },
 
   // ── Confirm popup ─────────────────────────────────────────────
   "confirm.title":            { th: "ยืนยันคำขอคืนสินค้า",   en: "Confirm return request" },
@@ -2042,6 +2045,10 @@ var BR_STRINGS = {
   "common.reason":            { th: "เหตุผล",                en: "Reason" },
   "common.status":            { th: "สถานะ",                 en: "Status" },
   "common.items":             { th: "รายการ",                en: "items" },
+  "common.day":               { th: "วัน",                   en: "days" },
+  "common.daysMax":           { th: "ค้างสูงสุด",             en: "oldest" },
+  "common.pieces":            { th: "ชิ้น",                  en: "EA" },
+  "common.remaining":         { th: "คงเหลือ",                en: "remaining" },
   "common.qty":               { th: "จำนวน",                 en: "Qty" },
   "common.price":             { th: "ราคา",                  en: "Price" },
   "common.total":             { th: "รวม",                   en: "Total" },
@@ -2204,6 +2211,9 @@ var BR_STRINGS = {
   "detail.cancelReason":      { th: "เหตุผลที่ยกเลิก",       en: "Cancel reason" },
   "detail.printBR":           { th: "Print BR",              en: "Print BR" },
   "detail.editAndResubmit":   { th: "↩ แก้ไขและส่งใหม่",     en: "↩ Edit and resubmit" },
+  "detail.banner.needsRevision": { th: "มีรายการที่ต้องแก้ไข", en: "Items need revision" },
+  "detail.banner.adminNote":  { th: "หมายเหตุจาก Admin: ",   en: "Note from Admin: " },
+  "detail.editResubmit":      { th: "แก้ไขและส่งใหม่",        en: "Edit and resubmit" },
 
   // ── Cancel-request popup ──────────────────────────────────────
   "cancel.title":             { th: "ยกเลิกคำขอ",            en: "Cancel request" },
@@ -3679,7 +3689,7 @@ function openStep1(){
   // no path can leak a previously-typed remark into a new request regardless of
   // which Sale, customer, or BR the user chooses next.
   if (el('ov3-remark')) el('ov3-remark').value = '';
-  el('ov1-sale-label').innerHTML = 'Sale: <strong>'+MSALE+'</strong>';
+  el('ov1-sale-label').innerHTML = _t('common.role.sale')+': <strong>'+MSALE+'</strong>';
   el('ov1-stepbar').innerHTML = makeStepBar(1);
   el('ov1-search').value = '';
   el('ov1-next').disabled = true;
@@ -3731,7 +3741,7 @@ function goStep2(){
   el('ov2-next').disabled = true;
   ST.br = null;
   hide('ov1'); show('ov2');
-  el('ov2-list').innerHTML = '<div class="empty-state"><div class="empty-icon">...</div><div class="empty-text">Loading BR data</div></div>';
+  el('ov2-list').innerHTML = '<div class="empty-state"><div class="empty-icon">...</div><div class="empty-text">'+_t('step2.loadingBR')+'</div></div>';
   loadCustomerBorrowData(ST.custCode).then(function(){ renderBRList(); });
 }
 
@@ -3803,13 +3813,13 @@ function renderProductList(){
   // header
   h += '<thead class="prod-thead"><tr>';
   h += '<th class="th-l" style="width:28px"></th>';
-  h += '<th class="th-l" style="width:110px">Product Code</th>';
-  h += '<th class="th-l">Product Name</th>';
+  h += '<th class="th-l" style="width:110px">'+_t('step3.productCode')+'</th>';
+  h += '<th class="th-l">'+_t('step3.productName')+'</th>';
   h += '<th class="th-c" style="width:72px">'+_t('prod.outstanding')+'</th>';
   h += '<th class="th-c" style="color:var(--green);width:100px">↩ '+_t('type.return')+' ('+_t('common.pieces')+')</th>';
   h += '<th class="th-c" style="color:var(--yellow);width:100px">⚠ '+_t('type.claim')+' ('+_t('common.pieces')+')</th>';
-  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 SALE ('+_t('common.pieces')+')</th>';
-  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 FREE ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--pink);width:100px">💰 '+_t('type.sale')+' ('+_t('common.pieces')+')</th>';
+  h += '<th class="th-c" style="color:var(--purple);width:100px">🎁 '+_t('type.free')+' ('+_t('common.pieces')+')</th>';
   h += '</tr></thead><tbody>';
 
   for(var i=0;i<prods.length;i++){
@@ -3999,18 +4009,18 @@ function showConfirm(){
   h += '<div style="display:flex;gap:20px;margin-bottom:14px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">';
   h += '<div style="font-size:11px;color:var(--sub)">'+_t('detail.cust')+'<br><span style="font-size:13px;color:var(--text);font-weight:600">'+ST.custName+'</span></div>';
   h += '<div style="font-size:11px;color:var(--sub)">'+_t('br.col.br')+'<br><span class="br-tag" style="font-size:13px">'+ST.br+'</span></div>';
-  h += '<div style="font-size:11px;color:var(--sub)">Sale<br><span style="font-size:13px;color:var(--green);font-weight:700">'+ST.sale+'</span></div>';
+  h += '<div style="font-size:11px;color:var(--sub)">'+_t('common.role.sale')+'<br><span style="font-size:13px;color:var(--green);font-weight:700">'+ST.sale+'</span></div>';
   h += '</div>';
 
   // Product table
   h += '<table class="prod-table">';
   h += '<thead class="prod-thead"><tr>';
-  h += '<th class="th-l" style="width:110px">Product Code</th>';
-  h += '<th class="th-l">Product Name</th>';
+  h += '<th class="th-l" style="width:110px">'+_t('step3.productCode')+'</th>';
+  h += '<th class="th-l">'+_t('step3.productName')+'</th>';
   h += '<th class="th-c" style="color:var(--green);width:72px">↩ '+_t('type.return')+'</th>';
   h += '<th class="th-c" style="color:var(--yellow);width:72px">⚠ '+_t('type.claim')+'</th>';
-  h += '<th class="th-c" style="color:var(--pink);width:72px">💰 SALE</th>';
-  h += '<th class="th-c" style="color:var(--purple);width:72px">🎁 FREE</th>';
+  h += '<th class="th-c" style="color:var(--pink);width:72px">💰 '+_t('type.sale')+'</th>';
+  h += '<th class="th-c" style="color:var(--purple);width:72px">🎁 '+_t('type.free')+'</th>';
   h += '</tr></thead><tbody>';
 
   for(var i=0;i<keys.length;i++){
