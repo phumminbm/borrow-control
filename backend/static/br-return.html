@@ -2724,7 +2724,186 @@ function printPdfBlob(blob, title, printWindow){
   win.addEventListener('beforeunload', function(){ URL.revokeObjectURL(blobUrl); }, {once:true});
 }
 
-function printBorrowPdf(brNo){
+function findReturnRequestForPrint(brNo, requestId){
+  if(requestId){
+    for(var a=0;a<RECENT.length;a++) if(RECENT[a].id===requestId) return RECENT[a];
+  }
+  if(_DETAIL_REQ_ID){
+    for(var b=0;b<RECENT.length;b++) if(RECENT[b].id===_DETAIL_REQ_ID && RECENT[b].br===brNo) return RECENT[b];
+  }
+  if(ADMIN_REVIEW && ADMIN_REVIEW.id){
+    for(var c=0;c<RECENT.length;c++) if(RECENT[c].id===ADMIN_REVIEW.id && RECENT[c].br===brNo) return RECENT[c];
+  }
+  for(var i=0;i<RECENT.length;i++) if(RECENT[i].br===brNo) return RECENT[i];
+  return null;
+}
+
+function findCustomerForPrint(req){
+  if(req && req.custCode){
+    for(var i=0;i<CUSTS.length;i++){
+      if(CUSTS[i].code===req.custCode) return CUSTS[i];
+    }
+  }
+  return {
+    code: req && req.custCode || '',
+    name: req && req.cust || '',
+    sale: req && req.sale || '',
+    addr: ''
+  };
+}
+
+function findBorrowForPrint(brNo, req){
+  for(var code in BRS){
+    if(!Object.prototype.hasOwnProperty.call(BRS, code)) continue;
+    var brs = BRS[code] || [];
+    for(var i=0;i<brs.length;i++) if(brs[i].br===brNo) return brs[i];
+  }
+  return {
+    br: brNo,
+    date: req ? fmtRequestDate(req) : '',
+    days: 0,
+    status: '',
+    value: 0
+  };
+}
+
+function requestItemsForPrint(req){
+  if(!req) return [];
+  if(req.status === 'approved' && Array.isArray(req.revisionHistory) && req.revisionHistory.length > 0){
+    return buildApprovedFullView(req);
+  }
+  return Array.isArray(req.submittedItems) ? req.submittedItems : [];
+}
+
+function requestItemQtyForPrint(it){
+  var requested = Number(it.retQty||0) + Number(it.clmQty||0) + Number(it.saleQty||0) + Number(it.freeQty||0);
+  return Math.max(Number(it.quantity||0), Number(it.qty||0), requested);
+}
+
+function borrowRowsForPrint(brNo, req){
+  var source = ITEMS[brNo] || [];
+  if(source.length){
+    return source.map(function(p, idx){
+      var qty = Number(p.qty || p.quantity || 0);
+      var price = Number(p.price || 0);
+      return {
+        no: idx + 1,
+        code: p.code || '',
+        name: p.name || '',
+        qty: qty,
+        unit: 'EA',
+        price: price,
+        total: Number(p.total || p.totalPrice || (price * qty) || 0)
+      };
+    });
+  }
+  var items = requestItemsForPrint(req);
+  if(!items.length) items = fallbackSubmittedItems(brNo);
+  return items.map(function(it, idx){
+    var qty = requestItemQtyForPrint(it);
+    var price = Number(it.price || 0);
+    return {
+      no: idx + 1,
+      code: it.code || it.product_code || '',
+      name: it.name || it.product_name || '',
+      qty: qty,
+      unit: 'EA',
+      price: price,
+      total: Number(it.totalPrice || it.total || it.total_price || (price * qty) || 0)
+    };
+  }).filter(function(row){ return row.code || row.name; });
+}
+
+function printMoney(value){
+  return Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
+}
+
+function printDateValue(value, req){
+  if(value) return htmlEscape(value);
+  return htmlEscape(req ? fmtRequestDate(req) : '');
+}
+
+function writePrintDocument(printWindow, title, bodyHtml){
+  var safeTitle = htmlEscape(title || 'Print BR');
+  printWindow.document.open();
+  printWindow.document.write(
+    '<!doctype html><html><head><meta charset="utf-8"><title>'+safeTitle+'</title>'
+    +'<style>'
+    +'@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Tahoma",sans-serif;color:#202124;background:#fff;font-size:12px}'
+    +'.page{max-width:190mm;margin:0 auto}.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #bbb;padding-bottom:10px;margin-bottom:8px}'
+    +'.brand{font-size:32px;font-weight:800;line-height:1;color:#555}.brand span{color:#D4357A}.tag{font-size:14px;color:#666;margin-top:3px}.company{text-align:right;font-size:14px;line-height:1.45}'
+    +'.title{background:#eee;text-align:center;font-size:24px;font-weight:800;padding:8px;margin:10px 0 12px}.title small{display:block;font-size:16px;font-weight:600;margin-top:2px}'
+    +'.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:0 24px;border-bottom:1px solid #eee;margin-bottom:14px}.field{display:grid;grid-template-columns:140px 1fr;gap:10px;border-top:1px solid #eee;padding:8px 0}.label{font-weight:800;color:#666}.val{font-size:15px}'
+    +'table{width:100%;border-collapse:collapse;margin-top:8px}thead th{background:#eee;text-align:left;padding:9px 8px;font-size:13px}tbody td{padding:9px 8px;border-bottom:1px solid #eee;vertical-align:top}tfoot td{background:#f7f7f7;font-weight:800;padding:10px 8px}'
+    +'.num{text-align:right}.center{text-align:center}.muted{color:#777}.print-note{margin-top:12px;color:#777;font-size:11px}@media print{.no-print{display:none}}'
+    +'</style></head><body>'+bodyHtml
+    +'<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},350);});<\/script>'
+    +'</body></html>'
+  );
+  printWindow.document.close();
+}
+
+function buildBorrowPrintBody(brNo, req){
+  var customer = findCustomerForPrint(req);
+  var br = findBorrowForPrint(brNo, req);
+  var rows = borrowRowsForPrint(brNo, req);
+  var total = 0;
+  for(var i=0;i<rows.length;i++) total += Number(rows[i].total || 0);
+  var rowHtml = rows.map(function(row){
+    return '<tr>'
+      +'<td class="center">'+row.no+'</td>'
+      +'<td>'+htmlEscape(row.code)+'</td>'
+      +'<td>'+htmlEscape(row.name)+'</td>'
+      +'<td class="num">'+printMoney(row.qty)+'</td>'
+      +'<td class="center">'+htmlEscape(row.unit || 'EA')+'</td>'
+      +'<td class="num">'+printMoney(row.price)+'</td>'
+      +'<td class="num">'+printMoney(row.total)+'</td>'
+      +'</tr>';
+  }).join('');
+  if(!rowHtml){
+    rowHtml = '<tr><td colspan="7" class="center muted">No item data available</td></tr>';
+  }
+  return '<div class="page">'
+    +'<div class="top"><div><div class="brand"><span>Neo</span>Biotech</div><div class="tag">Satisfaction to Dentists</div></div>'
+    +'<div class="company">เลขที่ 16 อาคารคอมโพแพ็ค ห้องเลขที่ 201,401 ชั้น 2,4<br>ซ.เอกมัย 4 ถ.สุขุมวิท 63 แขวงพระโขนงเหนือ เขตวัฒนา กรุงเทพฯ 10110<br><strong>TAX ID No. 0105559043311</strong><br>Tel. 02-020-1536 &nbsp;&nbsp; Fax. 02-020-8448</div></div>'
+    +'<div class="title">Borrowing Form<small>ใบยืมสินค้า</small></div>'
+    +'<div class="grid">'
+    +'<div class="field"><div class="label">Customer Code</div><div class="val">'+htmlEscape(customer.code)+'</div></div>'
+    +'<div class="field"><div class="label">NO.</div><div class="val">'+htmlEscape(brNo)+'</div></div>'
+    +'<div class="field"><div class="label">Customer Name</div><div class="val">'+htmlEscape(customer.name)+'</div></div>'
+    +'<div class="field"><div class="label">DATE</div><div class="val">'+printDateValue(br.date, req)+'</div></div>'
+    +'<div class="field"><div class="label">Address</div><div class="val">'+htmlEscape(customer.addr || '')+'</div></div>'
+    +'<div class="field"><div class="label">Sale Representative Name</div><div class="val">'+htmlEscape(customer.sale || (req && req.sale) || '')+'</div></div>'
+    +'</div>'
+    +'<table><thead><tr><th class="center" style="width:42px">No.</th><th style="width:120px">Code</th><th>Description</th><th class="num" style="width:80px">Quantity</th><th class="center" style="width:70px">Unit</th><th class="num" style="width:110px">Unit Price</th><th class="num" style="width:120px">Amount (Baht)</th></tr></thead>'
+    +'<tbody>'+rowHtml+'</tbody><tfoot><tr><td colspan="6" class="num">Total</td><td class="num">'+printMoney(total)+'</td></tr></tfoot></table>'
+    +'<div class="print-note no-print">Generated from BR Return request data because the server PDF was unavailable.</div>'
+    +'</div>';
+}
+
+function writePrintError(printWindow, brNo, message){
+  writePrintDocument(printWindow, 'Print BR - ' + brNo,
+    '<div class="page"><h2>Print BR failed</h2><p>BR: <strong>'+htmlEscape(brNo)+'</strong></p><p>'+htmlEscape(message || 'Unable to generate printable document.')+'</p></div>'
+  );
+}
+
+function renderBorrowPrintFallback(brNo, requestId, printWindow, sourceError){
+  var req = findReturnRequestForPrint(brNo, requestId);
+  var needsBorrowLoad = req && req.custCode && (!ITEMS[brNo] || !ITEMS[brNo].length);
+  var load = needsBorrowLoad ? loadCustomerBorrowData(req.custCode) : Promise.resolve();
+  return load.catch(function(){ return null; }).then(function(){
+    var rows = borrowRowsForPrint(brNo, req);
+    if(!rows.length) throw new Error('No BR or request item data available');
+    writePrintDocument(printWindow, brNo, buildBorrowPrintBody(brNo, req));
+    showToast('Print BR opened from request data', 'success');
+  }).catch(function(err){
+    var msg = err && err.message ? err.message : (sourceError && sourceError.message ? sourceError.message : 'Unknown print error');
+    writePrintError(printWindow, brNo, msg);
+    showToast('Print failed: '+msg, 'warn');
+  });
+}
+
+function printBorrowPdf(brNo, requestId){
   if(!isDesktopPrintAvailable()){
     showToast('Print is available on desktop only', 'warn');
     return;
@@ -2742,11 +2921,12 @@ function printBorrowPdf(brNo){
       return r.blob();
     })
     .then(function(blob){
+      if(!blob || blob.size===0) throw new Error('PDF response was empty');
       printPdfBlob(blob, brNo, printWindow);
     })
     .catch(function(err){
-      printWindow.close();
-      showToast('Print failed: '+err.message, 'warn');
+      console.warn('[BR Return] Server BR PDF failed; using request-data print fallback:', err);
+      renderBorrowPrintFallback(brNo, requestId, printWindow, err);
     });
 }
 
@@ -4294,7 +4474,7 @@ function openDetail(rid){
   var foot = '';
   if(ACTIVE_TAB==='admin'){
     if(isDesktopPrintAvailable()){
-      foot += '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(r.br)+'\')">Print BR</button>';
+      foot += '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(r.br)+'\',\''+jsArg(r.id)+'\')">Print BR</button>';
     }
     if(r.status==='pending' || r.status==='rejected'){
       foot += '<button class="btn btn-danger" onclick="openCancelRequest(\''+r.id+'\',\'admin\')">✕ '+_t('action.cancelRequest')+'</button>';
@@ -4783,7 +4963,7 @@ function updateReviewButtons(items){
   var reviewReq = null;
   for(var ri=0;ri<RECENT.length;ri++) if(RECENT[ri].id===ADMIN_REVIEW.id){reviewReq=RECENT[ri];break;}
   var printBtn = (reviewReq && isDesktopPrintAvailable())
-    ? '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(reviewReq.br)+'\')">Print BR</button>'
+    ? '<button class="btn btn-print" onclick="printBorrowPdf(\''+jsArg(reviewReq.br)+'\',\''+jsArg(reviewReq.id)+'\')">Print BR</button>'
     : '';
   var sendBackLabel = pass>0 ? _t('review.sendBackPartial') : _t('review.sendBack');
 
