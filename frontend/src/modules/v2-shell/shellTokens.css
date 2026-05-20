@@ -78,11 +78,6 @@
 .v2-logo-line-1 em { font-style: normal; color: var(--v2-brand); }
 .v2-logo-line-2 { font-size: 8px; font-weight: 600; color: var(--v2-sub); letter-spacing: 1.4px; text-transform: uppercase; }
 .v2-tb-spacer { flex: 1; }
-.v2-tb-clock {
-  font-size: 11px; color: var(--v2-sub); font-family: var(--v2-mono);
-  padding: 6px 10px; background: var(--v2-card2);
-  border: 1px solid var(--v2-border); border-radius: 7px;
-}
 .v2-toggle-btn {
   display: flex; align-items: center; gap: 4px;
   height: 34px; padding: 0 10px; border-radius: 8px;
@@ -91,21 +86,6 @@
   cursor: pointer; transition: all 0.12s;
 }
 .v2-toggle-btn:hover { border-color: var(--v2-brand); color: var(--v2-brand); }
-.v2-tb-divider { width: 1px; height: 24px; background: var(--v2-border2); margin: 0 4px; }
-.v2-tb-user {
-  display: flex; align-items: center; gap: 9px;
-  padding: 4px 12px 4px 4px; border-radius: 20px;
-  border: 1px solid var(--v2-border); background: transparent;
-}
-.v2-tb-user-avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--v2-brand), var(--v2-brand-2));
-  color: #fff; font-size: 11px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-}
-.v2-tb-user-info { display: flex; flex-direction: column; line-height: 1.1; gap: 2px; text-align: left; }
-.v2-tb-user-name { font-size: 11px; font-weight: 600; color: var(--v2-text); }
-.v2-tb-user-role { font-size: 9px; color: var(--v2-sub); }
 
 /* Main layout */
 .v2-main { display: flex; flex: 1; overflow: hidden; }
@@ -147,16 +127,6 @@
 .v2-sb-item.active-fb .v2-sb-item-badge { background: var(--v2-fb-accent); color: #fff; }
 .v2-sb-item.active-br .v2-sb-item-badge { background: var(--v2-br-accent); color: #fff; }
 .v2-sb-spacer { flex: 1; }
-.v2-sb-tip {
-  margin-top: 12px;
-  background: var(--v2-card); border: 1px solid var(--v2-border);
-  border-radius: 10px; padding: 12px 13px;
-  font-size: 11px; color: var(--v2-sub); line-height: 1.5;
-}
-.v2-sb-tip-title {
-  font-size: 11px; font-weight: 700; color: var(--v2-text);
-  margin-bottom: 4px;
-}
 
 /* Content */
 .v2-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--v2-bg); }

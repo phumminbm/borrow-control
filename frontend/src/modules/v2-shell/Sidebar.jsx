@@ -10,15 +10,11 @@ const LABELS = {
     section: "โมดูล",
     findBorrow: "Find Borrow",
     brReturn: "BR Return",
-    tipTitle: "💡 เคล็ดลับ",
-    tipBody: "คลิกเพื่อสลับโมดูล — โมดูลที่ไม่ active จะอัปเดตข้อมูลในพื้นหลัง",
   },
   en: {
     section: "Modules",
     findBorrow: "Find Borrow",
     brReturn: "BR Return",
-    tipTitle: "💡 Pro tip",
-    tipBody: "Click to switch modules — the inactive module keeps refreshing in the background",
   },
 };
 
@@ -66,11 +62,6 @@ export default function Sidebar({ module, onSelect, fbBadge, brBadge, lang }) {
       </button>
 
       <div className="v2-sb-spacer" />
-
-      <div className="v2-sb-tip">
-        <div className="v2-sb-tip-title">{L.tipTitle}</div>
-        <span>{L.tipBody}</span>
-      </div>
     </nav>
   );
 }
