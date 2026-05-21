@@ -161,7 +161,7 @@ The system runs on **three logical entry points** that are actually only **two R
 - Env vars:
   - `DATABASE_URL` — Supabase Session Pooler URL on port **5432** (see Section 4)
   - `MIGRATION_MODE` — `0` in normal operation, `1` during data restores (see Section 7)
-- Connects to: **Supabase Postgres** (`neo-erp` project, `br_system` schema)
+- Connects to: **Supabase Postgres** (`Borrow System` project, `br_system` schema, org: NEOBIOTECH (THAILAND) COMPANY LIMITED, Pro plan)
 
 ### 3.3 Render plan
 
@@ -185,14 +185,24 @@ The system runs on **three logical entry points** that are actually only **two R
 
 ### Project
 
-- **Name:** `neo-erp`
+- **Project name:** `Borrow System`
+- **Organization:** NEOBIOTECH (THAILAND) COMPANY LIMITED
+- **Plan:** **Pro** (migrated from Free as part of 2026-05-19 move to company org)
+- **Region:** AWS `ap-southeast-1`
+- **Compute:** Nano
 - **Schema:** `br_system` (everything lives under this schema, not `public`)
 - **Connection used in production:** **Session Pooler, port 5432**
+
+> **Single database for both modules.** Find Borrow and BR Return do NOT use separate databases. Both share the `Borrow System` Supabase project. All tables (`borrows`, `borrow_items`, `return_requests`, `sync_logs`) live together under `br_system`.
+
+> **Pro plan benefits.** Project pause risk (the primary Free-tier danger) is eliminated. Disk, connection-count, and bandwidth limits are substantially higher. Monitor the Supabase usage/invoice page as the system scales — especially `sync_logs` and `return_requests` row growth, storage usage, and egress if other systems (Accounting, CRM, Inventory) are added to the same organization.
+
+> **No `DATABASE_URL` change was needed** during the org transfer. The connection string survived the move intact. Verify this remains true for any future project migrations.
 
 ### Connection string format (Session Pooler)
 
 ```
-postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+postgresql://postgres.<ref>:<password>@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
 ```
 
 Set this as `DATABASE_URL` env var on the `borrow-control-api` Render service. The backend reads it via `os.getenv("DATABASE_URL")` in `main.py`.
