@@ -28,8 +28,37 @@
 import { useState, useEffect } from "react";
 import { BottomSheet, Icon } from "./shared";
 import { RETURN_TYPES, STATUS_META, typeLabel, breakdownFor } from "./constants";
-import { genReturnId, todayDateSort } from "./helpers";
+import { genReturnId, todayDateSort, THAI_MONTHS_SHORT, EN_MONTHS_SHORT } from "./helpers";
 import { submitReturnRequest } from "./api";
+
+// Build the human-readable display date the same way Desktop BR Return does
+// (br-return.html:4629). Backend stores `date` as a display string; matching
+// this format keeps Mobile-submitted and Desktop-submitted rows visually
+// consistent in the Returns list.
+function buildSubmitDateDisplay(now, lang) {
+  const day = now.getDate();
+  const mon = (lang === "en" ? EN_MONTHS_SHORT : THAI_MONTHS_SHORT)[now.getMonth()];
+  const year = lang === "en" ? now.getFullYear() : (now.getFullYear() + 543);
+  return `${day} ${mon} ${year}`;
+}
+
+// Normalise any backend error payload (string / FastAPI 422 detail array /
+// object / Error instance) into a readable string. Avoids the "[object Object]"
+// surface that appeared in the user-facing failure banner before this fix.
+function stringifyError(err) {
+  if (!err) return "";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message || String(err);
+  if (Array.isArray(err)) {
+    return err.map(e => (e && (e.msg || e.message)) || JSON.stringify(e)).join("; ");
+  }
+  if (typeof err === "object") {
+    if (err.message && typeof err.message === "string") return err.message;
+    if (err.detail) return stringifyError(err.detail);
+    try { return JSON.stringify(err); } catch { return String(err); }
+  }
+  return String(err);
+}
 
 export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, dark, onSubmitted, editingRequest = null }) {
   const isEditing = !!editingRequest;
@@ -98,7 +127,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
       setRemark("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, br?.borrow_no, editingRequest?.requestId, editingRequest?.id]);
+  }, [open, br?.borrow_no, editingRequest?.id, editingRequest?.requestId]);
 
   if (!effectiveBr || !effectiveCustomer) {
     return <BottomSheet open={open} onClose={onClose} height="92%" dark={dark} title={lang === "th" ? (isEditing ? "แก้ไขคำขอ" : "ขอคืนสินค้า") : (isEditing ? "Edit Request" : "Request Return")} />;
@@ -256,39 +285,47 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
           prevAttachmentCount: (orig.attachments || []).length,
           correctedItemIds,
         };
+        const now = new Date();
         const payload = {
-          requestId: orig.requestId || orig.id,
+          // Canonical backend field names — main.py:524-547
+          id: orig.id || orig.requestId,
+          cust: orig.cust || orig.custName,
           custCode: orig.custCode,
-          custName: orig.custName || orig.cust,
-          brNo: orig.brNo || orig.br,
+          br: orig.br || orig.brNo,
+          items: submittedItems.length,
           sale: orig.sale,
           status: "pending",
+          date: buildSubmitDateDisplay(now, lang),
           dateSort: todayDateSort(),
           remark: remark.trim() || orig.remark || "",
           submittedItems,
           adminNote: "",
           rejectedItems: [],
           attachments: [],
-          resubmittedAt: new Date().toISOString(),
+          resubmittedAt: now.toISOString(),
           revisionHistory: [...prevHistory, snapshot],
           isTest: false,
         };
         const result = await submitReturnRequest(payload);
-        if (!result.ok) throw new Error(result.error || "Resubmit failed");
+        if (!result.ok) throw new Error(stringifyError(result.error) || "Resubmit failed");
         if (onSubmitted) onSubmitted(result.data || payload);
         return;
       }
-      // New request
-      const requestId = genReturnId();
+      // New request — canonical backend field names (see main.py:524-547
+      // ReturnRequestPayload). Schema matches Desktop BR Return exactly
+      // (br-return.html:4666-4676).
+      const newId = genReturnId();
+      const now = new Date();
       const payload = {
-        requestId,
+        id: newId,
+        cust: effectiveCustomer.customer_name,
         custCode: effectiveCustomer.cust_code,
-        custName: effectiveCustomer.customer_name,
-        brNo: effectiveBr.borrow_no,
+        br: effectiveBr.borrow_no,
+        items: submittedItems.length,
         sale,
         status: "pending",
-        date: new Date().toISOString(),
-        dateSort: todayDateSort(),
+        date: buildSubmitDateDisplay(now, lang),  // Thai-formatted display string (matches Desktop)
+        dateSort: todayDateSort(),                // BBBBMMDD integer sort key
         remark: remark.trim(),
         adminNote: "",
         rejectedItems: [],
@@ -302,12 +339,13 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
         isTest: false,
       };
       const result = await submitReturnRequest(payload);
-      if (!result.ok) throw new Error(result.error || "Submit failed");
+      if (!result.ok) throw new Error(stringifyError(result.error) || "Submit failed");
       if (onSubmitted) onSubmitted(result.data || payload);
     } catch (err) {
+      const msg = stringifyError(err);
       setSubmitError(
-        (err && err.message)
-          ? (lang === "th" ? `บันทึกคำขอไม่สำเร็จ — ${err.message}` : `Submit failed — ${err.message}`)
+        msg
+          ? (lang === "th" ? `บันทึกคำขอไม่สำเร็จ — ${msg}` : `Submit failed — ${msg}`)
           : (lang === "th" ? "บันทึกคำขอไม่สำเร็จ ลองอีกครั้ง" : "Submit failed — please retry")
       );
     } finally {

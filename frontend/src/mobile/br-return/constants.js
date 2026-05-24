@@ -22,11 +22,17 @@ export const STATUS_META = {
 // ── Return type taxonomy ─────────────────────────────────────────────────────
 // Matches BR Return Apps Script types exactly. label_th + label_en both
 // present so chips render in either language.
+//
+// NOTE on the FREE color: the prototype used "#fff" which is invisible against
+// the light-mode card backgrounds in production (white-on-white). Switched to
+// "#7F77DD" (purple) — distinct from RETURN green / CLAIM amber / SALE pink
+// and readable on both light and dark surfaces. Matches the moon-icon purple
+// already used elsewhere in MobileApp.jsx's palette.
 export const RETURN_TYPES = [
   { key: "RETURN", label_th: "คืน",  label_en: "Return", icon: "↩", color: "#97C459", bg: "#1A2E0A", border: "#3A6014" },
   { key: "CLAIM",  label_th: "เคลม", label_en: "Claim",  icon: "⚠", color: "#FAC775", bg: "#3D2A00", border: "#7A5500" },
   { key: "SALE",   label_th: "ขาย",  label_en: "Sale",   icon: "💰", color: "#F09595", bg: "#3D1212", border: "#7A2020" },
-  { key: "FREE",   label_th: "ฟรี",  label_en: "Free",   icon: "🎁", color: "#fff",    bg: "#1a1a1a", border: "#555" },
+  { key: "FREE",   label_th: "ฟรี",  label_en: "Free",   icon: "🎁", color: "#7F77DD", bg: "#15123D", border: "#3A337A" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

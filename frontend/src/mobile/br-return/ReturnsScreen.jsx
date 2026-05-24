@@ -51,6 +51,32 @@ function dateToBuddhistInt(d) {
   return (d.getFullYear() + 543) * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
+// Display the request's date intelligently. Three cases the backend can return:
+//   1. ISO timestamp (some legacy mobile submissions) — format via fmtDateTime
+//   2. Pre-formatted Thai display string like "22 พ.ค. 2569" (Desktop default
+//      and current Mobile submissions, matches br-return.html:4629) — show as-is
+//   3. Missing / empty — reconstruct from r.dateSort (BBBBMMDD INT4)
+// Before this helper, fmtDateTime(raw) returned "—" for case 2, hiding every
+// row's date in the list.
+function displayRequestDate(r, lang) {
+  const raw = r && r.date ? String(r.date) : "";
+  if (raw) {
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) return fmtDateTime(raw, lang);
+    return raw;
+  }
+  const ds = Number(r && r.dateSort) || 0;
+  if (ds > 0) {
+    const day = ds % 100;
+    const month = Math.floor(ds / 100) % 100;
+    const buddhistYear = Math.floor(ds / 10000);
+    const monShort = (lang === "en" ? EN_MONTHS_SHORT : THAI_MONTHS_SHORT)[month - 1] || "";
+    const year = lang === "en" ? buddhistYear - 543 : buddhistYear;
+    if (monShort && day > 0 && year > 0) return `${day} ${monShort} ${year}`;
+  }
+  return "—";
+}
+
 // ── DateRangePickerSheet ──────────────────────────────────────────────────────
 // Calendar-based date range picker. Extracted from MobilePrototypeApp.jsx
 // lines 2132-2380. No prototype-only content — kept as-is.
@@ -477,7 +503,7 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
                     <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "ui-monospace,monospace", color: text }}>{displayId}</div>
                     <RevisionChip rev={revCount} lang={lang} />
                   </div>
-                  <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{fmtDateTime(r.date, lang)}</div>
+                  <div style={{ fontSize: 10, color: sub, marginTop: 2 }}>{displayRequestDate(r, lang)}</div>
                 </div>
                 <ReturnStatusPill status={r.status} size="xs" lang={lang} />
               </div>
@@ -589,7 +615,7 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
                       <RevisionChip rev={1 + revHist.length} lang={lang} />
                     </div>
                     <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>
-                      {fmtDateTime(selectedReq.date, lang)} · <b style={{ color: "#D4357A" }}>{selectedReq.sale}</b>
+                      {displayRequestDate(selectedReq, lang)} · <b style={{ color: "#D4357A" }}>{selectedReq.sale}</b>
                     </div>
                     {selectedReq.resubmittedAt && (
                       <div style={{ fontSize: 10, color: "#D4357A", marginTop: 2 }}>
