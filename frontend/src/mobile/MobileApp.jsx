@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { TEAMS, TEAM_COLORS } from "../App";
+// ── Phase 5 Step 2 — Mobile BR Return integration ─────────────────────────
+// Imports are additive only; nothing in the existing 4-tab flow depends on them.
+import { ReturnsScreen } from "./br-return/ReturnsScreen";
+import { RequestReturnSheet } from "./br-return/RequestReturnSheet";
+import { loadReturnRequests } from "./br-return/api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const MOBILE_DATA_CACHE = "borrow-control:last-good-mobile-data";
@@ -68,6 +73,8 @@ function Icon({ name, size = 20, color = "currentColor" }) {
     globe:    <><circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.6" fill="none"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" stroke={color} strokeWidth="1.6" fill="none"/></>,
     refresh:  <><path d="M4 10V5h5" stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round"/><path d="M20 14v5h-5" stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round"/><path d="M4 10a8 8 0 0115-1M20 14a8 8 0 01-15 1" stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round"/></>,
     trend:    <><path d="M3 17l6-6 4 4 8-8" stroke={color} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 7h7v7" stroke={color} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></>,
+    // ── Phase 5 Step 2 addition — used by the new BR Return tab ──
+    return:   <><path d="M9 14l-4-4 4-4" stroke={color} strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 10h9a5 5 0 015 5v4" stroke={color} strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round"/></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0, display: "block" }}>{icons[name]}</svg>;
 }
@@ -608,7 +615,10 @@ function ProfileScreen({ dark, setDark, lang, setLang, selectedSale, onChangeSal
 }
 
 // ── CUSTOMER DETAIL SHEET ──────────────────────────────────────────────
-function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
+// Phase 5 Step 2: gained two NEW optional props `selectedSale` and `onReturnRefresh`
+// to wire the Request Return CTA. Default values preserve original behavior when
+// the props are missing (defensive — never breaks the existing surface).
+function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, selectedSale = "", onReturnRefresh = null }) {
   const [brs, setBrs] = useState([]);
   const [loadingBrs, setLoadingBrs] = useState(false);
   const [brSearch, setBrSearch] = useState("");
@@ -617,6 +627,8 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
   const [selectedBR, setSelectedBR] = useState(null);
   const [selectedBRs, setSelectedBRs] = useState(new Set());
   const [exporting, setExporting] = useState(false);
+  // ── Phase 5 Step 2 — Request Return sheet visibility ──────────────────────
+  const [requestReturnOpen, setRequestReturnOpen] = useState(false);
   const text = dark ? "#eee" : "#111";
   const sub = dark ? "#888" : "#666";
   const bdr = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
@@ -950,6 +962,16 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
                     <div style={{ fontSize: 13, color: text, background: dark ? "#1a1a1a" : "#f5f5f3", border: `0.5px solid ${bdr}`, borderRadius: 9, padding: "10px 12px" }}>{selectedBR.remark}</div>
                   </div>
                 )}
+                {/* ── Phase 5 Step 2 — Request Return CTA ─────────────────
+                    Secondary action above Export PDF. Outline-pink style so
+                    Export PDF remains the visually primary button. */}
+                <button
+                  onClick={() => setRequestReturnOpen(true)}
+                  style={{ marginTop: 12, width: "100%", padding: "13px", borderRadius: 11, border: "1px solid #D4357A", background: "transparent", color: "#D4357A", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}
+                >
+                  ↩ {lang === "th" ? "ขอคืนสินค้า" : "Request Return"}
+                </button>
+                {/* ── Unchanged — Export PDF (existing behavior) ─────────── */}
                 <button
                   onClick={() => window.open(`${API_BASE}/brs/${selectedBR.borrow_no}/pdf`, "_blank")}
                   style={{ marginTop: 12, width: "100%", padding: "13px", borderRadius: 11, border: "none", background: "#D4357A", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
@@ -962,6 +984,24 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark }) {
           );
         })()}
       </BottomSheet>
+
+      {/* ── Phase 5 Step 2 — Request Return sheet ─────────────────────────
+          Renders nothing visually until requestReturnOpen flips true.
+          All real backend wiring lives in br-return/api.js; this component
+          owns the 4-step form UI only. */}
+      <RequestReturnSheet
+        open={requestReturnOpen}
+        onClose={() => setRequestReturnOpen(false)}
+        br={selectedBR}
+        customer={customer}
+        sale={selectedSale}
+        lang={lang}
+        dark={dark}
+        onSubmitted={() => {
+          setRequestReturnOpen(false);
+          if (typeof onReturnRefresh === "function") onReturnRefresh();
+        }}
+      />
     </>
   );
 }
@@ -1048,6 +1088,23 @@ export default function MobileApp() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [splashVisible, setSplashVisible] = useState(true);
 
+  // ── Phase 5 Step 2 — BR Return state ──────────────────────────────────────
+  // returns[]      : per-sale return requests (fetched from production backend)
+  // returnsCount   : pending count → drives the tab-bar badge dot
+  // refreshReturns : triggered on sale select, on tab activation, after submit
+  const [returns, setReturns] = useState([]);
+  const [returnsCount, setReturnsCount] = useState(0);
+  const refreshReturns = useCallback(async () => {
+    if (!selectedSale) return;
+    try {
+      const list = await loadReturnRequests(selectedSale);
+      setReturns(Array.isArray(list) ? list : []);
+    } catch {
+      // Leave existing returns untouched on transient failure — fail-soft so
+      // the existing 4 mobile tabs are never affected by a BR Return error.
+    }
+  }, [selectedSale]);
+
   useEffect(() => { localStorage.setItem("mobile-theme", dark ? "dark" : "light"); }, [dark]);
 
   const load = useCallback((isRefresh = false) => {
@@ -1099,10 +1156,17 @@ export default function MobileApp() {
 
   const myCusts = selectedSale ? customers.filter(c => c.sale === selectedSale) : [];
 
+  // ── Phase 5 Step 2 — refresh returns on sale select + on Returns-tab activation
+  useEffect(() => { if (selectedSale) refreshReturns(); }, [selectedSale, refreshReturns]);
+  useEffect(() => { if (tab === "returns" && selectedSale) refreshReturns(); }, [tab, selectedSale, refreshReturns]);
+
+  // Phase 5 Step 2 — Returns tab inserted between Alerts and Profile.
+  // Profile remains last per the original convention.
   const tabs = [
     ["home", "home", lang === "th" ? "หน้าหลัก" : "Home"],
     ["customers", "users", lang === "th" ? "ลูกค้า" : "Customers"],
     ["alerts", "bell", lang === "th" ? "แจ้งเตือน" : "Alerts"],
+    ["returns", "return", lang === "th" ? "คืนสินค้า" : "Returns"],
     ["profile", "user", lang === "th" ? "โปรไฟล์" : "Profile"],
   ];
 
@@ -1135,6 +1199,7 @@ export default function MobileApp() {
               <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
                 {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
                  : tab === "alerts"    ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
+                 : tab === "returns"   ? (lang === "th" ? "คืนสินค้า" : "Returns")
                  : (lang === "th" ? "โปรไฟล์" : "Profile")}
               </div>
             )}
@@ -1162,6 +1227,15 @@ export default function MobileApp() {
               <CustomersScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
             ) : tab === "alerts" ? (
               <AlertsScreen customers={myCusts} custValues={custValues} lang={lang} setSelectedCustomer={setSelectedCustomer} dark={dark} />
+            ) : tab === "returns" ? (
+              <ReturnsScreen
+                lang={lang}
+                dark={dark}
+                sale={selectedSale}
+                returns={returns}
+                refreshReturns={refreshReturns}
+                setReturnsCount={setReturnsCount}
+              />
             ) : (
               <ProfileScreen dark={dark} setDark={setDark} lang={lang} setLang={setLang} selectedSale={selectedSale} onChangeSale={() => { setSelectedSale(null); setTab("home"); }} syncLogs={syncLogs} customers={customers} />
             )}
@@ -1174,15 +1248,41 @@ export default function MobileApp() {
         <div style={{ background: tabBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, display: "flex", flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
           {tabs.map(([key, icon, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "10px 0 4px", border: "none", background: "transparent", cursor: "pointer", fontSize: 10, fontWeight: 600, color: tab === key ? "#D4357A" : (dark ? "#fff" : "#111"), transition: "color 0.15s" }}>
-              <Icon name={icon} size={22} color={tab === key ? "#D4357A" : (dark ? "#fff" : "#111")} />
+              {/* Phase 5 Step 2 — wrap icon to allow the Returns-tab pink badge dot */}
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <Icon name={icon} size={22} color={tab === key ? "#D4357A" : (dark ? "#fff" : "#111")} />
+                {key === "returns" && returnsCount > 0 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute", top: -2, right: -3,
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: "#D4357A",
+                      border: `1.5px solid ${dark ? "#0a0a0a" : "#f5f5f3"}`,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+              </span>
               <span>{label}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* ── Customer Detail Sheet ── */}
-      <CustomerDetailSheet customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} custValues={custValues} lang={lang} dark={dark} />
+      {/* ── Customer Detail Sheet ──
+          Phase 5 Step 2: added selectedSale + onReturnRefresh props so the
+          new Request Return CTA inside this sheet can submit on behalf of the
+          active sale and trigger the Returns tab to re-fetch. */}
+      <CustomerDetailSheet
+        customer={selectedCustomer}
+        onClose={() => setSelectedCustomer(null)}
+        custValues={custValues}
+        lang={lang}
+        dark={dark}
+        selectedSale={selectedSale}
+        onReturnRefresh={refreshReturns}
+      />
     </div>
   );
 }

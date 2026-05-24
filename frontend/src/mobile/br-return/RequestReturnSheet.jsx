@@ -759,9 +759,12 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
                 border: "2px solid rgba(255,255,255,0.3)",
                 borderTopColor: "#fff",
                 borderRadius: "50%",
-                animation: "spin 0.8s linear infinite",
+                animation: "br-return-spin 0.8s linear infinite",
               }}/>
             )}
+            {/* Self-contained keyframe so this module works without depending on
+                a global "spin" definition in the host app. */}
+            <style>{`@keyframes br-return-spin { to { transform: rotate(360deg); } }`}</style>
             {submitting
               ? (lang === "th" ? "กำลังบันทึก..." : "Saving...")
               : isEditing
