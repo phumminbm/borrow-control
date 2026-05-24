@@ -34,25 +34,41 @@ export async function loadReturnRequests(saleName) {
 }
 
 // ── Submit (create or update) a return request ───────────────────────────────
-// Calls POST /return-requests which is an UPSERT: if requestId already exists
+// Calls POST /return-requests which is an UPSERT: if `id` already exists
 // the row is updated (resubmit / correction path), otherwise a new row is
 // created.
 //
-// Payload shape matches Desktop BR Return br-return.html exactly — the same
-// endpoint accepts both. Key fields:
-//   requestId       string   RT-YYYYMMDDHHMMSS-RR (from genReturnId())
-//   custCode        string
-//   custName        string
-//   brNo            string
-//   sale            string
-//   submittedItems  array    [{itemId, code, name, qty, price, retQty, clmQty, saleQty, freeQty, remark}]
+// Payload shape matches Desktop BR Return br-return.html:4666-4676 exactly
+// and the backend Pydantic model in main.py:524-547 ReturnRequestPayload.
+// Canonical field names (camelCase to match the backend model):
+//   id              string   RT-YYYYMMDDHHMMSS-RR (from genReturnId())  REQUIRED
+//   cust            string   Customer display name
+//   custCode        string   Customer code
+//   br              string   Borrow number (the BR being returned)
+//   items           number   Count of submittedItems (display convenience)
+//   sale            string   Sale name (uppercase, e.g. "TANG")
+//   status          string   "pending" on first submit; preserved on resubmit
+//   date            string   Display date string (e.g. "22 พ.ค. 2569")
+//   dateSort        number   Buddhist-year BBBBMMDD (INT4-safe sort key)
 //   remark          string
-//   status          string   "pending" on first submit; keep existing on resubmit
-//   isTest          boolean  Always false for production. Pass true only in test mode.
-//   dateSort        number   Buddhist-year BBBBMMDD (from todayDateSort())
-//   attachments     array    [{name, data: dataURL}]  optional
+//   submittedItems  array    [{ itemId, lineNo, lineKey, code, name, price,
+//                              quantity, totalPrice, retQty, clmQty, saleQty,
+//                              freeQty }]
+//   adminNote       string   "" on submit (Admin populates)
+//   rejectedItems   array    [] on submit
+//   attachments     array    [] on submit (Admin photos populated later)
+//   cancelReason    string   ""
+//   sheetSync       string   "none" initially
+//   sheetSyncAt     string   ""
+//   sheetSyncError  string   ""
+//   isTest          boolean  Always false for production
+//   revisionHistory array    [] on first submit; populated on resubmit
+//   resubmittedAt   string   ISO timestamp on resubmit only
 //
-// Returns { ok: true, data: {...} } or { ok: false, error: string }.
+// Returns { ok: true, data: {...} } or { ok: false, error: stringOrObject }.
+// The `error` may be a string ("HTTP 500"), the raw FastAPI 422 `detail`
+// array, or another object — callers should pass it through stringifyError()
+// before showing it to the user.
 export async function submitReturnRequest(payload) {
   try {
     const res = await fetch(`${API_BASE}/return-requests`, {
@@ -61,13 +77,23 @@ export async function submitReturnRequest(payload) {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { const e = await res.json(); msg = e.detail || e.message || msg; } catch { /* keep default */ }
-      return { ok: false, error: msg };
+      let err = `HTTP ${res.status}`;
+      try {
+        const body = await res.json();
+        // Preserve the raw shape (string / detail array / object) so the
+        // caller's stringifier can produce a useful message for the user
+        // instead of "[object Object]".
+        if (body && (body.detail !== undefined || body.message !== undefined)) {
+          err = body.detail !== undefined ? body.detail : body.message;
+        } else if (body) {
+          err = body;
+        }
+      } catch { /* response wasn't JSON; keep "HTTP NNN" default */ }
+      return { ok: false, error: err };
     }
     const data = await res.json();
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: err.message || "Network error" };
+    return { ok: false, error: (err && err.message) || "Network error" };
   }
 }
