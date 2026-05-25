@@ -141,7 +141,19 @@ function BottomSheet({ open, onClose, children, title, height = "85%", dark = tr
             <button onClick={onClose} style={{ border: "none", background: "transparent", color: closeCol, fontSize: 14, cursor: "pointer", padding: 4 }}>✕</button>
           </div>
         )}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>{children}</div>
+        {/* Mobile safe-area fix: BottomSheet uses position:fixed bottom:0,
+            so its bottom edge sits at the viewport bottom — exactly where
+            the 5-tab bar and the iPhone home indicator also live. Without
+            this padding, the user's inner action bar (Submit / Apply /
+            Edit-and-resubmit / Next / Back CTAs) ends up clipped behind
+            the tab bar and is hard or impossible to tap.
+              • 56px buffer ≈ tab-bar visible content height (icon + label
+                + button padding)
+              • env(safe-area-inset-bottom, 8px) reserves the iPhone X+
+                home indicator zone
+            The two together push the children's content up above both,
+            so action buttons are always fully visible and tappable. */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "calc(env(safe-area-inset-bottom, 8px) + 56px)" }}>{children}</div>
       </div>
     </>
   );

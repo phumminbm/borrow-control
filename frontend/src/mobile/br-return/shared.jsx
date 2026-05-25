@@ -59,7 +59,12 @@ export function BottomSheet({ open, onClose, children, title, height = "85%", da
             <button onClick={onClose} style={{ border: "none", background: "transparent", color: closeCol, fontSize: 14, cursor: "pointer", padding: 4 }}>✕</button>
           </div>
         )}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>{children}</div>
+        {/* Mobile safe-area fix: paddingBottom reserves space for the 5-tab
+            bar (~56px) and the iPhone home indicator zone, so the user's
+            inner action bar (Submit / Next / Apply CTAs) never gets clipped
+            by the tab bar. Mirrors the same fix in MobileApp.jsx's
+            BottomSheet — both copies must stay in sync. */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "calc(env(safe-area-inset-bottom, 8px) + 56px)" }}>{children}</div>
       </div>
     </>
   );
