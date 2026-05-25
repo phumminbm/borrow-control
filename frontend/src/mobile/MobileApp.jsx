@@ -650,6 +650,15 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, select
   useEffect(() => {
     if (!customer) return;
     setLoadingBrs(true); setBrs([]); setBrSearch(""); setBrFilter(""); setBrFilterOpen(false); setSelectedBRs(new Set());
+    // Phase 5 fix — also clear nested-sheet state on every customer (re)open.
+    // Without these, the success-view "Back to BR list" button (which sets
+    // selectedCustomer back to the same customer object) would re-show the
+    // previously-viewed BR Detail and/or the half-open Request Return form,
+    // because the gate <BottomSheet open={!!customer && !!selectedBR}> goes
+    // truthy again. Resetting here makes reopening always land on the
+    // customer's BR LIST, never on a stale BR Detail or form.
+    setSelectedBR(null);
+    setRequestReturnOpen(false);
     fetch(`${API_BASE}/customers/${customer.cust_code}/brs`)
       .then(r => r.json()).then(d => setBrs(Array.isArray(d) ? d : [])).catch(() => setBrs([])).finally(() => setLoadingBrs(false));
   }, [customer]);
