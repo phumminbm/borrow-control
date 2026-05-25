@@ -22,7 +22,6 @@ const PAGE_HEADER = {
     subtitle: "ค้นหาและติดตามใบยืม BR · วิเคราะห์สถานะการยืมสินค้าของลูกค้า",
     sale: "Sale",
     admin: "Admin",
-    live: "PRODUCTION",
     loading: "กำลังโหลดข้อมูล...",
   },
   en: {
@@ -31,7 +30,6 @@ const PAGE_HEADER = {
     subtitle: "Borrowing overview — by customer, BR, outstanding value",
     sale: "Sale",
     admin: "Admin",
-    live: "PRODUCTION",
     loading: "Loading...",
   },
 };
@@ -49,10 +47,6 @@ export default function FBPanel({ theme, lang }) {
         <div>
           <h1 className="v2-page-header-h1">
             {L.title}
-            <span className="v2-page-header-badge live">
-              <span className="v2-pill-dot" style={{ background: "#639922" }} />
-              {L.live}
-            </span>
           </h1>
           <p className="v2-page-header-p">{L.subtitle}</p>
         </div>

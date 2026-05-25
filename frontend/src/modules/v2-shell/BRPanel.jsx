@@ -43,16 +43,12 @@ const PAGE_HEADER = {
     eyebrow: "BR RETURN",
     title: "ระบบคืนสินค้ายืม (BR Return)",
     subtitle: "สร้างคำขอคืน · ติดตามและตรวจสอบรายการสินค้าจากใบยืม",
-    beta: "BETA",
-    live: "LIVE",
     loading: "กำลังโหลด BR Return...",
   },
   en: {
     eyebrow: "BR RETURN",
     title: "BR Return",
     subtitle: "Create return requests · review · approve — writes back to the Logistics File",
-    beta: "BETA",
-    live: "LIVE",
     loading: "Loading BR Return...",
   },
 };
@@ -121,14 +117,6 @@ export default function BRPanel({ theme, lang, onPendingCount }) {
         <div>
           <h1 className="v2-page-header-h1">
             {L.title}
-            <span className="v2-page-header-badge beta">
-              <span className="v2-pill-dot" style={{ background: "var(--v2-brand)" }} />
-              {L.beta}
-            </span>
-            <span className="v2-page-header-badge live">
-              <span className="v2-pill-dot" style={{ background: "var(--v2-green)" }} />
-              {L.live}
-            </span>
           </h1>
           <p className="v2-page-header-p">{L.subtitle}</p>
         </div>
