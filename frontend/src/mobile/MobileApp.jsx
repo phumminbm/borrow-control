@@ -913,8 +913,15 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, select
         )}
       </BottomSheet>
 
-      {/* BR Detail Sheet */}
-      <BottomSheet open={!!selectedBR} onClose={() => setSelectedBR(null)} height="80%" dark={dark}>
+      {/* BR Detail Sheet
+          Phase 5 fix: gate `open` on `!!customer` too. After a successful
+          submit, MobileApp sets selectedCustomer=null, which closes the
+          parent customer sheet — but without this gate, the inner
+          selectedBR state isn't cleared automatically, so the BR detail
+          sheet would stay on top of the SuccessScreen and visually
+          block it. Tying `open` to the parent's `customer` prop makes
+          closing the customer cascade to closing the BR detail. */}
+      <BottomSheet open={!!customer && !!selectedBR} onClose={() => setSelectedBR(null)} height="80%" dark={dark}>
         {selectedBR && (() => {
           const total = selectedBR.items.reduce((s, i) => s + i.price * i.quantity, 0);
           return (
@@ -989,9 +996,13 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, select
       {/* ── Phase 5 Step 2 — Request Return sheet ─────────────────────────
           Renders nothing visually until requestReturnOpen flips true.
           All real backend wiring lives in br-return/api.js; this component
-          owns the 4-step form UI only. */}
+          owns the 4-step form UI only.
+          Phase 5 fix: also gated on `!!customer` so the form sheet closes
+          automatically when the parent dismisses the customer (e.g. after
+          submit cascades selectedCustomer=null), matching the BR detail
+          sheet's behavior above. */}
       <RequestReturnSheet
-        open={requestReturnOpen}
+        open={!!customer && requestReturnOpen}
         onClose={() => setRequestReturnOpen(false)}
         br={selectedBR}
         customer={customer}
