@@ -72,19 +72,34 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // ── Editing mode: synthesise br/customer/items from the rejected record ──
+  // ── Editing mode: synthesise br/customer/items from the existing record ──
   // The Sale-side resubmission path reads everything it needs straight off
-  // the existing return record — no fresh /customers/{cc}/brs fetch. The
-  // "items" surface for Step 1 is the set of rejected items only, matching
-  // Desktop br-return.html:3156-3167 (editRejectedOnly = true). Approved
-  // items pass through untouched at submit-time.
+  // the existing return record — no fresh /customers/{cc}/brs fetch.
+  //
+  // Two flavors of edit, mirroring Desktop br-return.html:4889-4892:
+  //   • editRejectedOnly  — when status='rejected' and there are rejectedItems:
+  //       Step 1 surfaces ONLY the rejected items; the previously-approved
+  //       items pass through untouched at submit-time.
+  //   • pending-edit      — when status='pending' (Admin hasn't reviewed yet):
+  //       Step 1 surfaces the ENTIRE submittedItems set so Sale can change
+  //       any line, add/remove items, or change quantities.
+  // Both paths reuse the same POST /return-requests UPSERT endpoint.
+  const editRejectedOnly = isEditing
+    && editingRequest.status === "rejected"
+    && Array.isArray(editingRequest.rejectedItems)
+    && editingRequest.rejectedItems.length > 0;
+
+  const editSourceItems = isEditing
+    ? (editRejectedOnly ? editingRequest.rejectedItems : (editingRequest.submittedItems || []))
+    : [];
+
   const editCustomer = isEditing
     ? { customer_name: editingRequest.custName || editingRequest.cust, cust_code: editingRequest.custCode }
     : null;
   const editBr = isEditing
     ? {
         borrow_no: editingRequest.brNo || editingRequest.br,
-        items: (editingRequest.rejectedItems || []).map(r => ({
+        items: editSourceItems.map(r => ({
           item_id: r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`,
           line_no: r.lineNo || r.line_no,
           product_code: r.code || r.product_code,
@@ -93,6 +108,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
           // In edit mode, the max re-allocatable qty is the qty originally
           // submitted for this row (Sale cannot suddenly inflate the count).
           quantity: Number(r.quantity) || 0,
+          // Only present on rejected items; ignored for pending-edit rows.
           _rejectReason: r.reason || "",
         })),
       }
@@ -107,13 +123,17 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
     setSubmitting(false);
     setSubmitError("");
     if (isEditing) {
-      // Pre-select every rejected row (Sale needs to address all of them
-      // to fix the request) but leave qty allocation BLANK — Sale must
-      // re-enter the corrected numbers explicitly, exactly like Desktop
-      // (br-return.html:3167 has no qty pre-fill).
+      // Pre-select every editable row so Sale immediately sees what's in
+      // scope, but leave qty allocation BLANK — Sale must re-enter the
+      // numbers explicitly, exactly like Desktop (br-return.html:4900).
+      // For rejected: scope = rejectedItems. For pending: scope = the
+      // entire previous submittedItems.
       const ids = new Set();
       const initAlloc = {};
-      for (const r of (editingRequest.rejectedItems || [])) {
+      const seedItems = editRejectedOnly
+        ? (editingRequest.rejectedItems || [])
+        : (editingRequest.submittedItems || []);
+      for (const r of seedItems) {
         const id = r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`;
         ids.add(id);
         initAlloc[id] = { retQty: 0, clmQty: 0, saleQty: 0, freeQty: 0 };
@@ -143,7 +163,9 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
 
   // Items previously approved by Admin — shown as a read-only summary above
   // Step 1's editable list so the Sale has full context of the request.
-  const approvedPassthroughItems = isEditing
+  // Only meaningful for the editRejectedOnly path; a pending-edit hasn't
+  // been reviewed yet, so there's no "approved" subset to passthrough.
+  const approvedPassthroughItems = editRejectedOnly
     ? (editingRequest.submittedItems || []).filter(si => {
         const wasRejected = (editingRequest.rejectedItems || []).some(r =>
           (r.itemId && r.itemId === si.item_id)
@@ -256,38 +278,69 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
     setSubmitting(true);
     try {
       if (isEditing) {
-        // Resubmit corrected request — keep the same requestId; submittedItems
-        // contains ONLY the corrected items (NOT merged with the already-approved
-        // ones). Desktop Admin sees only what was just re-touched, per the
-        // correction-flow design: "Admin should see only the corrected/resubmitted
-        // item(s), not the full original item list".
-        //
-        // The approved items aren't lost — they're snapshotted into
-        // revisionHistory[N].prevSubmittedItems. The Desktop history viewer
-        // can replay each round.
-        //
-        // Mirrors Desktop br-return.html:2960-2963 (status='pending',
-        // adminNote='', rejectedItems=[], attachments=[]) plus the
-        // revisionHistory extension.
         const orig = editingRequest;
-        const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
-        const correctedItemIds = (orig.rejectedItems || [])
-          .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
-          .filter(Boolean);
-        const snapshot = {
-          at: new Date().toISOString(),
-          prevStatus: orig.status || "rejected",
-          prevAdminNote: orig.adminNote || "",
-          prevSubmittedItems: Array.isArray(orig.submittedItems) ? orig.submittedItems : [],
-          prevRejectedItems: Array.isArray(orig.rejectedItems) ? orig.rejectedItems : [],
-          prevAttachments: Array.isArray(orig.attachments) ? orig.attachments : [],
-          prevRejectedItemCount: (orig.rejectedItems || []).length,
-          prevAttachmentCount: (orig.attachments || []).length,
-          correctedItemIds,
-        };
         const now = new Date();
+
+        if (editRejectedOnly) {
+          // ── Resubmit a rejected request (Admin-correction flow) ──────
+          // submittedItems contains ONLY the corrected items (NOT merged
+          // with the already-approved ones). Desktop Admin sees only what
+          // was just re-touched, per the correction-flow design.
+          //
+          // The approved items aren't lost — they're snapshotted into
+          // revisionHistory[N].prevSubmittedItems. The Desktop history
+          // viewer can replay each round.
+          //
+          // Mirrors Desktop br-return.html:2960-2963 (status='pending',
+          // adminNote='', rejectedItems=[], attachments=[]) plus the
+          // revisionHistory extension.
+          const prevHistory = Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [];
+          const correctedItemIds = (orig.rejectedItems || [])
+            .map(r => r.itemId || r.item_id || `${r.code || r.product_code}-${r.lineNo || r.line_no || ""}`)
+            .filter(Boolean);
+          const snapshot = {
+            at: now.toISOString(),
+            prevStatus: orig.status || "rejected",
+            prevAdminNote: orig.adminNote || "",
+            prevSubmittedItems: Array.isArray(orig.submittedItems) ? orig.submittedItems : [],
+            prevRejectedItems: Array.isArray(orig.rejectedItems) ? orig.rejectedItems : [],
+            prevAttachments: Array.isArray(orig.attachments) ? orig.attachments : [],
+            prevRejectedItemCount: (orig.rejectedItems || []).length,
+            prevAttachmentCount: (orig.attachments || []).length,
+            correctedItemIds,
+          };
+          const payload = {
+            id: orig.id || orig.requestId,
+            cust: orig.cust || orig.custName,
+            custCode: orig.custCode,
+            br: orig.br || orig.brNo,
+            items: submittedItems.length,
+            sale: orig.sale,
+            status: "pending",
+            date: buildSubmitDateDisplay(now, lang),
+            dateSort: todayDateSort(),
+            remark: remark.trim() || orig.remark || "",
+            submittedItems,
+            adminNote: "",
+            rejectedItems: [],
+            attachments: [],
+            resubmittedAt: now.toISOString(),
+            revisionHistory: [...prevHistory, snapshot],
+            isTest: false,
+          };
+          const result = await submitReturnRequest(payload);
+          if (!result.ok) throw new Error(stringifyError(result.error) || "Resubmit failed");
+          if (onSubmitted) onSubmitted(result.data || payload);
+          return;
+        }
+
+        // ── Edit a still-pending request (no Admin review yet) ─────────
+        // Mirrors Desktop br-return.html:4632-4651: replace submittedItems
+        // entirely, reset to pending, clear adminNote/attachments/
+        // rejectedItems/cancelReason, refresh date/dateSort. No
+        // revisionHistory snapshot — there's nothing to "revise" because
+        // the request was never reviewed.
         const payload = {
-          // Canonical backend field names — main.py:524-547
           id: orig.id || orig.requestId,
           cust: orig.cust || orig.custName,
           custCode: orig.custCode,
@@ -297,17 +350,23 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
           status: "pending",
           date: buildSubmitDateDisplay(now, lang),
           dateSort: todayDateSort(),
-          remark: remark.trim() || orig.remark || "",
+          remark: remark.trim(),
           submittedItems,
           adminNote: "",
           rejectedItems: [],
           attachments: [],
-          resubmittedAt: now.toISOString(),
-          revisionHistory: [...prevHistory, snapshot],
+          cancelReason: "",
+          sheetSync: "none",
+          sheetSyncAt: "",
+          sheetSyncError: "",
+          // Preserve revisionHistory if any (e.g. user edited a request
+          // that had been corrected before and re-approved); we just
+          // don't add a new snapshot for pending-edit.
+          revisionHistory: Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [],
           isTest: false,
         };
         const result = await submitReturnRequest(payload);
-        if (!result.ok) throw new Error(stringifyError(result.error) || "Resubmit failed");
+        if (!result.ok) throw new Error(stringifyError(result.error) || "Edit failed");
         if (onSubmitted) onSubmitted(result.data || payload);
         return;
       }
@@ -401,8 +460,14 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px", color: text }}>
         {step === 1 && (
           <>
-            {/* Editing-mode context banner */}
-            {isEditing && (
+            {/* Editing-mode context banner.
+                Two flavors:
+                  • Rejected → use the existing red banner pointing at the
+                    flagged items and the Admin note.
+                  • Pending  → use a pink "edit before review" banner that
+                    explains the request will be re-submitted as pending.
+            */}
+            {isEditing && editRejectedOnly && (
               <div style={{
                 background: STATUS_META.rejected.bg,
                 border: `0.5px solid ${STATUS_META.rejected.border}`,
@@ -422,6 +487,23 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
                     <b>{lang === "th" ? "หมายเหตุ Admin: " : "Admin note: "}</b>{editingRequest.adminNote}
                   </div>
                 )}
+              </div>
+            )}
+            {isEditing && !editRejectedOnly && (
+              <div style={{
+                background: "#2D0F1A",
+                border: "0.5px solid #D4357A66",
+                borderRadius: 11, padding: "11px 13px", marginBottom: 12,
+                color: "#fff",
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, letterSpacing: 0.4, textTransform: "uppercase", color: "#fff" }}>
+                  📝 {lang === "th" ? "กำลังแก้ไขคำขอ (รอตรวจสอบ)" : "Editing pending request"}
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: "#fff" }}>
+                  {lang === "th"
+                    ? "เลือกรายการที่ต้องการแก้ไข แล้วระบุจำนวนใหม่ จากนั้นส่งคำขอเข้าตรวจสอบอีกครั้ง"
+                    : "Adjust items / quantities and resubmit. The request stays pending until Admin reviews it."}
+                </div>
               </div>
             )}
             {/* Approved-passthrough summary — read-only */}
@@ -676,9 +758,13 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
                   📝 {lang === "th" ? "กำลังแก้ไขคำขอ" : "Editing request"} · {editingRequest.requestId || editingRequest.id}
                 </div>
                 <div style={{ fontSize: 12, lineHeight: 1.55, color: "#fff" }}>
-                  {lang === "th"
-                    ? `${approvedPassthroughItems.length} รายการที่ Admin อนุมัติแล้วจะคงเดิม · ${submittedItems.length} รายการแก้ไขใหม่จะถูกส่งให้ Admin ตรวจอีกครั้ง`
-                    : `${approvedPassthroughItems.length} approved item(s) will be kept as-is · ${submittedItems.length} revised item(s) will be re-sent for Admin review.`}
+                  {editRejectedOnly
+                    ? (lang === "th"
+                        ? `${approvedPassthroughItems.length} รายการที่ Admin อนุมัติแล้วจะคงเดิม · ${submittedItems.length} รายการแก้ไขใหม่จะถูกส่งให้ Admin ตรวจอีกครั้ง`
+                        : `${approvedPassthroughItems.length} approved item(s) will be kept as-is · ${submittedItems.length} revised item(s) will be re-sent for Admin review.`)
+                    : (lang === "th"
+                        ? `คำขอจะถูกแทนที่ด้วยรายการใหม่ทั้งหมด ${submittedItems.length} รายการ และยังคงสถานะรอ Admin ตรวจสอบ`
+                        : `The pending request will be replaced with the new ${submittedItems.length} item(s) and stays in the queue for Admin review.`)}
                 </div>
               </div>
             )}
@@ -808,7 +894,9 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
             {submitting
               ? (lang === "th" ? "กำลังบันทึก..." : "Saving...")
               : isEditing
-                ? (lang === "th" ? "↩ ส่งคำขอแก้ไข" : "↩ Resubmit")
+                ? (editRejectedOnly
+                    ? (lang === "th" ? "↩ ส่งคำขอแก้ไข" : "↩ Resubmit")
+                    : (lang === "th" ? "✓ บันทึกการแก้ไข" : "✓ Save changes"))
                 : (lang === "th" ? "✓ ส่งคำขอ" : "✓ Submit")}
           </button>
         )}

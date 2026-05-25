@@ -34,6 +34,7 @@ import { BottomSheet, Icon } from "./shared";
 import { STATUS_META, typeLabel, breakdownFor, buildApprovedFullView } from "./constants";
 import { ImageLightbox, ReturnStatusPill, RevisionChip } from "./components";
 import { RequestReturnSheet } from "./RequestReturnSheet";
+import { submitReturnRequest } from "./api";
 import {
   fmtDateTime, fmtShortDate, fmtDayMonth,
   startOfDay, sameDay,
@@ -316,6 +317,13 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
   const [lightboxStart,  setLightboxStart]  = useState(0);
   const [editToast, setEditToast] = useState(null);
 
+  // Cancel-flow state (only used when Sale taps "Cancel request" on a
+  // pending-status detail sheet). Mirrors Desktop's ov-cancel modal.
+  const [cancelReq, setCancelReq] = useState(null);     // request being cancelled
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+
   const text = dark ? "#eee" : "#111";
   const sub  = dark ? "#888" : "#666";
   const card = dark ? "#141414" : "#fff";
@@ -364,6 +372,83 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
   }, [mine, search, statusFilter, fromDs, toDs]);
 
   const hasAnyFilter = !!(search || statusFilter || dateFrom);
+
+  // ── Cancel handler ──────────────────────────────────────────────────────
+  // Mirrors Desktop confirmCancelRequest (br-return.html:4853-4879):
+  // upsert the existing row with status='cancelled' + cancelReason; the
+  // backend's same POST /return-requests endpoint accepts it. No other
+  // fields are mutated except sheetSyncError (cleared) and sheetSync
+  // (defaulted to 'none' if missing).
+  function openCancel(req) {
+    setCancelReq(req);
+    setCancelReason("");
+    setCancelError("");
+  }
+  function closeCancel() {
+    setCancelReq(null);
+    setCancelReason("");
+    setCancelError("");
+    setCancelSubmitting(false);
+  }
+  async function confirmCancel() {
+    if (cancelSubmitting || !cancelReq) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setCancelError(lang === "th" ? "กรุณาระบุเหตุผลที่ยกเลิก" : "Please provide a cancel reason");
+      return;
+    }
+    setCancelSubmitting(true);
+    setCancelError("");
+    try {
+      const orig = cancelReq;
+      const payload = {
+        // Preserve original fields verbatim (Desktop pattern: only mutates
+        // status / cancelReason / sheetSync / sheetSyncError).
+        id: orig.id || orig.requestId,
+        cust: orig.cust || orig.custName || "",
+        custCode: orig.custCode || "",
+        br: orig.br || orig.brNo || "",
+        sale: orig.sale || "",
+        date: orig.date || "",
+        dateSort: Number(orig.dateSort) || 0,
+        items: Number(orig.items) || (Array.isArray(orig.submittedItems) ? orig.submittedItems.length : 0),
+        remark: orig.remark || "",
+        adminNote: orig.adminNote || "",
+        submittedItems: Array.isArray(orig.submittedItems) ? orig.submittedItems : [],
+        rejectedItems: Array.isArray(orig.rejectedItems) ? orig.rejectedItems : [],
+        attachments: Array.isArray(orig.attachments) ? orig.attachments : [],
+        revisionHistory: Array.isArray(orig.revisionHistory) ? orig.revisionHistory : [],
+        resubmittedAt: orig.resubmittedAt || "",
+        // Override for cancel
+        status: "cancelled",
+        cancelReason: reason,
+        sheetSync: orig.sheetSync || "none",
+        sheetSyncAt: orig.sheetSyncAt || "",
+        sheetSyncError: "",
+        isTest: false,
+      };
+      const result = await submitReturnRequest(payload);
+      if (!result.ok) {
+        const e = result.error;
+        const msg = typeof e === "string"
+          ? e
+          : (e && (e.message || (Array.isArray(e) ? e.map(x => x && (x.msg || x.message)).join("; ") : null)))
+          || "Cancel failed";
+        throw new Error(msg);
+      }
+      // Refresh + close + toast
+      if (typeof refreshReturns === "function") await refreshReturns();
+      const updated = (result.data && typeof result.data === "object") ? result.data : payload;
+      setSelectedReq(updated);
+      closeCancel();
+      setEditToast(lang === "th" ? "ยกเลิกคำขอแล้ว" : "Request cancelled");
+      setTimeout(() => setEditToast(null), 2200);
+    } catch (err) {
+      setCancelError(err && err.message ? err.message : (lang === "th" ? "ยกเลิกไม่สำเร็จ ลองอีกครั้ง" : "Cancel failed — please retry"));
+    } finally {
+      setCancelSubmitting(false);
+    }
+  }
 
   return (
     <div style={{ color: text, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -765,6 +850,41 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
                   </div>
                 )}
 
+                {/* ── Pending-only: Edit + Cancel CTAs ──────────────────────
+                    Mirrors Desktop behavior — Sale can edit or cancel a
+                    return request as long as Admin hasn't reviewed it yet.
+                    Once status leaves 'pending' (approved/rejected/
+                    cancelled), these CTAs disappear automatically. */}
+                {selectedReq.status === "pending" && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <button
+                      onClick={() => openCancel(selectedReq)}
+                      style={{
+                        flex: 1, padding: 13, borderRadius: 12,
+                        border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)"}`,
+                        background: "transparent",
+                        color: dark ? "#bbb" : "#444",
+                        fontSize: 13, fontWeight: 600,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      {lang === "th" ? "ยกเลิกคำขอ" : "Cancel request"}
+                    </button>
+                    <button
+                      onClick={() => setEditingReq(selectedReq)}
+                      style={{
+                        flex: 1.4, padding: 13, borderRadius: 12, border: "none",
+                        background: "linear-gradient(135deg, #D4357A, #9A1A56)",
+                        color: "#fff", fontSize: 13, fontWeight: 700,
+                        cursor: "pointer", fontFamily: "inherit",
+                        boxShadow: "0 4px 14px rgba(212,53,122,0.25)",
+                      }}
+                    >
+                      ↻ {lang === "th" ? "แก้ไขคำขอ" : "Edit request"}
+                    </button>
+                  </div>
+                )}
+
                 {/* Cancel reason */}
                 {selectedReq.cancelReason && selectedReq.status === "cancelled" && (
                   <>
@@ -811,6 +931,107 @@ export function ReturnsScreen({ lang, dark, sale, returns, refreshReturns, setRe
           setTimeout(() => setEditToast(null), 2200);
         }}
       />
+
+      {/* ── Cancel-reason BottomSheet ──────────────────────────────────────
+          Mirrors Desktop ov-cancel modal (br-return.html:1796-1816). Opens
+          when Sale taps "Cancel request" on a pending detail sheet. Reason
+          is required (non-empty), same as Desktop. confirmCancel POSTs to
+          /return-requests with status='cancelled' + cancelReason. */}
+      <BottomSheet
+        open={!!cancelReq}
+        onClose={cancelSubmitting ? () => {} : closeCancel}
+        height="62%"
+        dark={dark}
+      >
+        {cancelReq && (
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+            <div style={{ padding: "4px 20px 12px", borderBottom: `0.5px solid ${bdr}`, flexShrink: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: STATUS_META.rejected.color }}>
+                  ⚠ {lang === "th" ? "ยกเลิกคำขอคืนสินค้า" : "Cancel return request"}
+                </div>
+                <button
+                  onClick={cancelSubmitting ? undefined : closeCancel}
+                  disabled={cancelSubmitting}
+                  style={{ width: 30, height: 30, borderRadius: 8, border: `0.5px solid ${bdr}`, background: dark ? "#222" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: cancelSubmitting ? "not-allowed" : "pointer", opacity: cancelSubmitting ? 0.5 : 1 }}
+                >
+                  <Icon name="close" size={14} color={sub} />
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: sub, fontFamily: "ui-monospace,monospace" }}>
+                {cancelReq.id || cancelReq.requestId} · {cancelReq.br || cancelReq.brNo}
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
+              <div style={{ fontSize: 12, color: dark ? "#ccc" : "#444", lineHeight: 1.55, marginBottom: 12 }}>
+                {lang === "th"
+                  ? "เมื่อยกเลิกแล้ว Admin จะไม่ตรวจสอบคำขอนี้ และคำขอจะถูกย้ายไปยังกล่อง 'ยกเลิกแล้ว'"
+                  : "Once cancelled, Admin will skip this request and it moves to the Cancelled queue."}
+              </div>
+              <div style={{ fontSize: 11, color: sub, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>
+                {lang === "th" ? "เหตุผลที่ยกเลิก" : "Cancel reason"} *
+              </div>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => { setCancelReason(e.target.value.slice(0, 500)); if (cancelError) setCancelError(""); }}
+                maxLength={500}
+                placeholder={lang === "th" ? "ระบุเหตุผลที่ยกเลิกคำขอนี้..." : "Why is this request being cancelled?..."}
+                disabled={cancelSubmitting}
+                style={{
+                  width: "100%", minHeight: 110, borderRadius: 12, padding: "12px 14px",
+                  background: card,
+                  border: `0.5px solid ${cancelError ? STATUS_META.rejected.border : bdr}`,
+                  color: text, fontFamily: "inherit", fontSize: 13, lineHeight: 1.5,
+                  resize: "none", outline: "none",
+                  opacity: cancelSubmitting ? 0.6 : 1,
+                }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, fontSize: 10, color: cancelError ? STATUS_META.rejected.color : sub }}>
+                <span>{cancelError || ""}</span>
+                <span>{cancelReason.length} / 500</span>
+              </div>
+            </div>
+            <div style={{ padding: "12px 16px 16px", borderTop: `0.5px solid ${bdr}`, display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={cancelSubmitting ? undefined : closeCancel}
+                disabled={cancelSubmitting}
+                style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${bdr}`, background: "transparent", color: sub, fontSize: 13, fontWeight: 600, cursor: cancelSubmitting ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: cancelSubmitting ? 0.5 : 1 }}
+              >
+                {lang === "th" ? "กลับ" : "Back"}
+              </button>
+              <button
+                onClick={confirmCancel}
+                disabled={cancelSubmitting || !cancelReason.trim()}
+                style={{
+                  flex: 1.6, padding: 13, borderRadius: 12, border: "none",
+                  background: cancelSubmitting || !cancelReason.trim() ? "#333" : STATUS_META.rejected.color,
+                  color: cancelSubmitting || !cancelReason.trim() ? "#666" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: cancelSubmitting || !cancelReason.trim() ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  fontFamily: "inherit",
+                }}
+              >
+                {cancelSubmitting && (
+                  <span style={{
+                    display: "inline-block", width: 14, height: 14,
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "br-return-spin 0.8s linear infinite",
+                  }}/>
+                )}
+                {cancelSubmitting
+                  ? (lang === "th" ? "กำลังยกเลิก..." : "Cancelling...")
+                  : (lang === "th" ? "ยืนยันยกเลิก" : "Confirm cancel")}
+              </button>
+            </div>
+            {/* Reuses the same keyframe registered by RequestReturnSheet's
+                submit spinner. Safe to render twice. */}
+            <style>{`@keyframes br-return-spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+      </BottomSheet>
 
       {/* Image lightbox */}
       <ImageLightbox
