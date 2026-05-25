@@ -445,6 +445,14 @@ Only proposing where I'm confident:
 3. **If user reports DB ≠ Sheet** — always check `/value-debug` and `/analytics/summary` first. The session has TWO confirmed patterns: (a) frontend display bug while backend is correct (Fix 2 pattern), or (b) actual sync issue. The diagnostic tells you which path to take.
 4. **If user requests source-remark pre-fill** — it's a small feature. The plumbing already exists (`mapBorrow` preserves `remark` at line 1488, `BRS[ST.custCode]` has full BR objects). Just pre-fill from `BRS[ST.custCode][i].remark` for matching `ST.br`, but only when textarea is empty (don't overwrite user's typing).
 
+> **Update 2026-05-25 — v2 + Mobile BR Return are now live:**
+> This v1 handoff doc remains load-bearing for the **write-back invariants and Logistics File
+> column mapping** (Sections 1, 2.3, and the chronological commit history). For the current
+> shell, Mobile module map, Supabase setup, and Phase 5 details, read
+> [`v2-architecture.md`](v2-architecture.md) first — its Section 8 covers everything since
+> 2026-05-18 including the completed Phase 5 Mobile BR Return promotion. The invariants in this
+> doc still apply unchanged.
+
 ---
 
 ## 12. Project memory files (already populated)
