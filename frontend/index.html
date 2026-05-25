@@ -25,7 +25,17 @@
     <meta name="application-name" content="Neo BR System" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      maximum-scale=1.0 + user-scalable=no prevents iOS Safari from auto-zooming
+      the page when the user taps an <input> / <textarea> with font-size < 16px.
+      The Mobile BR Return forms (search bar, remark textarea, cancel-reason
+      textarea, 4-step quantity inputs) all use ~12-13px fonts, which would
+      otherwise trigger the auto-zoom and leave the layout in a slightly
+      enlarged state the user has to manually pinch out of.
+      Tradeoff: users can no longer pinch-zoom the page. For a Sale-tool web
+      app this is the standard mobile-web-app pattern and an accepted tradeoff.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Neo BR System</title>
 
     <style>

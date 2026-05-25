@@ -803,7 +803,7 @@ function SalePicker({ onSelect, dark, setDark, lang, setLang }) {
           <div style={{ display: "inline-block", fontSize: 10, color: "#D4357A", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", border: "1.5px solid #D4357A", borderRadius: 6, padding: "4px 12px", marginBottom: 8 }}>BORROW SYSTEM</div>
           <div style={{ marginBottom: 8 }}><PrototypeBadge /></div>
           <div style={{ marginBottom: 20 }}>
-            <span style={{ fontSize: 9, fontWeight: 600, color: dark ? "#555" : "#aaa", background: dark ? "#1a1a1a" : "#f0f0ec", border: `0.5px solid ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>v 1.2-proto</span>
+            <span style={{ fontSize: 9, fontWeight: 600, color: dark ? "#555" : "#aaa", background: dark ? "#1a1a1a" : "#f0f0ec", border: `0.5px solid ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>v 2.0-proto</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 4 }}>{lang === "th" ? "เลือกชื่อ Sale ของคุณ" : "Select your Sale name"}</div>
           <div style={{ fontSize: 12, color: sub }}>{lang === "th" ? "Prototype — ทดลอง BR Return mobile flow" : "Prototype — test mobile BR Return flow"}</div>
