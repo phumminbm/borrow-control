@@ -462,6 +462,16 @@ that landed during live testing were removed via Supabase SQL with safety guards
 (`status='pending' AND sheet_sync IN ('none','') AND is_test=FALSE`). No Logistics File impact,
 no Apps Script writeback was ever triggered for those rows.
 
+### Phase 5 polish (2026-05-25, late)
+
+Small UI-only follow-ups after the main Phase 5 features landed:
+
+| Commit | Description |
+|---|---|
+| (this commit) | **v 1.2 → v 2.0** version label across visible badges: `App.jsx:211` (DesktopApp legacy header), `MobileApp.jsx:182` (Mobile SalePicker), `MobilePrototypeApp.jsx:806` (kept the `-proto` suffix). `br-return.html` badge intentionally NOT touched per the safety rule. |
+| (this commit) | **Request Return CTA icon polish** — replaced the bare `↩` Unicode emoji in the BR-Detail "ขอคืนสินค้า / Request Return" button with `<Icon name="return" size={16} color="#D4357A" />`. The emoji rendered inconsistently across iOS versions (tiny teal keycap on some, chunky pink glyph on others); the SVG renders identically everywhere and matches the bottom-tab Returns icon. |
+| (this commit) | **Prevent iOS auto-zoom on input focus** — `frontend/index.html` viewport meta now includes `maximum-scale=1.0, user-scalable=no`. Stops iOS Safari from zooming the layout when the user taps any `<input>` / `<textarea>` whose font-size is below 16px (search bars, remark textareas, cancel-reason input, qty steppers). Tradeoff: page can no longer be pinch-zoomed — standard mobile-web-app pattern, acceptable for this Sale tool. |
+
 ---
 
 ## 9. Pending / future work

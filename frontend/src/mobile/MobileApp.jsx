@@ -179,7 +179,7 @@ function SalePicker({ onSelect, dark, setDark, lang, setLang }) {
           </div>
           <div style={{ display: "inline-block", fontSize: 10, color: "#D4357A", fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", border: "1.5px solid #D4357A", borderRadius: 6, padding: "4px 12px", marginBottom: 8 }}>BORROW SYSTEM</div>
           <div style={{ marginBottom: 20 }}>
-            <span style={{ fontSize: 9, fontWeight: 600, color: dark ? "#555" : "#aaa", background: dark ? "#1a1a1a" : "#f0f0ec", border: `0.5px solid ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>v 1.2</span>
+            <span style={{ fontSize: 9, fontWeight: 600, color: dark ? "#555" : "#aaa", background: dark ? "#1a1a1a" : "#f0f0ec", border: `0.5px solid ${dark ? "#2a2a2a" : "#ddd"}`, borderRadius: 4, padding: "2px 8px", letterSpacing: 1 }}>v 2.0</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 4 }}>{lang === "th" ? "เลือกชื่อ Sale ของคุณ" : "Select your Sale name"}</div>
           <div style={{ fontSize: 12, color: sub }}>{lang === "th" ? "เพื่อดูข้อมูลของคุณเท่านั้น" : "To view only your data"}</div>
@@ -998,7 +998,14 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, select
                   onClick={() => setRequestReturnOpen(true)}
                   style={{ marginTop: 12, width: "100%", padding: "13px", borderRadius: 11, border: "1px solid #D4357A", background: "transparent", color: "#D4357A", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}
                 >
-                  ↩ {lang === "th" ? "ขอคืนสินค้า" : "Request Return"}
+                  {/* Phase 5 polish (2026-05-25): use the SVG `return` icon
+                      instead of the bare `↩` Unicode emoji. The emoji
+                      rendered inconsistently across iOS versions (a tiny
+                      teal keycap on some, a chunky pink glyph on others).
+                      The SVG renders identically everywhere and matches
+                      the icon style used on the bottom-tab Returns tab. */}
+                  <Icon name="return" size={16} color="#D4357A" />
+                  {lang === "th" ? "ขอคืนสินค้า" : "Request Return"}
                 </button>
                 {/* ── Unchanged — Export PDF (existing behavior) ─────────── */}
                 <button
