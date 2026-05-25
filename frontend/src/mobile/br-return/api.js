@@ -141,7 +141,16 @@ export async function submitReturnRequest(payload) {
       } catch { /* response wasn't JSON; keep "HTTP NNN" default */ }
       return { ok: false, error: err };
     }
-    const data = await res.json();
+    const raw = await res.json();
+    // Backend POST /return-requests returns { success: true, request: {...} }.
+    // Unwrap so callers see the request row directly — this makes the success
+    // screen's req.id / req.dateSort / req.custCode etc. resolve correctly,
+    // and fixes the "Back to BR list" customer lookup (which uses
+    // submittedRequest.custCode). If a future backend ever returns the row
+    // unwrapped, this passes the object through unchanged.
+    const data = (raw && typeof raw === "object" && raw.request && typeof raw.request === "object")
+      ? raw.request
+      : raw;
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: (err && err.message) || "Network error" };
