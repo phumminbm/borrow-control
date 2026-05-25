@@ -28,8 +28,8 @@
 import { useState, useEffect } from "react";
 import { BottomSheet, Icon } from "./shared";
 import { RETURN_TYPES, STATUS_META, typeLabel, breakdownFor } from "./constants";
-import { genReturnId, todayDateSort, THAI_MONTHS_SHORT, EN_MONTHS_SHORT } from "./helpers";
-import { submitReturnRequest } from "./api";
+import { todayDateSort, THAI_MONTHS_SHORT, EN_MONTHS_SHORT } from "./helpers";
+import { submitReturnRequest, nextReturnId } from "./api";
 
 // Build the human-readable display date the same way Desktop BR Return does
 // (br-return.html:4629). Backend stores `date` as a display string; matching
@@ -314,7 +314,9 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
       // New request — canonical backend field names (see main.py:524-547
       // ReturnRequestPayload). Schema matches Desktop BR Return exactly
       // (br-return.html:4666-4676).
-      const newId = genReturnId();
+      // ID is generated using the same running-counter logic Desktop uses
+      // (RT-YYYYMMDDNNNN, see api.js nextReturnId / br-return.html:3553).
+      const newId = await nextReturnId();
       const now = new Date();
       const payload = {
         id: newId,

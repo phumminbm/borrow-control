@@ -4,6 +4,7 @@ import { TEAMS, TEAM_COLORS } from "../App";
 // Imports are additive only; nothing in the existing 4-tab flow depends on them.
 import { ReturnsScreen } from "./br-return/ReturnsScreen";
 import { RequestReturnSheet } from "./br-return/RequestReturnSheet";
+import { SuccessScreen } from "./br-return/SuccessScreen";
 import { loadReturnRequests } from "./br-return/api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -618,7 +619,7 @@ function ProfileScreen({ dark, setDark, lang, setLang, selectedSale, onChangeSal
 // Phase 5 Step 2: gained two NEW optional props `selectedSale` and `onReturnRefresh`
 // to wire the Request Return CTA. Default values preserve original behavior when
 // the props are missing (defensive — never breaks the existing surface).
-function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, selectedSale = "", onReturnRefresh = null }) {
+function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, selectedSale = "", onReturnRefresh = null, onRequestSubmitted = null }) {
   const [brs, setBrs] = useState([]);
   const [loadingBrs, setLoadingBrs] = useState(false);
   const [brSearch, setBrSearch] = useState("");
@@ -997,9 +998,15 @@ function CustomerDetailSheet({ customer, onClose, custValues, lang, dark, select
         sale={selectedSale}
         lang={lang}
         dark={dark}
-        onSubmitted={() => {
+        onSubmitted={(persisted) => {
+          // Close the inner Request Return sheet, refresh the Returns list
+          // in the background, then bubble the persisted request up to
+          // MobileApp so the full-screen success view can take over.
+          // MobileApp's handler also closes this CustomerDetailSheet, so we
+          // don't need to setSelectedBR(null) here.
           setRequestReturnOpen(false);
           if (typeof onReturnRefresh === "function") onReturnRefresh();
+          if (typeof onRequestSubmitted === "function") onRequestSubmitted(persisted);
         }}
       />
     </>
@@ -1089,11 +1096,16 @@ export default function MobileApp() {
   const [splashVisible, setSplashVisible] = useState(true);
 
   // ── Phase 5 Step 2 — BR Return state ──────────────────────────────────────
-  // returns[]      : per-sale return requests (fetched from production backend)
-  // returnsCount   : pending count → drives the tab-bar badge dot
-  // refreshReturns : triggered on sale select, on tab activation, after submit
+  // returns[]         : per-sale return requests (fetched from production backend)
+  // returnsCount      : pending count → drives the tab-bar badge dot
+  // refreshReturns    : triggered on sale select, on tab activation, after submit
+  // submittedRequest  : when non-null, replaces the tab content + tab bar with
+  //                     the full-screen success view. Set by CustomerDetailSheet
+  //                     bubble-up after a successful submit. Mirrors the
+  //                     prototype's success-view pattern (MobilePrototypeApp.jsx).
   const [returns, setReturns] = useState([]);
   const [returnsCount, setReturnsCount] = useState(0);
+  const [submittedRequest, setSubmittedRequest] = useState(null);
   const refreshReturns = useCallback(async () => {
     if (!selectedSale) return;
     try {
@@ -1183,24 +1195,30 @@ export default function MobileApp() {
       {selectedSale && (
         <div style={{ background: navBg, backdropFilter: "blur(12px)", borderBottom: `0.5px solid ${navBdr}`, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* ปุ่มย้อนกลับ — แสดงเมื่ออยู่หน้าที่ไม่ใช่ home */}
-            {tab !== "home" ? (
-              <button onClick={() => setTab("home")} style={{ width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${navBdr}`, background: dark ? "#141414" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <svg width={18} height={18} viewBox="0 0 24 24" style={{ display: "block" }}>
-                  <path d="M15 6l-6 6 6 6" stroke={dark ? "#eee" : "#111"} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+            {/* Success mode locks the navbar to a static "Submitted" title —
+                no back button, so the user is funneled through the two
+                footer destinations. Other modes keep the original logic. */}
+            {submittedRequest ? (
+              <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
+                ✓ {lang === "th" ? "ส่งคำขอสำเร็จ" : "Submitted"}
+              </div>
+            ) : tab !== "home" ? (
+              <>
+                <button onClick={() => setTab("home")} style={{ width: 32, height: 32, borderRadius: 8, border: `0.5px solid ${navBdr}`, background: dark ? "#141414" : "#f0f0ec", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <svg width={18} height={18} viewBox="0 0 24 24" style={{ display: "block" }}>
+                    <path d="M15 6l-6 6 6 6" stroke={dark ? "#eee" : "#111"} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
+                  {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
+                   : tab === "alerts"    ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
+                   : tab === "returns"   ? (lang === "th" ? "คืนสินค้า" : "Returns")
+                   : (lang === "th" ? "โปรไฟล์" : "Profile")}
+                </div>
+              </>
             ) : (
               <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.5, color: navText }}>
                 <span style={{ color: "#D4357A" }}>Neo</span>Biotech
-              </div>
-            )}
-            {tab !== "home" && (
-              <div style={{ fontSize: 15, fontWeight: 700, color: navText }}>
-                {tab === "customers" ? (lang === "th" ? "ลูกค้า" : "Customers")
-                 : tab === "alerts"    ? (lang === "th" ? "แจ้งเตือน" : "Alerts")
-                 : tab === "returns"   ? (lang === "th" ? "คืนสินค้า" : "Returns")
-                 : (lang === "th" ? "โปรไฟล์" : "Profile")}
               </div>
             )}
           </div>
@@ -1220,6 +1238,12 @@ export default function MobileApp() {
         ) : loading ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: dark ? "#555" : "#aaa", fontSize: 13 }}>{lang === "th" ? "กำลังโหลดข้อมูล..." : "Loading..."}</div>
         ) : (
+          submittedRequest ? (
+            // Phase 5 fix: full-screen success view takes over the tab content
+            // until the user clicks one of the destination buttons in the
+            // footer below. Mirrors the prototype's success-view pattern.
+            <SuccessScreen req={submittedRequest} lang={lang} dark={dark} />
+          ) : (
           <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
             {tab === "home" ? (
               <HomeScreen customers={myCusts} analytics={analytics} custValues={custValues} syncLogs={syncLogs} lang={lang} setTab={setTab} setSelectedCustomer={setSelectedCustomer} refreshing={refreshing} onRefresh={() => load(true)} dark={dark} selectedSale={selectedSale} />
@@ -1240,11 +1264,38 @@ export default function MobileApp() {
               <ProfileScreen dark={dark} setDark={setDark} lang={lang} setLang={setLang} selectedSale={selectedSale} onChangeSale={() => { setSelectedSale(null); setTab("home"); }} syncLogs={syncLogs} customers={customers} />
             )}
           </div>
+          )
         )}
       </div>
 
-      {/* ── Tab bar ── */}
-      {selectedSale && (
+      {/* ── Footer: success-mode destination buttons OR normal tab bar ── */}
+      {selectedSale && submittedRequest ? (
+        // Phase 5 fix — replaces the tab bar with two destinations after a
+        // successful submit. Mirrors the prototype's success-mode footer.
+        <div style={{ background: navBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, padding: "12px 16px", paddingBottom: "calc(env(safe-area-inset-bottom, 8px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => {
+              // Back to BR list — re-open the same customer's BR detail sheet
+              // so the Sale can pick another BR for the same customer without
+              // navigating back through the Customers tab manually. Falls back
+              // to the Customers tab if the customer can't be matched.
+              const cust = customers.find(c => c.cust_code === submittedRequest.custCode) || null;
+              setSubmittedRequest(null);
+              setTab("customers");
+              if (cust) setSelectedCustomer(cust);
+            }}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: `0.5px solid ${navBdr}`, background: "transparent", color: navText, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {lang === "th" ? "กลับไปเลือก BR" : "Back to BR list"}
+          </button>
+          <button
+            onClick={() => { setSubmittedRequest(null); setTab("returns"); }}
+            style={{ flex: 1, padding: 13, borderRadius: 12, border: "none", background: "#D4357A", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {lang === "th" ? "ดูคำขอทั้งหมด →" : "View All Requests →"}
+          </button>
+        </div>
+      ) : selectedSale && (
         <div style={{ background: tabBg, backdropFilter: "blur(12px)", borderTop: `0.5px solid ${navBdr}`, display: "flex", flexShrink: 0, paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
           {tabs.map(([key, icon, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "10px 0 4px", border: "none", background: "transparent", cursor: "pointer", fontSize: 10, fontWeight: 600, color: tab === key ? "#D4357A" : (dark ? "#fff" : "#111"), transition: "color 0.15s" }}>
@@ -1282,6 +1333,13 @@ export default function MobileApp() {
         dark={dark}
         selectedSale={selectedSale}
         onReturnRefresh={refreshReturns}
+        onRequestSubmitted={(persisted) => {
+          // Close the customer sheet, then promote the persisted request to
+          // the full-screen success view. The success view stays open until
+          // the user picks one of the two footer destinations.
+          setSelectedCustomer(null);
+          setSubmittedRequest(persisted || null);
+        }}
       />
     </div>
   );
