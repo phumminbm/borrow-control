@@ -33,6 +33,56 @@ export async function loadReturnRequests(saleName) {
   }
 }
 
+// ── Next-return-id generator (production running counter) ────────────────────
+// Matches Desktop BR Return's genId() in br-return.html:3553-3582. Produces
+// `RT-YYYYMMDDNNNN` — same daily running 4-digit counter as Desktop, so
+// Mobile-submitted and Desktop-submitted RT-IDs share a single per-day
+// sequence and are visually indistinguishable.
+//
+// How it works: fetches the most recent production return requests (≤500),
+// finds every id that starts with today's `RT-YYYYMMDD` prefix, and returns
+// `RT-YYYYMMDD${maxNumeric+1}` zero-padded to 4 digits.
+//
+// Why fetch fresh each call: a Mobile device's local `returns` cache can be
+// minutes old. Calling this just-before-submit makes the counter consistent
+// with whatever Desktop has just written. Same race-condition profile as
+// Desktop (two devices submitting at the exact same second can produce the
+// same id; in practice Sale users rarely overlap that closely, and the
+// backend UPSERT will still accept the second write — the row would just be
+// overwritten, mirroring Desktop's existing behavior).
+//
+// Returns a string like "RT-202605250001". Never includes the test-only
+// `T-` segment (Desktop adds that only in TEST_MODE; this function is
+// production-only).
+export async function nextReturnId() {
+  const now = new Date();
+  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const prefix = `RT-${yyyymmdd}`;
+  let maxNum = 0;
+  try {
+    const res = await fetch(`${API_BASE}/return-requests?limit=500&include_test=false`, { cache: "no-store" });
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        for (const r of list) {
+          const id = (r && (r.id || r.requestId)) || "";
+          if (typeof id === "string" && id.startsWith(prefix)) {
+            const tail = id.slice(prefix.length);
+            const n = parseInt(tail, 10);
+            if (!isNaN(n) && n > maxNum) maxNum = n;
+          }
+        }
+      }
+    }
+  } catch {
+    // Network failure: fall through with maxNum = 0. The id below will be
+    // RT-YYYYMMDD0001 which may collide if other requests exist today, but
+    // the backend UPSERT will surface that as a 200 (overwrite). The caller
+    // should still surface any submit error to the user.
+  }
+  return `${prefix}${String(maxNum + 1).padStart(4, "0")}`;
+}
+
 // ── Submit (create or update) a return request ───────────────────────────────
 // Calls POST /return-requests which is an UPSERT: if `id` already exists
 // the row is updated (resubmit / correction path), otherwise a new row is

@@ -51,20 +51,15 @@ function dateToBuddhistInt(d) {
   return (d.getFullYear() + 543) * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
 
-// Display the request's date intelligently. Three cases the backend can return:
-//   1. ISO timestamp (some legacy mobile submissions) — format via fmtDateTime
-//   2. Pre-formatted Thai display string like "22 พ.ค. 2569" (Desktop default
-//      and current Mobile submissions, matches br-return.html:4629) — show as-is
-//   3. Missing / empty — reconstruct from r.dateSort (BBBBMMDD INT4)
-// Before this helper, fmtDateTime(raw) returned "—" for case 2, hiding every
-// row's date in the list.
+// Display the request's date in the CURRENT language. The backend stores
+// r.date as a pre-formatted display string with the locale baked in at submit
+// time (e.g. "25 พ.ค. 2569"), which means it cannot be re-localised when the
+// user toggles TH ↔ EN. To make the date track the active language, prefer
+// r.dateSort (BBBBMMDD INT4, locale-agnostic) and rebuild the display string
+// at view time. Falls back to r.date only when dateSort is unavailable.
+//   Thai mode:    "25 พ.ค. 2569"
+//   English mode: "25 May 2026"
 function displayRequestDate(r, lang) {
-  const raw = r && r.date ? String(r.date) : "";
-  if (raw) {
-    const parsed = new Date(raw);
-    if (!isNaN(parsed.getTime())) return fmtDateTime(raw, lang);
-    return raw;
-  }
   const ds = Number(r && r.dateSort) || 0;
   if (ds > 0) {
     const day = ds % 100;
@@ -73,6 +68,14 @@ function displayRequestDate(r, lang) {
     const monShort = (lang === "en" ? EN_MONTHS_SHORT : THAI_MONTHS_SHORT)[month - 1] || "";
     const year = lang === "en" ? buddhistYear - 543 : buddhistYear;
     if (monShort && day > 0 && year > 0) return `${day} ${monShort} ${year}`;
+  }
+  // Fallback: legacy / corrupted rows without a usable dateSort. Use the
+  // raw date string as a last resort so something is shown rather than "—".
+  const raw = r && r.date ? String(r.date) : "";
+  if (raw) {
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) return fmtDateTime(raw, lang);
+    return raw;
   }
   return "—";
 }
