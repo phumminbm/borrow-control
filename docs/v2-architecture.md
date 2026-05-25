@@ -1,7 +1,7 @@
 # BR Control v2 — Architecture & Handoff Document
 
-**Last updated:** 2026-05-20
-**Status:** Production. Combined v2 shell live at `/`. Supabase migration complete. BR Return embedded mode polished. Awaiting first full nightly sync on Supabase tonight.
+**Last updated:** 2026-05-25
+**Status:** Production. Combined v2 shell live at `/`. Supabase migration complete. BR Return embedded mode polished. **Phase 5 complete (2026-05-25)** — Mobile BR Return is live in `MobileApp.jsx`: Sale can submit, edit, and cancel return requests directly from their phone; Admin still reviews on Desktop.
 **Owner:** phumminbm (NeoBiotech Thailand)
 **Repo:** https://github.com/phumminbm/borrow-control · branch `master` · Render auto-deploys
 **Companion doc:** [`BR_CONTROL_HANDOFF.md`](BR_CONTROL_HANDOFF.md) — the older v1 handoff. Still load-bearing for write-back invariants, Logistics File schema, and the original BR Return numbering bug history. Read both.
@@ -18,6 +18,7 @@ This document is the **primary entry point** for any AI agent or developer picki
   - **BR Return** — write-side workflow for creating, reviewing, approving return requests. Built in vanilla JS (`backend/static/br-return.html`), embedded in the React shell via iframe.
 - **Source of truth:** The Logistics File (Google Sheet). The PostgreSQL DB is a **nightly read-side cache** rebuilt by the Find Borrow Apps Script between 23:30–06:00 Bangkok. BR Return writes go back to the Sheet via a separate BR Return Apps Script.
 - **Production URL:** https://borrow-control-app.onrender.com — the combined v2 shell. This is the main system as of 2026-05-19 (Phase 4 cutover).
+- **Mobile parity (Phase 5, 2026-05-25):** The same Sale-side BR Return workflow is now available natively on Mobile inside `MobileApp.jsx`. Mobile and Desktop share one daily `RT-YYYYMMDDNNNN` running counter, the same backend endpoint (`POST /return-requests`), and the same Admin approval / writeback chain.
 
 ---
 
@@ -418,6 +419,49 @@ In rough chronological order, with the most recent at the bottom:
 - **Embedded-mode natural document scroll** (2026-05-20): `4839dd1` — final layout fix matching Find Borrow's single-scroll feel
 - **This documentation** (2026-05-20): `docs/v2-architecture.md` (you are here)
 
+### Phase 5 — Mobile BR Return promotion (2026-05-23 → 2026-05-25)
+
+**Status: COMPLETE and live on master.** Mobile now has a real production BR Return surface
+(no more `?prototype=1`-only experience). Sale users can submit, track, edit, and cancel return
+requests directly from their phone — Admin still reviews and approves on Desktop.
+
+Two-branch approach delivered as planned:
+
+| Step | Commit | Description |
+|---|---|---|
+| **Step 1 — extract** | `7fc9854` | Extract production BR Return module to `frontend/src/mobile/br-return/` (constants, helpers, api, components, shared, README) |
+| **Step 2 — wire** | `50ba484` | Wire Returns tab into `MobileApp.jsx` as 5th tab + Request Return CTA in BR Detail (additive only, existing 4-tab structure preserved) |
+
+Then 7 fixes shipped after live testing:
+
+| Commit | Description |
+|---|---|
+| `bb10d97` | Payload field names (`id/cust/br` not `requestId/custName/brNo`), date field as locale-baked display string, FREE chip color visible in light mode |
+| `511aaf0` | RT-ID running counter `RT-YYYYMMDDNNNN` (matches Desktop `genId()` byte-for-byte), locale-aware date display, full success screen with destination buttons |
+| `4bab64e` | Unwrap `POST /return-requests` backend response (`{success, request}` → `request`) so the success view and "Back to BR list" handler receive the inner request object |
+| `06e82e2` | Close nested BR Detail + Request Return sheets when the parent customer is dismissed (was previously stuck on top of the success screen) |
+| `74af5ab` | Reserve safe-area + tab-bar space (`paddingBottom: calc(env(safe-area-inset-bottom, 8px) + 56px)`) inside both BottomSheet copies so inner CTAs are never clipped on iPhone |
+| `f2a502d` | "Back to BR list" reset — clear `selectedBR` / `requestReturnOpen` in CustomerDetailSheet's customer-change useEffect so reopening the same customer always lands on the BR LIST, not on a stale BR Detail |
+| `96353c8` | Sale can **edit** or **cancel** a pending request from Mobile (mirrors Desktop). Both reuse `POST /return-requests` UPSERT — no backend changes. CTAs disappear once status leaves `pending`. |
+
+**Capabilities live on Mobile (https://borrow-control-app.onrender.com):**
+
+- Full submit flow — pick customer → BR → 4-step form (select / allocate / remark / review) → submit
+- RT-ID format `RT-YYYYMMDDNNNN` shares one daily sequence with Desktop submissions
+- Date display tracks current TH/EN language (rebuilt from `dateSort` at view time, not from the locale-baked stored string)
+- Full-screen success view with RT card, status pill, next-step note, and two destinations: **Back to BR list** (same customer) / **View All Requests →** (Returns tab)
+- Returns tab with KPI strip, search (RT-ID / customer / BR), status filter, date range picker, detail sheet
+- **Edit pending request** — Sale can change items / quantities / remark while still pending
+- **Cancel pending request** — Sale provides a reason; status flips to cancelled with `cancelReason` preserved
+- **Edit and resubmit** for Admin-rejected requests (existing correction flow)
+- Tab-bar pink-dot badge when `pending` count > 0
+- Bottom-sheet safe-area padding on every modal/sheet (no clipped CTAs)
+
+**Cleanup performed by the user on 2026-05-25:** four test/wrong-format `return_requests` rows
+that landed during live testing were removed via Supabase SQL with safety guards
+(`status='pending' AND sheet_sync IN ('none','') AND is_test=FALSE`). No Logistics File impact,
+no Apps Script writeback was ever triggered for those rows.
+
 ---
 
 ## 9. Pending / future work
@@ -426,24 +470,26 @@ In rough chronological order, with the most recent at the bottom:
 
 | # | Item | When | What to do |
 |---|---|---|---|
-| 1 | **Monitor tonight's first full nightly sync on Supabase** | Tonight 23:30 Bangkok | Tomorrow morning: check `/sync-health`, `/sync-logs`, Outstanding Value, BR Active count. See Section 5.3. |
+| 1 | **Watch Mobile BR Return adoption** | First 1-2 weeks after Phase 5 (2026-05-25 +) | Spot-check the Returns tab on real phones; confirm RT-ID continuity with Desktop submissions; confirm no edit/cancel race conditions cause stale "pending" rows. Use the diagnostic snippets in Section 14 if anything looks off. |
+| 2 | **Verify nightly sync stays green** | Every morning | `curl /sync-health` — expect `status:"green"`, `hours_since_last_swap < 24`. |
 
 ### Medium priority (next sprint candidates)
 
 | # | Item | Plan phase | Notes |
 |---|---|---|---|
-| 2 | **Task 2 — Mobile BR Return promotion into `MobileApp.jsx`** | Plan Phase 5 | Gated on 3-day Phase 4 stability. Two-branch approach: (a) `feat/mobile-br-return-prep` — extract reusables from `MobilePrototypeApp.jsx` → `frontend/src/mobile/br-return/`; (b) `feat/mobile-br-return-wire` — graft into `MobileApp.jsx` as additive screens, real `POST /return-requests`. Keep `?prototype=1` working. |
+| 3 | **Mobile BR Return — Admin photo evidence rendering** | Phase 5.1 (future) | Currently rejected requests display the Admin's evidence photo grid (already wired via `selectedReq.attachments` in `ReturnsScreen.jsx:737-750`). Verify this works once a real Admin rejection with photos goes through; tune image-grid layout on phone if needed. |
+| 4 | **Move `MobilePrototypeApp.jsx` to `Backup/`** | Phase 6 | Now that Mobile has the real BR Return surface, the prototype is no longer needed by Sale. Keep `?prototype=1` working long enough to verify no one relies on it (manager confirmation). Then move (not delete — user's explicit rule). |
+| 5 | **Consolidate `Icon` + `BottomSheet` between `MobileApp.jsx` and `br-return/shared.jsx`** | Phase 5.2 (future) | Currently two copies of these primitives (Phase 5 Step 1 left them duplicated to keep the module self-contained). The safe-area `paddingBottom` fix has to be kept in sync between them — comment in `shared.jsx:62-66` flags this. A future cleanup can export from `MobileApp.jsx` and re-import in `shared.jsx`. |
 
 ### Lower priority (cleanup)
 
 | # | Item | Plan phase | Notes |
 |---|---|---|---|
-| 3 | **`ensure_tables()` refactor out of per-request paths** | — | Currently called inside request handlers (which is why `MIGRATION_MODE` had to block them). Refactor to call once at app startup. Quality-of-life cleanup; not urgent because `MIGRATION_MODE` covers the failure mode. |
-| 4 | **Remove `?legacy=1` gate** | Phase 6 | Wait until Phase 4 has been stable for 2 weeks (target: ~2026-06-02). Drop `isLegacyMode()` and `DesktopApp` import from `App.jsx`. |
-| 5 | **Retire `/v2` alias** | Phase 6 | Wait until manager confirms no one is using the alias. Drop `isV2Mode()`. |
-| 6 | **Move legacy files into `Backup/`** | Phase 6 | Once Phase 5 ships and absorbs `MobilePrototypeApp.jsx`'s features — move, don't delete (user's explicit rule). |
-| 7 | **Update `BR_CONTROL_HANDOFF.md` system map** | Phase 6 | Add a "see also: v2-architecture.md" pointer to the v1 doc. The v1 doc's invariants are still load-bearing for write-back. |
-| 8 | **Keep this doc current** | Ongoing | See Section 12 — handoff discipline. |
+| 6 | **`ensure_tables()` refactor out of per-request paths** | — | Currently called inside request handlers (which is why `MIGRATION_MODE` had to block them). Refactor to call once at app startup. Quality-of-life cleanup; not urgent because `MIGRATION_MODE` covers the failure mode. |
+| 7 | **Remove `?legacy=1` gate** | Phase 6 | Wait until Phase 4 has been stable for 2 weeks (target: ~2026-06-02 met). Drop `isLegacyMode()` and `DesktopApp` import from `App.jsx`. |
+| 8 | **Retire `/v2` alias** | Phase 6 | Wait until manager confirms no one is using the alias. Drop `isV2Mode()`. |
+| 9 | **Update `BR_CONTROL_HANDOFF.md` system map** | Phase 6 | Add a "see also: v2-architecture.md" pointer to the v1 doc. The v1 doc's invariants are still load-bearing for write-back. |
+| 10 | **Keep this doc current** | Ongoing | See Section 12 — handoff discipline. |
 
 ---
 
@@ -481,8 +527,24 @@ In rough chronological order, with the most recent at the bottom:
 
 | Path | Role |
 |---|---|
-| `frontend/src/mobile/MobileApp.jsx` | Real mobile app for Sale. 4 bottom tabs. **Phase 5 will add BR Return screens here — additive only, do not modify the existing 4-tab structure.** |
-| `frontend/src/mobile/MobilePrototypeApp.jsx` | Standalone Mobile BR Return prototype. Activated by `?prototype=1`. **localStorage only** — does not write to backend. Isolated from real Admin queue. Source of building blocks for Phase 5 extraction. |
+| `frontend/src/mobile/MobileApp.jsx` | Real mobile app for Sale. **5 bottom tabs** (Home / Customers / Alerts / **Returns** / Profile). Hosts `CustomerDetailSheet` with BR list + BR Detail + Request Return CTA. Owns `submittedRequest` state for the post-submit success view. Phase 5 wired the Returns tab + Request Return CTA additively — the original 4 tabs are byte-identical to pre-Phase-5. |
+| `frontend/src/mobile/MobilePrototypeApp.jsx` | **Deprecated but still mounted at `?prototype=1`.** localStorage-only Mobile BR Return prototype. Source of building blocks for Phase 5 extraction. Kept until Phase 6 cleanup confirms no one relies on it. **Do not edit in place** — extract to `br-return/` instead. |
+
+#### `frontend/src/mobile/br-return/` — Phase 5 production module
+
+Self-contained module imported by `MobileApp.jsx`. Reuses `POST /return-requests` (the same endpoint Desktop BR Return uses) — no backend or Apps Script changes.
+
+| Path | Role |
+|---|---|
+| `frontend/src/mobile/br-return/README.md` | Module overview, design contract, file map. |
+| `frontend/src/mobile/br-return/constants.js` | `STATUS_META` (pending / approved / rejected / cancelled palettes), `RETURN_TYPES` (RETURN / CLAIM / SALE / FREE — FREE color hardened to `#7F77DD` so it's visible in light mode), `typeLabel`, `breakdownFor`, `itemIdentity`, `buildApprovedFullView`. |
+| `frontend/src/mobile/br-return/helpers.js` | `genReturnId` (deprecated — used only as a legacy fallback; `api.js:nextReturnId` is the canonical generator), `todayDateSort`, Thai/EN month + day arrays, `fmtDate`, `fmtDateTime`, `fmtShortDate`, `fmtDayMonth`, `startOfDay`, `sameDay`, `compressImageFile`, `approxAttachmentBytes`. |
+| `frontend/src/mobile/br-return/api.js` | `loadReturnRequests(saleName)` (GET + client-side sale filter), `nextReturnId()` (fresh GET → max numeric suffix + 1 → `RT-YYYYMMDDNNNN`, same daily series as Desktop), `submitReturnRequest(payload)` (UPSERT, **unwraps** `{success, request}` so callers see the row directly). Comprehensive JSDoc on payload field names. |
+| `frontend/src/mobile/br-return/shared.jsx` | `Icon`, `BottomSheet` — copies of the same primitives in `MobileApp.jsx`. Both copies have the same `paddingBottom: calc(env(safe-area-inset-bottom, 8px) + 56px)` safe-area fix; **must stay in sync**. |
+| `frontend/src/mobile/br-return/components.jsx` | `ReturnStatusPill`, `RevisionChip`, `ImageLightbox`. |
+| `frontend/src/mobile/br-return/ReturnsScreen.jsx` | The 5th-tab screen. KPI strip, search, status filter (KPI-driven), date range picker, list of returns, detail bottom sheet. Hosts the pending-status **Edit + Cancel** CTAs and the Cancel-reason modal. `displayRequestDate(r, lang)` rebuilds dates from `dateSort` for locale-aware display. |
+| `frontend/src/mobile/br-return/RequestReturnSheet.jsx` | The 4-step submit form (Select → Allocate → Remark → Review). Used for new submissions, rejected-resubmit, **and pending-edit** (new). `editRejectedOnly` flag splits the editing flow into rejected-correction vs pending-edit, mirroring Desktop `br-return.html:4889-4892`. |
+| `frontend/src/mobile/br-return/SuccessScreen.jsx` | Full-screen success view shown after a successful submit. Check icon, RT card (id / locale date / status pill), next-step note. `submittedRequest` state in `MobileApp.jsx` drives visibility; "Back to BR list" / "View All Requests →" footer destinations live in `MobileApp.jsx`. |
 
 ### Backend
 
@@ -725,6 +787,48 @@ To test standalone BR Return: open `http://localhost:8000/br-return`.
 
 **Cause:** Localized text lives in `PAGE_HEADER` constants inside `FBPanel.jsx` and `BRPanel.jsx`. Update both `th` and `en` keys.
 
+### "Mobile RT-ID came out with `T-` prefix or `-XX` random suffix"
+
+**Cause:** `nextReturnId()` failed silently (e.g. backend 5xx during the pre-submit fetch) and a legacy code path returned the old `genReturnId()` shape.
+**Diagnose:** Open the live bundle and grep for `nextReturnId` + `include_test=false` — both should be present. Test by submitting from Mobile and inspecting the new RT-ID — must be `RT-YYYYMMDDNNNN` (4-digit running counter, no `T-`).
+**Fix:** Production `isTest: false` payloads should NEVER produce `T-`. If the live bundle is missing `nextReturnId`, force-redeploy the latest master to Render. Hard-refresh phone.
+
+### "Mobile success screen appears empty / behind another sheet"
+
+**Cause:** Either (a) the `POST /return-requests` response unwrap regressed (so `submittedRequest.id / .dateSort / .custCode` are undefined), or (b) the BR Detail or Request Return BottomSheet didn't close when the parent customer dismissed.
+**Diagnose:** Grep the live bundle for `typeof r=="object"&&r.request` (the unwrap conditional from commit `4bab64e`). Grep for the gated `open` conditions on both nested sheets in `MobileApp.jsx` (they must include `!!customer &&`). Look at the live bundle source.
+**Fix:** Both fixes are in `4bab64e` + `06e82e2`. If the bundle is missing them, the merge didn't include the latest master.
+
+### "Mobile date shows in Thai even after switching to English"
+
+**Cause:** `ReturnsScreen.displayRequestDate()` fell back to rendering `r.date` as-is (which is a locale-baked Thai display string from the backend).
+**Diagnose:** Confirm the helper prefers `r.dateSort` (BBBBMMDD INT4) and rebuilds the display in the current language. The fallback to `r.date` should only fire for legacy rows that lack `dateSort`.
+**Fix:** Already shipped in commit `511aaf0`. If regressed, restore the dateSort-first order.
+
+### "Mobile Returns tab shows '—' for every date"
+
+**Cause:** `r.date` is an unparseable Thai display string (`"25 พ.ค. 2569"`) and `r.dateSort` is missing or zero.
+**Diagnose:** `curl -s /return-requests | jq` — check that `dateSort` is present on each row.
+**Fix:** Backend writes `dateSort` on every UPSERT. If missing, check `nextReturnId()` and `submitReturnRequest()` are sending it.
+
+### "Mobile 'Back to BR list' opens the wrong sheet"
+
+**Cause:** `CustomerDetailSheet` didn't reset `selectedBR` when the parent reopened.
+**Diagnose:** Read `MobileApp.jsx` customer-change useEffect — must call `setSelectedBR(null)` and `setRequestReturnOpen(false)` on every non-null customer load.
+**Fix:** Shipped in commit `f2a502d`.
+
+### "Mobile pending Edit/Cancel buttons missing"
+
+**Cause:** `selectedReq.status !== 'pending'` (already reviewed by Admin) OR a regression dropped the conditional block from `ReturnsScreen.jsx`.
+**Diagnose:** Refresh the Returns tab (pull down). If the row's status is approved/rejected/cancelled, the CTAs are intentionally hidden. Open Desktop `/v2` BR Return → confirm whether Admin already touched it.
+**Expected:** CTAs only appear when `selectedReq.status === "pending"`. Once Admin reviews, they disappear automatically.
+
+### "Mobile bottom-sheet CTA is clipped behind the tab bar"
+
+**Cause:** Either (a) the safe-area `paddingBottom` regressed in one of the two BottomSheet copies (`MobileApp.jsx` + `br-return/shared.jsx`), or (b) iOS Safari isn't honoring `env(safe-area-inset-bottom)` on a custom phone profile.
+**Diagnose:** Grep the live bundle for `safe-area-inset-bottom` — must appear ≥ 6 times. The two BottomSheet copies should each contribute `calc(env(safe-area-inset-bottom, 8px) + 56px)` on the children container.
+**Fix:** Both copies share the same fix in `74af5ab`. Restore if regressed.
+
 ---
 
 ## 15. Verification checklist (after any UI change)
@@ -746,6 +850,42 @@ Use this before merging anything that touches the shell or BR Return:
 - [ ] (Admin path) Approve a non-test request → Apps Script log shows the call; `sheet_sync` goes `synced`; corresponding Logistics File rows flip to `WAIT`
 - [ ] `?legacy=1` → old `DesktopApp` renders unchanged
 - [ ] Standalone `/br-return` → no v2 chrome bleed-through; original layout intact
+- [ ] **Mobile viewport** → 5 bottom tabs (Home / Customers / Alerts / Returns / Profile, Profile last)
+- [ ] **Mobile Returns tab** → KPI strip + list render; tab-bar pink dot only when pending count > 0
+- [ ] **Mobile Customer → BR Detail** → `↩ ขอคืนสินค้า` outline CTA above filled-pink `Export PDF`
+- [ ] **Mobile submit flow** → 4-step form → submit succeeds → full-screen success view with real RT-ID `RT-YYYYMMDDNNNN`
+- [ ] **Mobile Back to BR list** (success view footer) → reopens the SAME customer's BR LIST (not Customer list, not BR Detail)
+- [ ] **Mobile View All Requests →** (success view footer) → switches to Returns tab with fresh RT at top
+- [ ] **Mobile pending detail sheet** → shows `Cancel request` + `↻ Edit request` CTAs
+- [ ] **Mobile cancel flow** → modal opens → reason required → confirm → status flips to cancelled; row visible in Desktop `/v2` with same reason
+- [ ] **Mobile edit-pending flow** → 4-step form pre-selects items with blank quantities → save → same RT-ID retained → status remains pending
+- [ ] **Mobile TH↔EN toggle** → dates re-render in active language on the Returns list, detail header, and success card
+- [ ] **`?prototype=1`** → still launches `MobilePrototypeApp` unchanged
+
+### Phase 5 (Mobile BR Return) rollback path
+
+Safe one-step revert of the entire Phase 5 surface:
+
+```bash
+# List the 9 Phase 5 commits to confirm scope
+git log --oneline master ^a1ebcd5  # ← any commit BEFORE 7fc9854 works as base
+
+# Revert just the latest Mobile-BR-Return merge (incremental rollback)
+git revert -m 1 3260966       # undoes the latest "Edit + Cancel" feature only
+# OR
+git revert -m 1 b9a21a6..3260966   # undoes Phase 5 fixes (keeps Step 1+2 modules)
+# OR (nuclear — remove all of Phase 5):
+git revert -m 1 50ba484       # undoes the wiring; modules become dead code but harmless
+
+git push origin master         # Render auto-redeploys ~3-6 min
+```
+
+**No DB cleanup needed for any rollback** — any submissions made from Mobile stay valid in the
+`return_requests` table and remain visible/usable on Desktop. Admin can still approve them; the
+writeback chain to the Logistics File is unaffected.
+
+The two-branch trail (`feat/mobile-br-return-prep` extraction + the various `fix/*` branches)
+stays on GitHub for re-attempt or partial cherry-pick.
 - [ ] `?prototype=1` on mobile viewport → `MobilePrototypeApp` renders; localStorage isolation holds
 
 ---
