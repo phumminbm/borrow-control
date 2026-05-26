@@ -1762,6 +1762,7 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
     <div class="popup-foot" style="justify-content:center">
+      <button class="btn btn-ghost" id="ok-back-br" onclick="backToBRListAfterSuccess()" data-i18n="ok.backToBRList" style="display:none">กลับไปเลือก BR</button>
       <button class="btn btn-primary-green" onclick="closeAll()" data-i18n="ok.close">ปิด</button>
     </div>
   </div>
@@ -2003,6 +2004,7 @@ var BR_STRINGS = {
   // ── Success popup ─────────────────────────────────────────────
   "ok.title":                 { th: "ส่งคำขอสำเร็จ",         en: "Request submitted" },
   "ok.sub":                   { th: "คำขอถูกส่งให้ Admin ตรวจสอบแล้ว", en: "Your request has been sent to Admin for review" },
+  "ok.backToBRList":          { th: "กลับไปเลือก BR",         en: "Back to BR list" },
   "ok.close":                 { th: "ปิด",                   en: "Close" },
 
   // ── Detail-modal button (already used elsewhere too) ─────────
@@ -4345,6 +4347,42 @@ function goStep3(){
   hide('ov2'); show('ov3');
 }
 
+function backToBRListAfterSuccess(){
+  if(!ST.custCode || !ST.custName){
+    closeAll();
+    return;
+  }
+  hide('ov-ok');
+  hide('ov-confirm');
+  hide('ov3');
+  hide('ov1');
+
+  ST.br = null;
+  ST.items = {};
+  ST.retQtys = {};
+  ST.clmQtys = {};
+  ST.saleQtys = {};
+  ST.freeQtys = {};
+  ST.bulkType = null;
+  ST.editId = null;
+  ST.editOnlyKeys = null;
+  ST.editQtyByKey = null;
+
+  if(el('ov3-remark')) el('ov3-remark').value = '';
+  if(el('ov2-search')) el('ov2-search').value = '';
+  el('ov2-cust-label').innerHTML = ST.custName+' <span class="col-code">'+ST.custCode+'</span>';
+  el('ov2-stepbar').innerHTML = makeStepBar(2);
+  el('ov2-next').disabled = true;
+  show('ov2');
+
+  if(BRS[ST.custCode]){
+    renderBRList();
+  } else {
+    el('ov2-list').innerHTML = '<div class="empty-state"><div class="empty-icon">...</div><div class="empty-text">'+_t('step2.loadingBR')+'</div></div>';
+    loadCustomerBorrowData(ST.custCode).then(function(){ renderBRList(); });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // STEP 3: สินค้า & จำนวน
 // ═══════════════════════════════════════════════════════════════
@@ -4630,6 +4668,7 @@ function doSubmit(){
   var dateSort = (now.getFullYear()+543)*10000+(now.getMonth()+1)*100+now.getDate();
 
   if(ST.editId){
+    if(el('ok-back-br')) el('ok-back-br').style.display = 'none';
     var editedRequest = null;
     for(var k=0;k<RECENT.length;k++){
       if(RECENT[k].id===ST.editId){
@@ -4678,6 +4717,7 @@ function doSubmit(){
     el('ok-id').innerHTML = newId;
     saveReturnRequest(newRequest);
     showToast(_t('toast.submitted'),'success');
+    if(el('ok-back-br')) el('ok-back-br').style.display = ST.custCode ? 'inline-flex' : 'none';
   }
 
   hide('ov-confirm'); show('ov-ok');
