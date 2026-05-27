@@ -1,7 +1,7 @@
 # BR Control v2 — Architecture & Handoff Document
 
-**Last updated:** 2026-05-25
-**Status:** Production. Combined v2 shell live at `/`. Supabase migration complete. BR Return embedded mode polished. **Phase 5 complete (2026-05-25)** — Mobile BR Return is live in `MobileApp.jsx`: Sale can submit, edit, and cancel return requests directly from their phone; Admin still reviews on Desktop.
+**Last updated:** 2026-05-27
+**Status:** Production. Combined v2 shell live at `/`. Supabase migration complete. BR Return embedded mode polished. Phase 5 (Mobile BR Return) complete. **Phase D complete (2026-05-27)** — a third **Dashboard** tab is live inside Desktop BR Return (Sale · Admin · **Dashboard**), computing real performance metrics client-side from the existing `RECENT` array. No new backend endpoint, no schema change. Team-based analysis was removed; the Dashboard analyzes by **Sale** only.
 **Owner:** phumminbm (NeoBiotech Thailand)
 **Repo:** https://github.com/phumminbm/borrow-control · branch `master` · Render auto-deploys
 **Companion doc:** [`BR_CONTROL_HANDOFF.md`](BR_CONTROL_HANDOFF.md) — the older v1 handoff. Still load-bearing for write-back invariants, Logistics File schema, and the original BR Return numbering bug history. Read both.
@@ -132,7 +132,12 @@ Recent cache keys (for historical reference):
 - `v=br-scroll-20260520` — sticky header + max-height scroll
 - `v=br-page50-20260520` — 50 rows per page
 - `v=br-nopin-20260520` — unpinned pagination
-- `v=br-natural-20260520` — current; natural document flow in embedded mode
+- `v=br-natural-20260520` — natural document flow in embedded mode
+- `v=br-ok-back-20260526` — BR Return success "back to BR" action
+- `v=br-dashboard-20260526` — Dashboard tab (D1, mock)
+- `v=br-dashboard-fix-20260527` — Dashboard polling guard (D-fix)
+- `v=br-dashboard-d3-20260527` — Dashboard live data (D3)
+- `v=br-dashboard-d3-saleonly-20260527` — **current**; Dashboard Sale-only (Team removed)
 
 ---
 
@@ -472,6 +477,47 @@ Small UI-only follow-ups after the main Phase 5 features landed:
 | (this commit) | **Request Return CTA icon polish** — replaced the bare `↩` Unicode emoji in the BR-Detail "ขอคืนสินค้า / Request Return" button with `<Icon name="return" size={16} color="#D4357A" />`. The emoji rendered inconsistently across iOS versions (tiny teal keycap on some, chunky pink glyph on others); the SVG renders identically everywhere and matches the bottom-tab Returns icon. |
 | (this commit) | **Prevent iOS auto-zoom on input focus** — `frontend/index.html` viewport meta now includes `maximum-scale=1.0, user-scalable=no`. Stops iOS Safari from zooming the layout when the user taps any `<input>` / `<textarea>` whose font-size is below 16px (search bars, remark textareas, cancel-reason input, qty steppers). Tradeoff: page can no longer be pinch-zoomed — standard mobile-web-app pattern, acceptable for this Sale tool. |
 
+### Phase D — BR Return Performance Dashboard (2026-05-26 → 2026-05-27)
+
+**Status: COMPLETE and live on master.** A third tab — **Dashboard** — sits beside Sale and
+Admin inside Desktop BR Return (`backend/static/br-return.html`). It is an executive performance
+view computed **entirely client-side** from the `RECENT` array (the same `return_requests` data
+Sale/Admin already load via `GET /return-requests?limit=5000`). **Read-only**: it never mutates
+`RECENT`, never calls a write endpoint, makes no new network calls, and added **no backend
+endpoint, no `/return-analytics`, no Supabase schema change, no Apps Script change.** Wrapped in
+try/catch so a render error can never break Sale/Admin.
+
+This was delivered in four sub-phases (the plan also named D2 = real-data wiring prep and a future
+D-schema phase; see Section 9):
+
+| Sub-phase | Commits | Description |
+|---|---|---|
+| **D1 — mock tab** | `f9ce15f`, merged `de3f918` | New Dashboard tab + full layout (10 KPI cards, 3-col chart grid, MoM, sale & recent tables) using **mock data**, bilingual via the existing `BR_STRINGS`/`_t()` dictionary. Tab wired into `switchTab()`/`setLang()`; reuses the shared `#main-content` render target and the `active-admin` chrome with a purple dot. |
+| **D-fix — polling guard** | `7e1991e` | **Bug:** Dashboard flipped back to Admin after ~30s. Root cause: two async/timer callbacks (`loadReturnRequests()` poll + visibilitychange, and `applyBorrowMasterData()`) re-rendered `#main-content` with a `sale ? renderContent() : renderAdminContent()` pattern that had no `dashboard` branch. **Fix:** added `else if(ACTIVE_TAB==='dashboard') renderDashboard();` to both callbacks so every refresh path respects `ACTIVE_TAB`. |
+| **D3 — live data** | `074794c`, merged `6e8ef7c` | Replaced all mock numbers with real metrics computed from `RECENT`. Added pure helper functions (see Section 10). Data-driven filters (Sale/Year/Month + Daily/Monthly mode) with live recompute. Avg-Review-time, Approved-SLA-%, and per-admin metrics **hidden** (no reliable `reviewed_at`/`approved_at`/`approved_by`); pending-aging uses `dateSort` as an explicitly-labelled approximation. Empty-state when a filter yields no rows. |
+| **D3 Sale-only** | `ad7491a`, merged `042da9f` | Removed all Team features (filter, Team Performance chart, `groupByTeam`, `dashTeam`, `DASH_TEAMS` map, Team table columns, all "Unassigned" output) because the synced `sale`→team mapping is unreliable. The Team Performance chart was replaced with **Top Sale by Requests**. Dashboard now analyzes by **Sale** only. |
+
+**Business logic — what the Dashboard reports (all from `RECENT`):**
+
+- **QTY rule (critical):** `dashboardQty(item)` = `item.quantity` (or `.qty`); if 0/missing → `retQty+clmQty+saleQty+freeQty`. Request QTY = Σ over `submittedItems`. This counts **pieces, not item-lines** — the same rule as `requestItemQtyForPrint` (`br-return.html`).
+- **Value:** `dashboardItemValue(item)` = `totalPrice` (or `total`/`total_price`); else `price × qty`.
+- **Status normalization:** `normalizeStatus()` maps to `approved` / `pending` / `rejected` (= "Awaiting Revision") / `cancelled`.
+- **KPIs (8 cards):** Total Requests · BR Returned (distinct `br`) · Submitted QTY · Approved QTY · Pending count+QTY · Awaiting-Revision count+QTY · Cancelled count+QTY · Total Value.
+- **Charts (9):** trend (req count by day/month) · status-by-period (approved/pending/revision stacked) · Return-Type breakdown (RETURN/CLAIM/SALE/FREE by QTY+value) · Top Sale by QTY · **Top Sale by Requests** · Sheet-Sync status (synced/syncing/not-synced) · Status donut · Pending Aging (0–1 / 2–3 / 4–7 / >7 days, dateSort fallback) · Monthly Summary.
+- **Tables:** Sale Performance (rank · sale · req · BR · subQty · appQty · pending · revision · cancelled · value — **no Team, no Avg-Review column**) and Recent Requests (RT-ID · date · sale · customer · BR · status · type · qty · value · sync — **no Team, no Review column**).
+
+**Filters:** `DASH_FILTERS = { sale, year, month, mode }` — separate from Sale/Admin `FILTERS`.
+Dropdown options are built from the data. Any change calls `dashSetFilter`/`dashSetMode` →
+`renderDashboard()` → `applyDashboardFilters(RECENT)` → recompute. Daily/Monthly toggle re-groups
+trend/status/MoM. TH/EN and light/dark preserved (CSS uses the existing `--bg2`/`--border`/`--text`/
+`--pink`/`--green` theme vars; `setLang()` re-renders the active tab).
+
+**Verification:** JS syntax clean (node `vm.Script`, 0 errors); a Node harness confirmed every
+metric against sample data (QTY counts pieces not lines; unknown-sale handling; sync split);
+generated HTML div-balanced (populated 238/238, empty 16/16); frontend build clean. Safety greps
+confirmed no new `fetch`/`POST`/`script.google.com`/`/return-analytics` and no `main.py`/
+`sync_engine.py` change across the whole Phase-D range.
+
 ---
 
 ## 9. Pending / future work
@@ -495,6 +541,8 @@ Small UI-only follow-ups after the main Phase 5 features landed:
 
 | # | Item | Plan phase | Notes |
 |---|---|---|---|
+| 5b | **Dashboard D-schema: real Avg Review / SLA / per-admin** | Phase D-schema (future) | Requires persisting `reviewed_at` / `approved_at` / `approved_by` on `return_requests` (Supabase + `POST /return-requests` + the approve path). Once present, un-hide the Avg-Review-time KPI, Approved-SLA-% KPI, the Sale-table Avg-Review column, and a per-admin workload card. Until then these stay hidden by design (the Dashboard shows a note). **Needs explicit user sign-off** — it touches the write path. |
+| 5c | **Dashboard: re-introduce Team analysis** | Future | Team was removed in `ad7491a` because the synced `sale`→team mapping was unreliable. To bring it back safely, establish an authoritative sale→team source (Supabase column or a maintained map that matches real `sale` values), then restore the Team filter / Team Performance chart / Team columns. Do NOT reinstate the hardcoded `DASH_TEAMS` guess. |
 | 6 | **`ensure_tables()` refactor out of per-request paths** | — | Currently called inside request handlers (which is why `MIGRATION_MODE` had to block them). Refactor to call once at app startup. Quality-of-life cleanup; not urgent because `MIGRATION_MODE` covers the failure mode. |
 | 7 | **Remove `?legacy=1` gate** | Phase 6 | Wait until Phase 4 has been stable for 2 weeks (target: ~2026-06-02 met). Drop `isLegacyMode()` and `DesktopApp` import from `App.jsx`. |
 | 8 | **Retire `/v2` alias** | Phase 6 | Wait until manager confirms no one is using the alias. Drop `isV2Mode()`. |
@@ -562,7 +610,22 @@ Self-contained module imported by `MobileApp.jsx`. Reuses `POST /return-requests
 |---|---|
 | `backend/main.py` | FastAPI app. All endpoints. `MIGRATION_MODE` middleware. `ensure_tables()`. |
 | `backend/sync_engine.py` | Apps Script `/sync` handler logic. Staging swap with 80% safety. |
-| `backend/static/br-return.html` | **The BR Return UI.** 5,989 lines of vanilla JS + CSS. Served from `/br-return`. Holds: Apps Script URL (line 2333), pagination state (line 2702+), embedded-mode CSS (line 1300+), v2 bridge `v2ShellBridge` (line ~5927). |
+| `backend/static/br-return.html` | **The BR Return UI.** ~6,500 lines of vanilla JS + CSS. Served from `/br-return`. Holds: Apps Script URL (line ~2333), pagination state, embedded-mode CSS, v2 bridge `v2ShellBridge`, the `BR_STRINGS`/`_t()` i18n dictionary (incl. all `db.*` Dashboard keys), and the **Dashboard tab** (search `renderDashboard` / `_renderDashboardHTML`). Tabs are driven by `switchTab(t)` (`sale`/`admin`/`dashboard`); `setLang()` re-renders the active tab; all three share `#main-content`. |
+
+**Dashboard internals inside `br-return.html` (Phase D, search by name — line numbers drift):**
+
+| Symbol | Role |
+|---|---|
+| `DASH_FILTERS` | `{ sale, year, month, mode }` — Dashboard-only filter state (separate from Sale/Admin `FILTERS`). |
+| `dashboardQty(it)` / `dashboardItemValue(it)` | Per-item pieces / value (the QTY + value rules; counts pieces, not lines). |
+| `dashboardRequestQty(r)` / `dashboardRequestValue(r)` | Σ over a request's `submittedItems`. |
+| `normalizeStatus(s)` | → `approved`/`pending`/`rejected`/`cancelled`. |
+| `parseDashboardDate(r)` | `{y,m,d,ds}` — prefers `created_at`, then `dateSort`, then `date` ISO. |
+| `applyDashboardFilters(rows)` | Sale/Year/Month filtering. |
+| `buildDashboardMetrics(rows)` | All KPI + type + sync aggregates. |
+| `groupBySale` / `groupByDay` / `groupByMonth` / `groupReturnTypes` / `buildPendingAging` | Grouping helpers (NB: `groupByTeam`/`dashTeam`/`DASH_TEAMS` were **removed** in `ad7491a`). |
+| `dashSetFilter` / `dashSetMode` / `dashClearFilters` | Filter event handlers → `renderDashboard()`. |
+| `renderDashboard()` / `_renderDashboardHTML()` | try/catch wrapper + live HTML builder writing to `#main-content`. |
 | `backend/requirements.txt` | Python deps. |
 | `render.yaml` | `borrow-control-api` Render service definition. |
 
@@ -833,6 +896,29 @@ To test standalone BR Return: open `http://localhost:8000/br-return`.
 **Diagnose:** Refresh the Returns tab (pull down). If the row's status is approved/rejected/cancelled, the CTAs are intentionally hidden. Open Desktop `/v2` BR Return → confirm whether Admin already touched it.
 **Expected:** CTAs only appear when `selectedReq.status === "pending"`. Once Admin reviews, they disappear automatically.
 
+### "Dashboard tab flips back to Admin after ~30 seconds"
+
+**Cause:** A refresh/render path doesn't respect `ACTIVE_TAB`. The 30s `loadReturnRequests()` poll,
+visibilitychange, or `applyBorrowMasterData()` re-rendered `#main-content` without a `dashboard`
+branch.
+**Fix:** Already shipped in `7e1991e` — both callbacks have `else if(ACTIVE_TAB==='dashboard') renderDashboard();`.
+If it regresses, grep `br-return.html` for `renderAdminContent()` and ensure every async/timer
+caller checks `ACTIVE_TAB` (the `switchTab`/`setLang` pattern). User-action-driven Admin renders
+(approve/reject/cancel) are fine — they can't fire while Dashboard is active.
+
+### "Dashboard shows mock numbers (142 / 3,410 / ฿1.42M) or an 'Unassigned' team"
+
+**Cause:** Stale iframe HTML (pre-D3), OR a regression reintroduced Team/mock code.
+**Fix:** Confirm the iframe cache key is `v=br-dashboard-d3-saleonly-20260527` (or newer). Hard-refresh.
+The live dashboard reads real `RECENT` data, shows a green "Live data" badge (not the yellow "Mock"
+badge), and renders no Team filter/chart/column and no "Unassigned"/"ไม่ระบุทีม" text.
+
+### "Dashboard QTY looks too low / equals the number of item lines"
+
+**Cause:** Someone changed `dashboardQty()` to count `submittedItems.length` instead of summing pieces.
+**Expected:** QTY = Σ `item.quantity` (fallback `retQty+clmQty+saleQty+freeQty`) across all items —
+e.g. 2 lines with qty 5 and 3 = **8 pieces**, not 2. This mirrors `requestItemQtyForPrint`.
+
 ### "Mobile bottom-sheet CTA is clipped behind the tab bar"
 
 **Cause:** Either (a) the safe-area `paddingBottom` regressed in one of the two BottomSheet copies (`MobileApp.jsx` + `br-return/shared.jsx`), or (b) iOS Safari isn't honoring `env(safe-area-inset-bottom)` on a custom phone profile.
@@ -856,6 +942,12 @@ Use this before merging anything that touches the shell or BR Return:
 - [ ] In BR Return → scroll down naturally → pagination bar visible at the bottom of the table
 - [ ] Click pagination Next → page 2 of requests visible
 - [ ] Click "ดูรายละเอียด" on a request → detail modal opens
+- [ ] **BR Return Dashboard tab** → loads beside Sale/Admin (purple dot); green "Live data" badge, real numbers (not mock)
+- [ ] **Dashboard stays put** → wait 30–60s on the tab → does NOT flip back to Admin
+- [ ] **Dashboard filters** → Sale / Year / Month / Daily↔Monthly recompute KPIs + charts; **no Team filter** present
+- [ ] **Dashboard has no Team** → no Team Performance chart, no Team column in tables, no "Unassigned" text; a "Top Sale by Requests" card is present
+- [ ] **Dashboard QTY** → Submitted QTY counts pieces, not item-lines; Total Requests matches the Sale/Admin list under the same filter
+- [ ] **Dashboard TH↔EN + light/dark** → labels translate and palette switches
 - [ ] (Sale path) Create a test request → lands in DB with `RT-T-` prefix → `sheet_sync` stays `not_applicable`
 - [ ] (Admin path) Approve a non-test request → Apps Script log shows the call; `sheet_sync` goes `synced`; corresponding Logistics File rows flip to `WAIT`
 - [ ] `?legacy=1` → old `DesktopApp` renders unchanged
@@ -914,6 +1006,7 @@ stays on GitHub for re-attempt or partial cherry-pick.
 | What does Test Mode do? | Section 6 |
 | How do I safely run a DB restore? | Section 7 (MIGRATION_MODE) |
 | What's already done? | Section 8 |
+| How does the BR Return Dashboard work / where's its code? | Section 8 (Phase D) + Section 10 (`br-return.html` internals) |
 | What's next? | Section 9 |
 | Which file does X? | Section 10 |
 | Can I change Y? | Section 11 (safety rules) |
