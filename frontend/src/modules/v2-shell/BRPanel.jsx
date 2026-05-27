@@ -30,7 +30,7 @@ const BR_RETURN_URL =
     ? "https://borrow-control-1.onrender.com/br-return"
     : "http://localhost:8000/br-return");
 const BR_RETURN_IFRAME_URL =
-  BR_RETURN_URL + (BR_RETURN_URL.includes("?") ? "&" : "?") + "v=br-ok-back-20260526";
+  BR_RETURN_URL + (BR_RETURN_URL.includes("?") ? "&" : "?") + "v=br-dashboard-20260526";
 
 // The iframe origin is everything before the path.
 function originOf(url) {

@@ -1520,6 +1520,128 @@ tbody tr:last-child td{border-bottom:none;}
     border-bottom: 1px solid rgba(0,0,0,0.06);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   DASHBOARD TAB (D1 — mock data only)
+   Additive, isolated styles for the BR Return Performance Dashboard tab.
+   Uses the existing theme vars (--bg2/--border/--text/--sub/--pink/...) so
+   it auto-themes in both dark and :root.light. No effect on Sale/Admin.
+   ════════════════════════════════════════════════════════════════════════ */
+.dash { padding-bottom: 20px; }
+.dash-hd { margin-bottom: 14px; }
+.dash-hd h3 { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; display:flex; align-items:center; gap:9px; }
+.dash-hd p { color: var(--sub); font-size: 12px; margin-top: 4px; }
+.dash-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: rgba(167,139,250,0.16); color: var(--purple); }
+
+/* Filter bar */
+.dash-filter { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 11px; align-items: flex-end; }
+.dash-field { display: flex; flex-direction: column; gap: 5px; }
+.dash-field label { font-size: 9.5px; font-weight: 700; color: var(--sub2); letter-spacing: 0.5px; text-transform: uppercase; }
+.dash-field select, .dash-field input { font-family: inherit; font-size: 12.5px; color: var(--text); background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 7px 10px; min-width: 122px; outline: none; cursor: pointer; }
+.dash-seg { display: flex; background: var(--bg3); border-radius: 8px; padding: 3px; gap: 2px; }
+.dash-seg button { border: none; background: transparent; font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--sub); }
+.dash-seg button.on { background: var(--pink); color: #fff; }
+.dash-sp { flex: 1; }
+.dash-btn { background: var(--pink); color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.dash-btn-ghost { background: transparent; color: var(--sub); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 13px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+/* Section heads */
+.dash-sec { margin-bottom: 20px; }
+.dash-sec-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+.dash-sec-title { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.dash-sec-title .acc { width: 4px; height: 15px; border-radius: 2px; }
+.dash-sec-sub { font-size: 10.5px; color: var(--sub2); }
+
+/* KPI grid (icon-in-corner) */
+.dash-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 11px; }
+.dk { background: var(--bg2); border: 1px solid var(--border); border-radius: 13px; padding: 13px 14px; position: relative; overflow: hidden; }
+.dk::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent, var(--pink)); }
+.dk-ic { position: absolute; top: 11px; right: 11px; width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: var(--accentTint, rgba(212,53,122,0.12)); }
+.dk-l { font-size: 10px; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.3px; padding-right: 42px; }
+.dk-v { font-size: 24px; font-weight: 800; letter-spacing: -1px; margin-top: 7px; line-height: 1; color: var(--text); }
+.dk-v small { font-size: 12px; font-weight: 600; color: var(--sub); letter-spacing: 0; }
+.dk-f { font-size: 10px; margin-top: 7px; display: flex; align-items: center; gap: 5px; color: var(--sub); }
+.dk-up { color: #4ECDA0; font-weight: 700; } .dk-down { color: var(--red); font-weight: 700; } .dk-flat { color: var(--sub); font-weight: 700; }
+
+/* 3-col grid */
+.dash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.dash-grid > .sp2 { grid-column: span 2; } .dash-grid > .sp3 { grid-column: span 3; }
+.dc { background: var(--bg2); border: 1px solid var(--border); border-radius: 13px; padding: 14px 15px; display: flex; flex-direction: column; }
+.dc-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.dc-t { font-size: 12px; font-weight: 700; color: var(--text); }
+.dc-s { font-size: 10px; color: var(--sub2); margin-bottom: 11px; }
+
+/* legend */
+.dl { display: flex; flex-wrap: wrap; gap: 9px; font-size: 10px; color: var(--sub); margin-top: 11px; }
+.dl span { display: inline-flex; align-items: center; gap: 5px; }
+.dl i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+/* bar chart */
+.dbar { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding-top: 8px; flex: 1; }
+.dbar-c { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; justify-content: flex-end; }
+.dbar-stk { width: 64%; max-width: 26px; display: flex; flex-direction: column-reverse; border-radius: 5px 5px 0 0; overflow: hidden; }
+.dbar-x { font-size: 9px; color: var(--sub2); font-weight: 600; }
+.dbar-v { font-size: 9px; color: var(--text); font-weight: 700; }
+
+/* hbars */
+.dh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dh-n { width: 82px; flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dh-t { flex: 1; background: var(--bg3); border-radius: 6px; height: 18px; overflow: hidden; }
+.dh-f { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+/* donut */
+.dn-wrap { display: flex; align-items: center; gap: 14px; flex: 1; }
+.dn-c { position: relative; width: 112px; height: 112px; flex-shrink: 0; }
+.dn-c .dn-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.dn-c .dn-num b { font-size: 21px; font-weight: 800; letter-spacing: -1px; color: var(--text); }
+.dn-c .dn-num span { font-size: 10px; color: var(--sub); }
+.dn-leg { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-size: 11px; color: var(--text); }
+.dn-leg b { margin-left: auto; } .dn-leg .pc { width: 40px; text-align: right; color: var(--sub); }
+
+/* aging */
+.dag { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dag-n { width: 62px; font-size: 10px; font-weight: 700; flex-shrink: 0; color: var(--text); }
+.dag-t { flex: 1; height: 19px; background: var(--bg3); border-radius: 6px; overflow: hidden; }
+.dag-f { height: 100%; border-radius: 6px; }
+.dag-m { width: 92px; text-align: right; font-size: 9.5px; color: var(--sub); flex-shrink: 0; }
+
+/* monthly mini */
+.dms { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.dms-r { background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; }
+.dms-l { font-size: 10px; color: var(--sub); font-weight: 600; }
+.dms-v { font-size: 16px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+.dms-d { font-size: 9.5px; }
+
+/* admin mini grid */
+.dad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dad-c { background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px; }
+.dad-l { font-size: 9px; color: var(--sub); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.dad-v { font-size: 17px; font-weight: 800; margin-top: 3px; letter-spacing: -0.5px; color: var(--text); }
+.dad-d { font-size: 9px; margin-top: 3px; }
+
+/* type/status pills reuse the existing .s-* badge classes where possible */
+.dpill { display: inline-flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.dpill .pd { width: 6px; height: 6px; border-radius: 50%; }
+.dt-return{background:rgba(78,205,160,0.16);color:#3FB88C;} .dt-claim{background:rgba(240,180,41,0.16);color:#C98A0B;}
+.dt-sale{background:rgba(226,75,74,0.16);color:#D85A59;} .dt-free{background:rgba(167,139,250,0.18);color:#9A7DF0;}
+.dst-pending{background:rgba(240,180,41,0.16);color:#C98A0B;} .dst-pending .pd{background:var(--yellow);}
+.dst-approved{background:rgba(78,205,160,0.16);color:#3FB88C;} .dst-approved .pd{background:var(--green);}
+.dst-rejected{background:rgba(232,138,90,0.18);color:#E08A5A;} .dst-rejected .pd{background:#E08A5A;}
+.dst-cancelled{background:rgba(139,149,168,0.18);color:var(--sub);} .dst-cancelled .pd{background:var(--sub2);}
+
+/* dashboard tables */
+.dash table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.dash .dtbl-wrap { overflow-x: auto; }
+.drank { width: 19px; height: 19px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 800; color: #fff; }
+.drank.r1{background:#E0A800;} .drank.r2{background:#9AA0A6;} .drank.r3{background:#C8804A;} .drank.rn{background:var(--bg4);color:var(--sub);}
+.dnum { text-align: right; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
+.dsync-ok{color:#4ECDA0;font-weight:700;} .dsync-pending{color:var(--yellow);font-weight:700;} .dsync-na{color:var(--sub2);}
+.dash-foot { font-size: 10px; color: var(--sub2); margin-top: 8px; line-height: 1.6; }
+
+@media (max-width:1200px){ .dash-kpis{grid-template-columns:repeat(4,1fr);} }
+@media (max-width:1024px){ .dash-grid{grid-template-columns:repeat(2,1fr);} .dash-grid>.sp3,.dash-grid>.sp2{grid-column:span 2;} }
+@media (max-width:860px){ .dash-kpis{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:720px){ .dash-grid{grid-template-columns:1fr;} .dash-grid>.sp2,.dash-grid>.sp3{grid-column:span 1;} }
 </style>
 </head>
 <body>
@@ -1597,6 +1719,10 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="tab-btn" id="tab-admin" onclick="switchTab('admin')">
           <span class="tab-dot" style="background:var(--pink)"></span>
           Admin
+        </button>
+        <button class="tab-btn" id="tab-dashboard" onclick="switchTab('dashboard')">
+          <span class="tab-dot" style="background:var(--purple)"></span>
+          Dashboard
         </button>
       </div>
 
@@ -2139,6 +2265,116 @@ var BR_STRINGS = {
   // ── BR Return — module & headers ──────────────────────────────
   "br.module.title":          { th: "ระบบคืนสินค้ายืม (BR Return)", en: "BR Return System" },
   "br.module.subtitle":       { th: "สร้างคำขอคืน ติดตาม และตรวจสอบรายการสินค้าจากใบยืม", en: "Create, track, and review return requests from BR documents" },
+
+  /* ── Dashboard tab (D1 — mock) ──────────────────────────────────────── */
+  "db.title":                 { th: "แดชบอร์ดติดตามผลงาน BR Return", en: "BR Return Performance Dashboard" },
+  "db.subtitle":              { th: "ติดตามผลงานคำขอคืนสินค้า — ปริมาณ (ชิ้น), มูลค่า, สถานะ, เวลาตรวจสอบ ของทีม Sale และ Admin · เน้นจำนวนชิ้น (QTY) ไม่ใช่จำนวนรายการ", en: "Track return-request performance — QTY (pieces), value, status, review time across Sale & Admin · QTY-focused, not line count" },
+  "db.mock":                  { th: "ข้อมูลตัวอย่าง (Mock) — ยังไม่ได้เชื่อมต่อข้อมูลจริง", en: "Mock data — not yet connected to live data" },
+  "db.f.team":                { th: "ทีม / Team",            en: "Team" },
+  "db.f.allTeams":            { th: "ทุกทีม",                en: "All Teams" },
+  "db.f.sale":                { th: "Sale",                  en: "Sale" },
+  "db.f.allSales":            { th: "ทุกคน",                 en: "All Sales" },
+  "db.f.month":               { th: "เดือน / Month",         en: "Month" },
+  "db.f.year":                { th: "ปี / Year",            en: "Year" },
+  "db.f.range":               { th: "ช่วงวันที่ / Date range", en: "Date range" },
+  "db.f.mode":                { th: "โหมด / Mode",           en: "Mode" },
+  "db.f.daily":               { th: "รายวัน",               en: "Daily" },
+  "db.f.monthly":             { th: "รายเดือน",             en: "Monthly" },
+  "db.f.clear":               { th: "ล้างตัวกรอง",          en: "Clear" },
+  "db.f.apply":               { th: "ใช้ตัวกรอง",           en: "Apply" },
+  "db.sec.kpi":               { th: "ภาพรวมผู้บริหาร · Executive KPIs", en: "Executive KPIs" },
+  "db.sec.kpiSub":            { th: "พ.ค. 2569 · เทียบกับเดือนก่อนหน้า", en: "May 2026 · vs previous month" },
+  "db.sec.charts":            { th: "การติดตามผลงาน · Performance", en: "Performance Charts" },
+  "db.sec.chartsSub":         { th: "โหมดรายวัน · พ.ค. 2569", en: "Daily mode · May 2026" },
+  "db.sec.saleTbl":           { th: "ตารางผลงาน Sale · Sale Performance", en: "Sale Performance Table" },
+  "db.sec.recent":            { th: "รายการคำขอล่าสุด · Recent Requests", en: "Recent Requests Detail" },
+  "db.tag.exec":              { th: "ผู้บริหาร", en: "Executive" },
+  "db.tag.ops":               { th: "ปฏิบัติการ", en: "Operations" },
+  "db.tag.daily":             { th: "รายวัน", en: "Daily" },
+  "db.tag.monthly":           { th: "รายเดือน", en: "Monthly" },
+  "db.k.requests":            { th: "คำขอคืนทั้งหมด · Total Requests", en: "Total Requests" },
+  "db.k.brReturned":          { th: "BR ที่คืน · BR Returned", en: "BR Returned" },
+  "db.k.submittedQty":        { th: "QTY ที่ส่งคืน · Submitted QTY", en: "Submitted QTY" },
+  "db.k.approvedQty":         { th: "QTY ที่อนุมัติ · Approved QTY", en: "Approved QTY" },
+  "db.k.pending":             { th: "รอตรวจสอบ · Pending Review", en: "Pending Review" },
+  "db.k.revision":            { th: "รอแก้ไข · Awaiting Revision", en: "Awaiting Revision" },
+  "db.k.cancelled":           { th: "ยกเลิก · Cancelled", en: "Cancelled" },
+  "db.k.value":               { th: "มูลค่ารวม · Total Value", en: "Total Value" },
+  "db.k.avgReview":           { th: "เวลาตรวจเฉลี่ย · Avg Review", en: "Avg Review" },
+  "db.k.sla":                 { th: "SLA อนุมัติ ≤24ชม · Approved SLA", en: "Approved SLA" },
+  "db.pieces":                { th: "ชิ้น", en: "pcs" },
+  "db.hours":                 { th: "ชม.", en: "h" },
+  "db.c.dailyTrend":          { th: "คำขอคืน & QTY รายวัน", en: "Daily Requests & QTY" },
+  "db.c.dailyTrendSub":       { th: "14 วันล่าสุด", en: "Last 14 days" },
+  "db.c.dailyStatus":         { th: "สถานะรายวัน", en: "Daily Status" },
+  "db.c.dailyStatusSub":      { th: "อนุมัติ / รอตรวจ / แก้ไข · 7 วัน", en: "Approved / Pending / Revision · 7 days" },
+  "db.c.returnType":          { th: "แยกตามประเภท · By Return Type", en: "By Return Type" },
+  "db.c.returnTypeSub":       { th: "RETURN / CLAIM / SALE / FREE · ตาม QTY", en: "RETURN / CLAIM / SALE / FREE · by QTY" },
+  "db.c.topSale":             { th: "Top Sale ตาม QTY", en: "Top Sale by QTY" },
+  "db.c.topSaleSub":          { th: "หน่วย: ชิ้น", en: "unit: pieces" },
+  "db.c.team":                { th: "ผลงานรายทีม · Team", en: "Team Performance" },
+  "db.c.teamSub":             { th: "คำขอ · QTY ชิ้น", en: "Requests · QTY pcs" },
+  "db.c.admin":               { th: "ผลงาน Admin · Workload", en: "Admin Workload" },
+  "db.c.adminSub":            { th: "ภาพรวมทีม Admin", en: "Admin team overview" },
+  "db.c.status":              { th: "สัดส่วนสถานะ · Status", en: "Status Breakdown" },
+  "db.c.statusSub":           { th: "142 คำขอ · พ.ค. 2569", en: "142 requests · May 2026" },
+  "db.c.aging":               { th: "อายุงานค้าง · Pending Aging", en: "Pending Aging" },
+  "db.c.agingSub":            { th: "14 คำขอ · 430 ชิ้น · ฿182K", en: "14 requests · 430 pcs · ฿182K" },
+  "db.c.monthly":             { th: "สรุปรายเดือน · Monthly", en: "Monthly Summary" },
+  "db.c.monthlySub":          { th: "พ.ค. 2569 vs เดือนก่อน (MoM)", en: "May vs prev month (MoM)" },
+  "db.c.mom":                 { th: "เปรียบเทียบรายเดือน · Month-over-Month", en: "Month-over-Month" },
+  "db.c.momSub":              { th: "คำขอคืน/เดือน · ธ.ค. 68 – พ.ค. 69", en: "Requests/month · Dec – May" },
+  "db.adm.reviewed":          { th: "ตรวจแล้ว · Reviewed", en: "Reviewed" },
+  "db.adm.approved":          { th: "อนุมัติ · Approved", en: "Approved" },
+  "db.adm.backlog":           { th: "ค้างตรวจ · Backlog", en: "Backlog" },
+  "db.adm.avg":               { th: "เวลาเฉลี่ย · Avg", en: "Avg" },
+  "db.adm.workload":          { th: "ภาระงานตรวจรายวัน (7 วัน)", en: "Daily review workload (7d)" },
+  "db.leg.requests":          { th: "คำขอ", en: "Requests" },
+  "db.leg.qty":               { th: "QTY (ชิ้น)", en: "QTY (pcs)" },
+  "db.leg.approved":          { th: "อนุมัติ", en: "Approved" },
+  "db.leg.pending":           { th: "รอตรวจ", en: "Pending" },
+  "db.leg.revision":          { th: "แก้ไข", en: "Revision" },
+  "db.leg.curMonth":          { th: "เดือนปัจจุบัน", en: "Current month" },
+  "db.st.approved":           { th: "อนุมัติ", en: "Approved" },
+  "db.st.pending":            { th: "รอตรวจ", en: "Pending" },
+  "db.st.revision":           { th: "แก้ไข", en: "Revision" },
+  "db.st.cancelled":          { th: "ยกเลิก", en: "Cancelled" },
+  "db.ms.requests":           { th: "คำขอ · Requests", en: "Requests" },
+  "db.ms.submitted":          { th: "QTY ส่งคืน · Submitted", en: "Submitted QTY" },
+  "db.ms.approvedQ":          { th: "QTY อนุมัติ · Approved", en: "Approved QTY" },
+  "db.ms.value":              { th: "มูลค่า · Value", en: "Value" },
+  "db.ag.0":                  { th: "0–1 วัน", en: "0–1 d" },
+  "db.ag.1":                  { th: "2–3 วัน", en: "2–3 d" },
+  "db.ag.2":                  { th: "4–7 วัน", en: "4–7 d" },
+  "db.ag.3":                  { th: "> 7 วัน", en: "> 7 d" },
+  "db.ag.req":                { th: "คำขอ", en: "req" },
+  "db.ag.warn":               { th: "⚠ 1 คำขอค้างเกิน 7 วัน — ควรเร่งตรวจ (SLA ≤24ชม.)", en: "⚠ 1 request pending > 7 days — expedite (SLA ≤24h)" },
+  "db.th.rank":               { th: "#", en: "#" },
+  "db.th.sale":               { th: "Sale", en: "Sale" },
+  "db.th.team":               { th: "ทีม", en: "Team" },
+  "db.th.requests":           { th: "คำขอ", en: "Req" },
+  "db.th.br":                 { th: "BR", en: "BR" },
+  "db.th.subQty":             { th: "QTY ส่ง", en: "Sub QTY" },
+  "db.th.appQty":             { th: "QTY อนุมัติ", en: "App QTY" },
+  "db.th.pending":            { th: "รอตรวจ", en: "Pend" },
+  "db.th.revision":           { th: "แก้ไข", en: "Rev" },
+  "db.th.cancelled":          { th: "ยกเลิก", en: "Cncl" },
+  "db.th.value":              { th: "มูลค่า", en: "Value" },
+  "db.th.avgReview":          { th: "เวลาตรวจเฉลี่ย", en: "Avg Review" },
+  "db.th.rtid":               { th: "RT-ID", en: "RT-ID" },
+  "db.th.date":               { th: "วันที่", en: "Date" },
+  "db.th.customer":           { th: "ลูกค้า", en: "Customer" },
+  "db.th.brno":               { th: "BR No.", en: "BR No." },
+  "db.th.status":             { th: "สถานะ", en: "Status" },
+  "db.th.type":               { th: "ประเภท", en: "Type" },
+  "db.th.qty":                { th: "QTY", en: "QTY" },
+  "db.th.review":             { th: "เวลาตรวจ", en: "Review" },
+  "db.th.sync":               { th: "Sheet Sync", en: "Sheet Sync" },
+  "db.foot.qty":              { th: "* QTY = ผลรวมจำนวนชิ้นจริงในทุก submitted item (เช่น 3 รายการ qty 3+5+2 = 10 ชิ้น) — ไม่ใช่จำนวนบรรทัดรายการ", en: "* QTY = sum of actual pieces across all submitted items (e.g. 3 lines qty 3+5+2 = 10 pcs) — not line count" },
+  "db.foot.saleTbl":          { th: "QTY = จำนวนชิ้นรวม · เรียงตาม QTY ที่ส่งคืน", en: "QTY = total pieces · sorted by submitted QTY" },
+  "db.foot.recent":           { th: "แสดง 8 จาก 142 รายการ · ตารางจริงจะรองรับ ค้นหา / กรอง / export", en: "Showing 8 of 142 · real table will support search / filter / export" },
+  "db.foot.type":             { th: "มูลค่ารวม: RETURN ฿845K · CLAIM ฿320K · SALE ฿198K · FREE ฿57K", en: "Value: RETURN ฿845K · CLAIM ฿320K · SALE ฿198K · FREE ฿57K" },
+
   "br.tab.sale":              { th: "Sale",                  en: "Sale" },
   "br.tab.admin":             { th: "Admin",                 en: "Admin" },
   "br.createBtn":             { th: "สร้างคำขอคืน",          en: "Create return request" },
@@ -2350,6 +2586,8 @@ function setLang(l){
   if(typeof renderSalePills === 'function') renderSalePills();
   if(ACTIVE_TAB === 'admin'){
     if(typeof renderAdminContent === 'function') renderAdminContent();
+  } else if(ACTIVE_TAB === 'dashboard'){
+    if(typeof renderDashboard === 'function') renderDashboard();
   } else {
     if(typeof renderContent === 'function') renderContent();
   }
@@ -3645,9 +3883,14 @@ function switchTab(t){
   ACTIVE_TAB = t;
   el('tab-sale').className = 'tab-btn'+(t==='sale'?' active-sale':'');
   el('tab-admin').className = 'tab-btn'+(t==='admin'?' active-admin':'');
+  // Dashboard tab (D1). Reuses 'active-admin' chrome (pink underline) so we
+  // don't need a new active style; the purple dot distinguishes it.
+  var dEl = el('tab-dashboard'); if(dEl) dEl.className = 'tab-btn'+(t==='dashboard'?' active-admin':'');
+  // Sale-only chrome (pills bar + create button) is hidden on Admin AND Dashboard.
   el('sale-bar').style.display = t==='sale'?'flex':'none';
   el('btn-create').style.display = t==='sale'?'flex':'none';
   if(t==='sale') renderContent();
+  else if(t==='dashboard') renderDashboard();
   else renderAdminContent();
 }
 
@@ -3738,6 +3981,295 @@ function selectSale(s){
   FILTERS.status = 'all';
   renderSalePills();
   renderContent();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD TAB RENDER (D1 — MOCK DATA ONLY)
+// ───────────────────────────────────────────────────────────────
+// Read-only. Renders the BR Return Performance Dashboard into the
+// shared #main-content using hardcoded mock data + _t() for all
+// labels (so it follows the TH/EN toggle). Does NOT read RECENT,
+// does NOT call any API, does NOT write anything. Wrapped in
+// try/catch so a render error can never break Sale/Admin tabs.
+// Real data wiring is deferred to Phase D3.
+// ═══════════════════════════════════════════════════════════════
+function renderDashboard(){
+  try {
+    var h = _renderDashboardHTML();
+    el('main-content').innerHTML = h;
+  } catch(err){
+    // Fail-soft: never let a dashboard bug break the module. Show a
+    // small inline notice and log; Sale/Admin tabs remain usable.
+    try { console.warn('[BR Dashboard] render error:', err); } catch(e){}
+    el('main-content').innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--sub);font-size:13px">'
+      + 'Dashboard preview unavailable. Please switch to Sale or Admin tab.'
+      + '</div>';
+  }
+}
+
+function _renderDashboardHTML(){
+  var p = _t('db.pieces');   // "ชิ้น" / "pcs"
+  var hr = _t('db.hours');   // "ชม." / "h"
+  // ── KPI card builder (icon-in-corner) ──
+  function kpi(accent, tint, iconSvg, label, value, footHtml){
+    return '<div class="dk" style="--accent:'+accent+';--accentTint:'+tint+'">'
+      + '<div class="dk-ic">'+iconSvg+'</div>'
+      + '<div class="dk-l">'+label+'</div>'
+      + '<div class="dk-v">'+value+'</div>'
+      + '<div class="dk-f">'+footHtml+'</div>'
+      + '</div>';
+  }
+  function ic(path){ return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none">'+path+'</svg>'; }
+  var I = {
+    req:   ic('<rect x="6" y="3" width="12" height="18" rx="2" stroke="var(--pink)" stroke-width="1.7"/><path d="M9 8h6M9 12h6M9 16h4" stroke="var(--pink)" stroke-width="1.7" stroke-linecap="round"/>'),
+    box:   ic('<path d="M3 8l9-4 9 4v8l-9 4-9-4V8z" stroke="var(--blue)" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 8l9 4 9-4M12 12v8" stroke="var(--blue)" stroke-width="1.7" stroke-linejoin="round"/>'),
+    stack: ic('<path d="M12 3l8 4-8 4-8-4 8-4z" stroke="var(--purple)" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 11l8 4 8-4M4 15l8 4 8-4" stroke="var(--purple)" stroke-width="1.6" stroke-linejoin="round"/>'),
+    check: ic('<circle cx="12" cy="12" r="9" stroke="var(--green)" stroke-width="1.7"/><path d="M8 12l3 3 5-6" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
+    clock: ic('<circle cx="12" cy="12" r="9" stroke="var(--yellow)" stroke-width="1.7"/><path d="M12 7v5l3.5 2" stroke="var(--yellow)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
+    alert: ic('<path d="M12 3l9 16H3L12 3z" stroke="var(--red)" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10v4M12 17v.01" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/>'),
+    ban:   ic('<circle cx="12" cy="12" r="9" stroke="#8E8AA8" stroke-width="1.7"/><path d="M9 9l6 6M15 9l-6 6" stroke="#8E8AA8" stroke-width="1.8" stroke-linecap="round"/>'),
+    money: ic('<circle cx="12" cy="12" r="9" stroke="var(--pink)" stroke-width="1.7"/><path d="M9.5 9h5M9.5 12h5M12 9v8M9.5 15.5h5" stroke="var(--pink)" stroke-width="1.6" stroke-linecap="round"/>'),
+    timer: ic('<circle cx="12" cy="13" r="8" stroke="var(--blue)" stroke-width="1.7"/><path d="M12 9v4l2.5 1.5M9 3h6" stroke="var(--blue)" stroke-width="1.7" stroke-linecap="round"/>'),
+    target:ic('<circle cx="12" cy="12" r="9" stroke="var(--green)" stroke-width="1.7"/><circle cx="12" cy="12" r="5" stroke="var(--green)" stroke-width="1.7"/><circle cx="12" cy="12" r="1.6" fill="var(--green)"/>')
+  };
+  var up = function(t){ return '<span class="dk-up">'+t+'</span>'; };
+  var dn = function(t){ return '<span class="dk-down">'+t+'</span>'; };
+  var fl = function(t){ return '<span class="dk-flat">'+t+'</span>'; };
+  var muted = function(t){ return '<span style="color:var(--sub)">'+t+'</span>'; };
+
+  var h = '<div class="dash">';
+
+  // ── Header ──
+  h += '<div class="dash-hd">'
+    + '<h3>📊 '+_t('db.title')+' <span class="dash-tag">'+_t('db.tag.exec')+'</span></h3>'
+    + '<p>'+_t('db.subtitle')+'</p>'
+    + '<div style="margin-top:8px;display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;color:var(--yellow);background:rgba(240,180,41,0.14);border:1px solid rgba(240,180,41,0.35);border-radius:7px;padding:4px 10px">🧪 '+_t('db.mock')+'</div>'
+    + '</div>';
+
+  // ── Filter bar ──
+  h += '<div class="dash-filter">'
+    + '<div class="dash-field"><label>'+_t('db.f.team')+'</label><select><option>'+_t('db.f.allTeams')+'</option><option>Bangkok</option><option>North</option><option>North-East</option><option>East</option><option>South</option><option>Office</option></select></div>'
+    + '<div class="dash-field"><label>'+_t('db.f.sale')+'</label><select><option>'+_t('db.f.allSales')+'</option><option>TANG</option><option>NOON</option><option>BFC</option><option>PLOY</option><option>MILD</option><option>GAO</option></select></div>'
+    + '<div class="dash-field"><label>'+_t('db.f.month')+'</label><select><option>'+(BR_LANG==='en'?'May':'พฤษภาคม')+'</option><option>'+(BR_LANG==='en'?'April':'เมษายน')+'</option></select></div>'
+    + '<div class="dash-field"><label>'+_t('db.f.year')+'</label><select><option>'+(BR_LANG==='en'?'2026':'2569')+'</option><option>'+(BR_LANG==='en'?'2025':'2568')+'</option></select></div>'
+    + '<div class="dash-field"><label>'+_t('db.f.range')+'</label><input type="text" value="'+(BR_LANG==='en'?'1 May – 26 May 2026':'1 พ.ค. – 26 พ.ค. 2569')+'" readonly style="min-width:160px;cursor:text"/></div>'
+    + '<div class="dash-field"><label>'+_t('db.f.mode')+'</label><div class="dash-seg"><button class="on">'+_t('db.f.daily')+'</button><button>'+_t('db.f.monthly')+'</button></div></div>'
+    + '<div class="dash-sp"></div>'
+    + '<button class="dash-btn-ghost">'+_t('db.f.clear')+'</button>'
+    + '<button class="dash-btn">'+_t('db.f.apply')+'</button>'
+    + '</div>';
+
+  // ── KPI section ──
+  h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--purple)"></span>'+_t('db.sec.kpi')+'</div><span class="dash-sec-sub">'+_t('db.sec.kpiSub')+'</span></div>';
+  h += '<div class="dash-kpis">';
+  h += kpi('var(--pink)','rgba(212,53,122,0.12)', I.req,   _t('db.k.requests'),    '142', up('▲ 18%')+muted('vs 120'));
+  h += kpi('var(--blue)','rgba(123,196,240,0.16)', I.box,  _t('db.k.brReturned'),  '168', up('▲ 12%')+muted(BR_LANG==='en'?'BRs':'ใบยืม'));
+  h += kpi('var(--purple)','rgba(167,139,250,0.16)', I.stack,_t('db.k.submittedQty'),'3,410 <small>'+p+'</small>', up('▲ 22%')+muted('vs 2,795'));
+  h += kpi('var(--green)','rgba(78,205,160,0.16)', I.check, _t('db.k.approvedQty'), '2,980 <small>'+p+'</small>', fl('87.4%')+muted(BR_LANG==='en'?'of submitted':'ของที่ส่ง'));
+  h += kpi('var(--yellow)','rgba(240,180,41,0.16)', I.clock,_t('db.k.pending'),     '14', dn('▲ 3')+muted('430 '+p));
+  h += kpi('var(--red)','rgba(226,75,74,0.14)', I.alert,    _t('db.k.revision'),    '6', up('▼ 2')+muted(BR_LANG==='en'?'better':'ดีขึ้น'));
+  h += kpi('#8E8AA8','rgba(139,149,168,0.16)', I.ban,       _t('db.k.cancelled'),   '5', fl('3.5%')+muted(BR_LANG==='en'?'of total':'ของทั้งหมด'));
+  h += kpi('var(--pink)','rgba(212,53,122,0.12)', I.money,  _t('db.k.value'),       '฿1.42<small>M</small>', up('▲ 19%')+muted('vs ฿1.19M'));
+  h += kpi('var(--blue)','rgba(123,196,240,0.16)', I.timer, _t('db.k.avgReview'),   '6.4 <small>'+hr+'</small>', up('▼ 1.2'+hr)+muted(BR_LANG==='en'?'faster':'เร็วขึ้น'));
+  h += kpi('var(--green)','rgba(78,205,160,0.16)', I.target,_t('db.k.sla'),         '92<small>%</small>', up('▲ 4%')+muted(BR_LANG==='en'?'target 90%':'เป้า 90%'));
+  h += '</div>';
+  h += '<div class="dash-foot">'+_t('db.foot.qty')+'</div>';
+  h += '</div>';
+
+  // ── Helpers for charts ──
+  function dcHead(title, sub, tag, tagClass){
+    var t = tag ? '<span class="dash-tag '+(tagClass||'')+'" style="background:rgba(127,119,221,0.16);color:var(--purple)">'+tag+'</span>' : '';
+    return '<div class="dc-hd"><div><div class="dc-t">'+title+'</div><div class="dc-s">'+sub+'</div></div>'+t+'</div>';
+  }
+  function bar(val, h1, segs){
+    var s = '<div class="dbar-c"><div class="dbar-v">'+val+'</div><div class="dbar-stk" style="height:'+h1+'%">';
+    for(var i=0;i<segs.length;i++){ s+='<div style="width:100%;background:'+segs[i][0]+';height:'+segs[i][1]+'%"></div>'; }
+    return s+'</div><div class="dbar-x">'+(arguments[3]||'')+'</div></div>';
+  }
+  function hbar(name, pct, color, val){
+    return '<div class="dh"><div class="dh-n">'+name+'</div><div class="dh-t"><div class="dh-f" style="width:'+pct+'%;background:'+color+'">'+val+'</div></div></div>';
+  }
+
+  // ── Charts grid ──
+  h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--blue)"></span>'+_t('db.sec.charts')+'</div><span class="dash-sec-sub">'+_t('db.sec.chartsSub')+'</span></div>';
+  h += '<div class="dash-grid">';
+
+  // 1 · Daily trend (SVG)
+  h += '<div class="dc">'+dcHead(_t('db.c.dailyTrend'), _t('db.c.dailyTrendSub'), _t('db.tag.daily'))
+    + '<svg viewBox="0 0 560 150" width="100%" height="140" preserveAspectRatio="none" style="margin-top:auto">'
+    + '<line x1="0" y1="40" x2="560" y2="40" stroke="var(--border)"/><line x1="0" y1="80" x2="560" y2="80" stroke="var(--border)"/><line x1="0" y1="120" x2="560" y2="120" stroke="var(--border)"/>'
+    + '<path d="M0,128 L43,104 L86,115 L129,80 L172,93 L215,58 L258,75 L301,50 L344,66 L387,38 L430,54 L473,34 L516,48 L560,30 L560,150 L0,150 Z" fill="rgba(167,139,250,0.14)"/>'
+    + '<path d="M0,128 L43,104 L86,115 L129,80 L172,93 L215,58 L258,75 L301,50 L344,66 L387,38 L430,54 L473,34 L516,48 L560,30" fill="none" stroke="var(--purple)" stroke-width="2.5"/>'
+    + '<path d="M0,140 L43,128 L86,134 L129,114 L172,123 L215,101 L258,112 L301,94 L344,105 L387,84 L430,100 L473,80 L516,91 L560,76" fill="none" stroke="var(--pink)" stroke-width="2.5"/>'
+    + '</svg>'
+    + '<div class="dl"><span><i style="background:var(--pink)"></i>'+_t('db.leg.requests')+'</span><span><i style="background:var(--purple)"></i>'+_t('db.leg.qty')+'</span></div>'
+    + '</div>';
+
+  // 2 · Daily status (stacked bars)
+  var G='var(--green)', Y='var(--yellow)', R='#E08A5A';
+  h += '<div class="dc">'+dcHead(_t('db.c.dailyStatus'), _t('db.c.dailyStatusSub'), _t('db.tag.daily'))
+    + '<div class="dbar">'
+    + bar('9','55',[[G,67],[Y,22],[R,11]],'20')
+    + bar('12','72',[[G,75],[Y,17],[R,8]],'21')
+    + bar('8','48',[[G,62],[Y,25],[R,13]],'22')
+    + bar('15','90',[[G,80],[Y,13],[R,7]],'23')
+    + bar('11','66',[[G,73],[Y,18],[R,9]],'24')
+    + bar('6','36',[[G,50],[Y,34],[R,16]],'25')
+    + bar('13','78',[[G,62],[Y,30],[R,8]],'26')
+    + '</div>'
+    + '<div class="dl"><span><i style="background:'+G+'"></i>'+_t('db.leg.approved')+'</span><span><i style="background:'+Y+'"></i>'+_t('db.leg.pending')+'</span><span><i style="background:'+R+'"></i>'+_t('db.leg.revision')+'</span></div>'
+    + '</div>';
+
+  // 3 · Return type
+  h += '<div class="dc">'+dcHead(_t('db.c.returnType'), _t('db.c.returnTypeSub'), '')
+    + '<table style="margin-top:auto"><thead><tr><th>'+_t('db.th.type')+'</th><th class="dnum">'+_t('db.th.requests')+'</th><th class="dnum">QTY</th><th class="dnum">%QTY</th></tr></thead><tbody>'
+    + '<tr><td><span class="dpill dt-return">↩ RETURN</span></td><td class="dnum">86</td><td class="dnum">2,140</td><td class="dnum">62.8%</td></tr>'
+    + '<tr><td><span class="dpill dt-claim">⚠ CLAIM</span></td><td class="dnum">31</td><td class="dnum">690</td><td class="dnum">20.2%</td></tr>'
+    + '<tr><td><span class="dpill dt-sale">💰 SALE</span></td><td class="dnum">18</td><td class="dnum">385</td><td class="dnum">11.3%</td></tr>'
+    + '<tr><td><span class="dpill dt-free">🎁 FREE</span></td><td class="dnum">7</td><td class="dnum">195</td><td class="dnum">5.7%</td></tr>'
+    + '</tbody></table><div class="dash-foot">'+_t('db.foot.type')+'</div>'
+    + '</div>';
+
+  // 4 · Top sale by QTY
+  h += '<div class="dc">'+dcHead(_t('db.c.topSale'), _t('db.c.topSaleSub'), _t('db.tag.ops'))
+    + '<div style="margin-top:8px">'
+    + hbar('TANG · BKK','100','var(--pink)','820')
+    + hbar('NOON · North','82','var(--blue)','672')
+    + hbar('GAO · N-East','71','var(--purple)','585')
+    + hbar('BFC · East','58','var(--green)','478')
+    + hbar('PLOY · South','46','var(--yellow)','375')
+    + hbar('MILD · BKK','34','#E08A5A','280')
+    + '</div></div>';
+
+  // 5 · Team performance
+  h += '<div class="dc">'+dcHead(_t('db.c.team'), _t('db.c.teamSub'), _t('db.tag.exec'))
+    + '<div style="margin-top:8px">'
+    + hbar('Bangkok','100','var(--pink)','51 · 1,100')
+    + hbar('North','62','var(--blue)','28 · 672')
+    + hbar('North-East','54','var(--purple)','24 · 585')
+    + hbar('East','44','var(--green)','21 · 478')
+    + hbar('South','35','var(--yellow)','18 · 375')
+    + hbar('Office','8','#8E8AA8','2 · 40')
+    + '</div></div>';
+
+  // 6 · Admin workload
+  h += '<div class="dc">'+dcHead(_t('db.c.admin'), _t('db.c.adminSub'), _t('db.tag.ops'))
+    + '<div class="dad" style="margin-top:8px">'
+    + '<div class="dad-c"><div class="dad-l">'+_t('db.adm.reviewed')+'</div><div class="dad-v">123</div><div class="dad-d" style="color:var(--sub)">'+(BR_LANG==='en'?'this month':'เดือนนี้')+'</div></div>'
+    + '<div class="dad-c"><div class="dad-l">'+_t('db.adm.approved')+'</div><div class="dad-v">117</div><div class="dad-d" style="color:var(--sub)">2,980 '+p+'</div></div>'
+    + '<div class="dad-c"><div class="dad-l">'+_t('db.adm.backlog')+'</div><div class="dad-v">14</div><div class="dad-d dk-down">▲ 3</div></div>'
+    + '<div class="dad-c"><div class="dad-l">'+_t('db.adm.avg')+'</div><div class="dad-v">6.4<small style="font-size:11px;color:var(--sub)"> '+hr+'</small></div><div class="dad-d dk-up">▼ '+(BR_LANG==='en'?'better':'ดีขึ้น')+'</div></div>'
+    + '</div>'
+    + '<div style="font-size:9.5px;font-weight:700;color:var(--sub);margin:11px 0 5px">'+_t('db.adm.workload')+'</div>'
+    + '<div class="dbar" style="height:56px">'
+    + bar('','60',[['var(--pink)',100]],'') + bar('','78',[['var(--pink)',100]],'') + bar('','50',[['var(--pink)',100]],'')
+    + bar('','92',[['var(--pink)',100]],'') + bar('','68',[['var(--pink)',100]],'') + bar('','30',[['var(--pink)',100]],'') + bar('','80',[['var(--pink)',100]],'')
+    + '</div></div>';
+
+  // 7 · Status donut
+  h += '<div class="dc">'+dcHead(_t('db.c.status'), _t('db.c.statusSub'), _t('db.tag.exec'))
+    + '<div class="dn-wrap" style="margin-top:8px"><div class="dn-c">'
+    + '<svg viewBox="0 0 36 36" width="112" height="112">'
+    + '<circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg3)" stroke-width="4"/>'
+    + '<circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--green)" stroke-width="4" stroke-dasharray="82.4 17.6" stroke-dashoffset="25" stroke-linecap="round" transform="rotate(-90 18 18)"/>'
+    + '<circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--yellow)" stroke-width="4" stroke-dasharray="9.9 90.1" stroke-dashoffset="-57.4" stroke-linecap="round" transform="rotate(-90 18 18)"/>'
+    + '<circle cx="18" cy="18" r="15.9" fill="none" stroke="#E08A5A" stroke-width="4" stroke-dasharray="4.2 95.8" stroke-dashoffset="-67.3" stroke-linecap="round" transform="rotate(-90 18 18)"/>'
+    + '<circle cx="18" cy="18" r="15.9" fill="none" stroke="#8E8AA8" stroke-width="4" stroke-dasharray="3.5 96.5" stroke-dashoffset="-71.5" stroke-linecap="round" transform="rotate(-90 18 18)"/>'
+    + '</svg><div class="dn-num"><b>142</b><span>'+_t('db.th.requests')+'</span></div></div>'
+    + '<div style="flex:1">'
+    + '<div class="dn-leg"><span class="dpill dst-approved"><span class="pd"></span>'+_t('db.st.approved')+'</span><b>117</b><span class="pc">82.4%</span></div>'
+    + '<div class="dn-leg"><span class="dpill dst-pending"><span class="pd"></span>'+_t('db.st.pending')+'</span><b>14</b><span class="pc">9.9%</span></div>'
+    + '<div class="dn-leg"><span class="dpill dst-rejected"><span class="pd"></span>'+_t('db.st.revision')+'</span><b>6</b><span class="pc">4.2%</span></div>'
+    + '<div class="dn-leg" style="margin-bottom:0"><span class="dpill dst-cancelled"><span class="pd"></span>'+_t('db.st.cancelled')+'</span><b>5</b><span class="pc">3.5%</span></div>'
+    + '</div></div></div>';
+
+  // 8 · Pending aging
+  function agrow(name, pct, color, meta){ return '<div class="dag"><div class="dag-n">'+name+'</div><div class="dag-t"><div class="dag-f" style="width:'+pct+'%;background:'+color+'"></div></div><div class="dag-m">'+meta+'</div></div>'; }
+  h += '<div class="dc">'+dcHead(_t('db.c.aging'), _t('db.c.agingSub'), _t('db.tag.ops'))
+    + '<div style="margin-top:8px">'
+    + agrow(_t('db.ag.0'),'64','var(--green)','8 · 210 '+p)
+    + agrow(_t('db.ag.1'),'36','var(--yellow)','4 · 130 '+p)
+    + agrow(_t('db.ag.2'),'16','#E08A5A','1 · 55 '+p)
+    + agrow(_t('db.ag.3'),'9','var(--red)','1 · 35 '+p)
+    + '</div><div class="dash-foot">'+_t('db.ag.warn')+'</div></div>';
+
+  // 9 · Monthly summary
+  function ms(label, val, delta){ return '<div class="dms-r"><div class="dms-l">'+label+'</div><div style="text-align:right"><div class="dms-v">'+val+'</div><div class="dms-d dk-up">'+delta+'</div></div></div>'; }
+  h += '<div class="dc">'+dcHead(_t('db.c.monthly'), _t('db.c.monthlySub'), _t('db.tag.monthly'))
+    + '<div class="dms" style="margin-top:8px">'
+    + ms(_t('db.ms.requests'),'142','▲ 18%')
+    + ms(_t('db.ms.submitted'),'3,410','▲ 22%')
+    + ms(_t('db.ms.approvedQ'),'2,980','▲ 20%')
+    + ms(_t('db.ms.value'),'฿1.42M','▲ 19%')
+    + '</div></div>';
+
+  h += '</div></div>'; // close dash-grid + dash-sec
+
+  // ── Full-width: MoM comparison ──
+  h += '<div class="dash-sec"><div class="dash-grid"><div class="dc sp3">'
+    + dcHead(_t('db.c.mom'), _t('db.c.momSub'), _t('db.tag.monthly'))
+    + '<div class="dbar" style="height:140px">'
+    + bar('88','50',[['var(--pink)',100]], BR_LANG==='en'?'Dec':'ธ.ค.')
+    + bar('95','55',[['var(--pink)',100]], BR_LANG==='en'?'Jan':'ม.ค.')
+    + bar('102','60',[['var(--pink)',100]], BR_LANG==='en'?'Feb':'ก.พ.')
+    + bar('110','66',[['var(--pink)',100]], BR_LANG==='en'?'Mar':'มี.ค.')
+    + bar('120','74',[['var(--pink)',100]], BR_LANG==='en'?'Apr':'เม.ย.')
+    + bar('142','90',[['var(--brand-2,#9A1A56)',100]], BR_LANG==='en'?'May':'พ.ค.')
+    + '</div>'
+    + '<div class="dl"><span><i style="background:var(--pink)"></i>'+_t('db.leg.requests')+'</span><span><i style="background:#9A1A56"></i>'+_t('db.leg.curMonth')+'</span></div>'
+    + '</div></div></div>';
+
+  // ── Full-width: Sale performance table ──
+  h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--blue)"></span>'+_t('db.sec.saleTbl')+'</div><span class="dash-tag" style="background:rgba(123,196,240,0.16);color:var(--blue)">'+_t('db.tag.ops')+'</span></div>';
+  h += '<div class="dc"><div class="dc-s">'+_t('db.foot.saleTbl')+'</div><div class="dtbl-wrap"><table><thead><tr>'
+    + '<th>'+_t('db.th.rank')+'</th><th>'+_t('db.th.sale')+'</th><th>'+_t('db.th.team')+'</th>'
+    + '<th class="dnum">'+_t('db.th.requests')+'</th><th class="dnum">'+_t('db.th.br')+'</th><th class="dnum">'+_t('db.th.subQty')+'</th>'
+    + '<th class="dnum">'+_t('db.th.appQty')+'</th><th class="dnum">'+_t('db.th.pending')+'</th><th class="dnum">'+_t('db.th.revision')+'</th>'
+    + '<th class="dnum">'+_t('db.th.cancelled')+'</th><th class="dnum">'+_t('db.th.value')+'</th><th class="dnum">'+_t('db.th.avgReview')+'</th></tr></thead><tbody>';
+  var ST = [
+    ['r1','TANG','Bangkok','34','41','820','742','3','1','1','฿298K','5.2'],
+    ['r2','NOON','North','28','33','672','601','2','2','0','฿312K','6.1'],
+    ['r3','GAO','North-East','24','29','585','520','3','1','1','฿241K','7.8'],
+    ['rn','BFC','East','21','26','478','430','2','1','1','฿205K','6.5'],
+    ['rn','PLOY','South','18','22','375','340','2','0','1','฿188K','5.9'],
+    ['rn','MILD','Bangkok','17','17','280','247','2','1','1','฿176K','7.0']
+  ];
+  for(var i=0;i<ST.length;i++){ var r=ST[i];
+    h += '<tr><td><span class="drank '+r[0]+'">'+(i+1)+'</span></td><td><b>'+r[1]+'</b></td><td>'+r[2]+'</td>'
+      + '<td class="dnum">'+r[3]+'</td><td class="dnum">'+r[4]+'</td><td class="dnum">'+r[5]+'</td><td class="dnum">'+r[6]+'</td>'
+      + '<td class="dnum">'+r[7]+'</td><td class="dnum">'+r[8]+'</td><td class="dnum">'+r[9]+'</td><td class="dnum">'+r[10]+'</td><td class="dnum">'+r[11]+' '+hr+'</td></tr>';
+  }
+  h += '</tbody></table></div></div></div>';
+
+  // ── Full-width: Recent requests table ──
+  var sp = function(cls,label){ return '<span class="dpill '+cls+'"><span class="pd"></span>'+label+'</span>'; };
+  var tp = function(cls,label){ return '<span class="dpill '+cls+'">'+label+'</span>'; };
+  h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--pink)"></span>'+_t('db.sec.recent')+'</div></div>';
+  h += '<div class="dc"><div class="dtbl-wrap"><table><thead><tr>'
+    + '<th>'+_t('db.th.rtid')+'</th><th>'+_t('db.th.date')+'</th><th>'+_t('db.th.team')+'</th><th>'+_t('db.th.sale')+'</th>'
+    + '<th>'+_t('db.th.customer')+'</th><th>'+_t('db.th.brno')+'</th><th>'+_t('db.th.status')+'</th><th>'+_t('db.th.type')+'</th>'
+    + '<th class="dnum">'+_t('db.th.qty')+'</th><th class="dnum">'+_t('db.th.value')+'</th><th class="dnum">'+_t('db.th.review')+'</th><th>'+_t('db.th.sync')+'</th></tr></thead><tbody>';
+  var dd = (BR_LANG==='en'); // date suffix
+  var RR = [
+    ['RT-202605260142', dd?'26 May':'26 พ.ค.','Bangkok','TANG','คลินิกทันตกรรมเอดีไอ','BR202208322', sp('dst-pending',_t('db.st.pending')), tp('dt-return','RETURN'),'18','฿18,000','—','<span class="dsync-na">—</span>'],
+    ['RT-202605260141', dd?'26 May':'26 พ.ค.','North','NOON','Neo Seminar W.H','BR102605210492', sp('dst-approved',_t('db.st.approved')), tp('dt-claim','CLAIM'),'40','฿20,000','3.2 '+hr,'<span class="dsync-ok">✓ synced</span>'],
+    ['RT-202605260138', dd?'26 May':'26 พ.ค.','N-East','GAO','ทพญ.จตุพร ติยะพรัญชัย','BR102510030003', sp('dst-approved',_t('db.st.approved')), tp('dt-return','RETURN'),'22','฿19,800','5.5 '+hr,'<span class="dsync-ok">✓ synced</span>'],
+    ['RT-202605260135', dd?'26 May':'26 พ.ค.','East','BFC','TG BIC W.H','BR2024050645', sp('dst-rejected',_t('db.st.revision')), tp('dt-return','RETURN'),'9','฿9,000','2.1 '+hr,'<span class="dsync-na">—</span>'],
+    ['RT-202605250131', dd?'25 May':'25 พ.ค.','Bangkok','TANG','คลินิกทันตกรรมสไมล์','BR202504110210', sp('dst-approved',_t('db.st.approved')), tp('dt-sale','SALE'),'12','฿24,300','6.8 '+hr,'<span class="dsync-ok">✓ synced</span>'],
+    ['RT-202605250128', dd?'25 May':'25 พ.ค.','South','PLOY','คลินิกหมอฟันสุข','BR102602100173', sp('dst-pending',_t('db.st.pending')), tp('dt-return','RETURN'),'15','฿9,000','—','<span class="dsync-pending">⏳ pending</span>'],
+    ['RT-202605250122', dd?'25 May':'25 พ.ค.','North','NOON','เดนทัลแคร์เซ็นเตอร์','BR102507300093', sp('dst-approved',_t('db.st.approved')), tp('dt-free','FREE'),'8','฿4,500','4.0 '+hr,'<span class="dsync-ok">✓ synced</span>'],
+    ['RT-202605240119', dd?'24 May':'24 พ.ค.','Bangkok','MILD','คลินิกยิ้มสวย','BR202601190096', sp('dst-cancelled',_t('db.st.cancelled')), tp('dt-return','RETURN'),'5','฿2,500','—','<span class="dsync-na">—</span>']
+  ];
+  for(var j=0;j<RR.length;j++){ var x=RR[j];
+    h += '<tr><td class="dnum" style="text-align:left">'+x[0]+'</td><td>'+x[1]+'</td><td>'+x[2]+'</td><td>'+x[3]+'</td>'
+      + '<td>'+x[4]+'</td><td class="dnum" style="text-align:left">'+x[5]+'</td><td>'+x[6]+'</td><td>'+x[7]+'</td>'
+      + '<td class="dnum">'+x[8]+'</td><td class="dnum">'+x[9]+'</td><td class="dnum">'+x[10]+'</td><td>'+x[11]+'</td></tr>';
+  }
+  h += '</tbody></table></div><div class="dash-foot">'+_t('db.foot.recent')+'</div></div></div>';
+
+  h += '</div>'; // close .dash
+  return h;
 }
 
 // ═══════════════════════════════════════════════════════════════
