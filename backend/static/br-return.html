@@ -1583,6 +1583,19 @@ tbody tr:last-child td{border-bottom:none;}
 .dbar-x { font-size: 9px; color: var(--sub2); font-weight: 600; }
 .dbar-v { font-size: 9px; color: var(--text); font-weight: 700; }
 
+/* grouped Month-over-Month chart */
+.dmom { display: flex; align-items: flex-end; gap: 12px; min-height: 196px; padding: 18px 8px 4px; border-bottom: 1px solid var(--border); }
+.dmom-c { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; height: 178px; }
+.dmom-bars { height: 128px; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 7px; }
+.dmom-bw { width: 26px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; height: 100%; }
+.dmom-v { font-size: 9px; font-weight: 800; color: var(--text); line-height: 1; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.dmom-b { width: 100%; min-height: 4px; border-radius: 6px 6px 2px 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+.dmom-b.req { background: linear-gradient(180deg, var(--pink), #B82D68); }
+.dmom-b.qty { background: linear-gradient(180deg, var(--purple), #6D5BD0); }
+.dmom-x { font-size: 10px; color: var(--sub); font-weight: 700; }
+.dmom-meta { font-size: 9px; color: var(--sub2); white-space: nowrap; }
+.dmom-empty { min-height: 160px; display: flex; align-items: center; justify-content: center; color: var(--sub); }
+
 /* hbars */
 .dh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .dh-n { width: 82px; flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -4238,6 +4251,16 @@ function _renderDashboardHTML(){
     for(var i=0;i<segs.length;i++){ s+='<div style="width:100%;background:'+segs[i][0]+';height:'+segs[i][1]+'%"></div>'; }
     return s+'</div><div class="dbar-x">'+(arguments[3]||'')+'</div></div>';
   }
+  function momBar(g, reqPct, qtyPct){
+    return '<div class="dmom-c" title="'+esc(monName(g.m))+' · '+dashNum(g.count)+' '+_t('db.leg.requests')+' · '+dashNum(g.qty)+' '+p+'">'
+      + '<div class="dmom-bars">'
+      + '<div class="dmom-bw"><div class="dmom-v">'+dashNum(g.count)+'</div><div class="dmom-b req" style="height:'+reqPct+'%"></div></div>'
+      + '<div class="dmom-bw"><div class="dmom-v">'+dashNum(g.qty)+'</div><div class="dmom-b qty" style="height:'+qtyPct+'%"></div></div>'
+      + '</div>'
+      + '<div class="dmom-x">'+monName(g.m)+'</div>'
+      + '<div class="dmom-meta">'+dashNum(g.count)+' / '+dashNum(g.qty)+' '+p+'</div>'
+      + '</div>';
+  }
   function hbar(name, pct, color, val){
     return '<div class="dh"><div class="dh-n">'+name+'</div><div class="dh-t"><div class="dh-f" style="width:'+pct+'%;background:'+color+'">'+val+'</div></div></div>';
   }
@@ -4487,17 +4510,19 @@ function _renderDashboardHTML(){
   // ── Full-width: Month-over-Month (real) ──
   var byMonth = groupByMonth(rows);
   var momShow = byMonth.slice(-6);
-  var maxMo = 1;
-  for(pi=0; pi<momShow.length; pi++) if(momShow[pi].count > maxMo) maxMo = momShow[pi].count;
+  var maxReqMo = 1, maxQtyMo = 1;
+  for(pi=0; pi<momShow.length; pi++){
+    if(momShow[pi].count > maxReqMo) maxReqMo = momShow[pi].count;
+    if(momShow[pi].qty > maxQtyMo) maxQtyMo = momShow[pi].qty;
+  }
   var momBars = '';
   for(pi=0; pi<momShow.length; pi++){ var gm=momShow[pi];
-    var isLast = (pi === momShow.length-1);
-    momBars += bar(String(gm.count), Math.round(gm.count/maxMo*100), [[isLast?'#9A1A56':'var(--pink)',100]], monName(gm.m));
+    momBars += momBar(gm, Math.max(4, Math.round(gm.count/maxReqMo*100)), Math.max(4, Math.round(gm.qty/maxQtyMo*100)));
   }
   h += '<div class="dash-sec"><div class="dash-grid"><div class="dc sp3">'
-    + dcHead(_t('db.c.mom'), _t('db.f.monthly'), _t('db.tag.monthly'))
-    + '<div class="dbar" style="height:140px">'+(momBars||muted(_t('db.empty')))+'</div>'
-    + '<div class="dl"><span><i style="background:var(--pink)"></i>'+_t('db.leg.requests')+'</span><span><i style="background:#9A1A56"></i>'+_t('db.leg.curMonth')+'</span></div>'
+    + dcHead(_t('db.c.mom'), _t('db.c.momSub'), _t('db.tag.monthly'))
+    + (momBars ? '<div class="dmom">'+momBars+'</div>' : '<div class="dmom-empty">'+muted(_t('db.empty'))+'</div>')
+    + '<div class="dl"><span><i style="background:var(--pink)"></i>'+_t('db.leg.requests')+'</span><span><i style="background:var(--purple)"></i>'+_t('db.leg.qty')+'</span></div>'
     + '</div></div></div>';
 
   // ── Full-width: Sale performance table (real; Avg Review column removed) ──
