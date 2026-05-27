@@ -2312,6 +2312,8 @@ var BR_STRINGS = {
   "db.c.returnTypeSub":       { th: "RETURN / CLAIM / SALE / FREE · ตาม QTY", en: "RETURN / CLAIM / SALE / FREE · by QTY" },
   "db.c.topSale":             { th: "Top Sale ตาม QTY", en: "Top Sale by QTY" },
   "db.c.topSaleSub":          { th: "หน่วย: ชิ้น", en: "unit: pieces" },
+  "db.c.topSaleReq":          { th: "Top Sale ตามจำนวนคำขอ", en: "Top Sale by Requests" },
+  "db.c.topSaleReqSub":       { th: "หน่วย: คำขอ", en: "unit: requests" },
   "db.c.team":                { th: "ผลงานรายทีม · Team", en: "Team Performance" },
   "db.c.teamSub":             { th: "คำขอ · QTY ชิ้น", en: "Requests · QTY pcs" },
   "db.c.admin":               { th: "ผลงาน Admin · Workload", en: "Admin Workload" },
@@ -4017,17 +4019,8 @@ function selectSale(s){
 // ═══════════════════════════════════════════════════════════════
 
 // Dashboard-local filter state. Never touches Sale/Admin FILTERS.
-var DASH_FILTERS = { team:'all', sale:'all', year:'all', month:'all', mode:'daily' };
+var DASH_FILTERS = { sale:'all', year:'all', month:'all', mode:'daily' };
 
-// Local sale→team map. Editable; unknown sales fall back to "Unassigned"
-// so the team view never invents data. Kept here (not shared) to avoid
-// affecting any existing filter / workflow.
-var DASH_TEAMS = { TANG:'Bangkok', MILD:'Bangkok', NOON:'North', GAO:'North-East', BFC:'East', PLOY:'South' };
-
-function dashTeam(sale){
-  var k = (typeof normalizeSale === 'function') ? normalizeSale(sale) : String(sale||'').trim().toUpperCase();
-  return DASH_TEAMS[k] || _t('db.team.other');
-}
 // QTY per item = pieces. Prefer item.quantity (or .qty); else the sum of
 // the four type quantities. NEVER counts item lines.
 function dashboardQty(it){
@@ -4077,7 +4070,6 @@ function dashAllRows(){ return Array.isArray(RECENT) ? RECENT.slice() : []; }
 function applyDashboardFilters(rows){
   var f = DASH_FILTERS;
   return rows.filter(function(r){
-    if(f.team !== 'all' && dashTeam(r.sale) !== f.team) return false;
     if(f.sale !== 'all' && String(r.sale||'') !== f.sale) return false;
     if(f.year !== 'all' || f.month !== 'all'){
       var d = parseDashboardDate(r);
@@ -4120,7 +4112,7 @@ function buildDashboardMetrics(rows){
 function groupBySale(rows){
   var map = {}, i;
   for(i=0;i<rows.length;i++){ var r=rows[i], k=String(r.sale||'—');
-    var g = map[k] || (map[k]={sale:k, team:dashTeam(r.sale), req:0, brSet:{}, br:0, subQty:0, appQty:0, pendCount:0, pendQty:0, revCount:0, revQty:0, cancCount:0, cancQty:0, value:0});
+    var g = map[k] || (map[k]={sale:k, req:0, brSet:{}, br:0, subQty:0, appQty:0, pendCount:0, pendQty:0, revCount:0, revQty:0, cancCount:0, cancQty:0, value:0});
     var ns=normalizeStatus(r.status), q=dashboardRequestQty(r);
     g.req++; g.value += dashboardRequestValue(r); g.subQty += q;
     if(r.br && !g.brSet[r.br]){ g.brSet[r.br]=1; g.br++; }
@@ -4131,16 +4123,6 @@ function groupBySale(rows){
   }
   var arr=[]; for(var s in map){ if(map.hasOwnProperty(s)) arr.push(map[s]); }
   arr.sort(function(a,b){ return b.subQty-a.subQty || b.req-a.req; });
-  return arr;
-}
-function groupByTeam(rows){
-  var map = {}, i;
-  for(i=0;i<rows.length;i++){ var r=rows[i], k=dashTeam(r.sale);
-    var g = map[k] || (map[k]={team:k, req:0, subQty:0, value:0});
-    g.req++; g.subQty += dashboardRequestQty(r); g.value += dashboardRequestValue(r);
-  }
-  var arr=[]; for(var t in map){ if(map.hasOwnProperty(t)) arr.push(map[t]); }
-  arr.sort(function(a,b){ return b.subQty-a.subQty; });
   return arr;
 }
 function _periodKey(r, monthly){
@@ -4205,7 +4187,7 @@ function dashMoneyShort(v){
 // Filter event handlers (re-render only; never mutate RECENT).
 function dashSetFilter(key, val){ DASH_FILTERS[key] = val; renderDashboard(); }
 function dashSetMode(mode){ DASH_FILTERS.mode = mode; renderDashboard(); }
-function dashClearFilters(){ DASH_FILTERS = { team:'all', sale:'all', year:'all', month:'all', mode:DASH_FILTERS.mode }; renderDashboard(); }
+function dashClearFilters(){ DASH_FILTERS = { sale:'all', year:'all', month:'all', mode:DASH_FILTERS.mode }; renderDashboard(); }
 
 function renderDashboard(){
   try {
@@ -4298,14 +4280,12 @@ function _renderDashboardHTML(){
   var monthly = (DASH_FILTERS.mode === 'monthly');
 
   // Distinct filter option lists (from the full set, so options are stable).
-  var teamsSet={}, salesSet={}, yearsSet={}, gi;
+  var salesSet={}, yearsSet={}, gi;
   for(gi=0; gi<ALL.length; gi++){
     var gr = ALL[gi];
-    teamsSet[dashTeam(gr.sale)] = 1;
     if(gr.sale) salesSet[String(gr.sale)] = 1;
     var gd = parseDashboardDate(gr); if(gd) yearsSet[gd.y] = 1;
   }
-  var teamList = Object.keys(teamsSet).sort();
   var saleList = Object.keys(salesSet).sort();
   var yearList = Object.keys(yearsSet).map(Number).sort(function(a,b){ return b-a; });
 
@@ -4320,10 +4300,7 @@ function _renderDashboardHTML(){
     + '<div style="margin-top:8px;display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;color:var(--green);background:rgba(78,205,160,0.14);border:1px solid rgba(78,205,160,0.35);border-radius:7px;padding:4px 10px">🟢 '+_t('db.live')+'</div>'
     + '</div>';
 
-  // ── Filter bar (data-driven; live recompute) ──
-  var fTeam = '<select onchange="dashSetFilter(\'team\',this.value)"><option value="all"'+(DASH_FILTERS.team==='all'?' selected':'')+'>'+_t('db.f.allTeams')+'</option>';
-  for(gi=0; gi<teamList.length; gi++) fTeam += optTag(teamList[gi], teamList[gi], DASH_FILTERS.team);
-  fTeam += '</select>';
+  // ── Filter bar (data-driven; live recompute) ── Sale-level only.
   var fSale = '<select onchange="dashSetFilter(\'sale\',this.value)"><option value="all"'+(DASH_FILTERS.sale==='all'?' selected':'')+'>'+_t('db.f.allSales')+'</option>';
   for(gi=0; gi<saleList.length; gi++) fSale += optTag(saleList[gi], saleList[gi], DASH_FILTERS.sale);
   fSale += '</select>';
@@ -4335,7 +4312,6 @@ function _renderDashboardHTML(){
   fMonth += '</select>';
 
   h += '<div class="dash-filter">'
-    + '<div class="dash-field"><label>'+_t('db.f.team')+'</label>'+fTeam+'</div>'
     + '<div class="dash-field"><label>'+_t('db.f.sale')+'</label>'+fSale+'</div>'
     + '<div class="dash-field"><label>'+_t('db.f.year')+'</label>'+fYear+'</div>'
     + '<div class="dash-field"><label>'+_t('db.f.month')+'</label>'+fMonth+'</div>'
@@ -4437,21 +4413,21 @@ function _renderDashboardHTML(){
   var saleColors = ['var(--pink)','var(--blue)','var(--purple)','var(--green)','var(--yellow)','#E08A5A'];
   var topSaleH = '';
   for(pi=0; pi<topSale.length; pi++){ var sg=topSale[pi];
-    topSaleH += hbar(esc(sg.sale)+' · '+esc(sg.team), Math.round(sg.subQty/maxSaleQty*100), saleColors[pi%saleColors.length], dashNum(sg.subQty));
+    topSaleH += hbar(esc(sg.sale), Math.round(sg.subQty/maxSaleQty*100), saleColors[pi%saleColors.length], dashNum(sg.subQty));
   }
   h += '<div class="dc">'+dcHead(_t('db.c.topSale'), _t('db.c.topSaleSub'), _t('db.tag.ops'))
     + '<div style="margin-top:8px">'+(topSaleH||muted(_t('db.empty')))+'</div></div>';
 
-  // 5 · Team performance (real)
-  var teamGroups = groupByTeam(rows);
-  var maxTeamQty = 1;
-  for(pi=0; pi<teamGroups.length; pi++) if(teamGroups[pi].subQty > maxTeamQty) maxTeamQty = teamGroups[pi].subQty;
-  var teamH = '';
-  for(pi=0; pi<teamGroups.length; pi++){ var tg=teamGroups[pi];
-    teamH += hbar(esc(tg.team), Math.round(tg.subQty/maxTeamQty*100), saleColors[pi%saleColors.length], dashNum(tg.req)+' · '+dashNum(tg.subQty));
+  // 5 · Top Sale by request count (real; replaces former Team Performance)
+  var topSaleReq = saleGroups.slice().sort(function(a,b){ return b.req-a.req || b.subQty-a.subQty; }).slice(0, 6);
+  var maxSaleReq = 1;
+  for(pi=0; pi<topSaleReq.length; pi++) if(topSaleReq[pi].req > maxSaleReq) maxSaleReq = topSaleReq[pi].req;
+  var topSaleReqH = '';
+  for(pi=0; pi<topSaleReq.length; pi++){ var sr=topSaleReq[pi];
+    topSaleReqH += hbar(esc(sr.sale), Math.round(sr.req/maxSaleReq*100), saleColors[pi%saleColors.length], dashNum(sr.req)+' '+_t('db.unit.req'));
   }
-  h += '<div class="dc">'+dcHead(_t('db.c.team'), _t('db.c.teamSub'), _t('db.tag.exec'))
-    + '<div style="margin-top:8px">'+(teamH||muted(_t('db.empty')))+'</div></div>';
+  h += '<div class="dc">'+dcHead(_t('db.c.topSaleReq'), _t('db.c.topSaleReqSub'), _t('db.tag.ops'))
+    + '<div style="margin-top:8px">'+(topSaleReqH||muted(_t('db.empty')))+'</div></div>';
 
   // 6 · Sheet Sync status (real — replaces mock per-admin workload)
   var syncTot = m.sync.synced + m.sync.pending + m.sync.none; if(syncTot<=0) syncTot=1;
@@ -4527,13 +4503,13 @@ function _renderDashboardHTML(){
   // ── Full-width: Sale performance table (real; Avg Review column removed) ──
   h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--blue)"></span>'+_t('db.sec.saleTbl')+'</div><span class="dash-tag" style="background:rgba(123,196,240,0.16);color:var(--blue)">'+_t('db.tag.ops')+'</span></div>';
   h += '<div class="dc"><div class="dc-s">'+_t('db.foot.saleTbl')+'</div><div class="dtbl-wrap"><table><thead><tr>'
-    + '<th>'+_t('db.th.rank')+'</th><th>'+_t('db.th.sale')+'</th><th>'+_t('db.th.team')+'</th>'
+    + '<th>'+_t('db.th.rank')+'</th><th>'+_t('db.th.sale')+'</th>'
     + '<th class="dnum">'+_t('db.th.requests')+'</th><th class="dnum">'+_t('db.th.br')+'</th><th class="dnum">'+_t('db.th.subQty')+'</th>'
     + '<th class="dnum">'+_t('db.th.appQty')+'</th><th class="dnum">'+_t('db.th.pending')+'</th><th class="dnum">'+_t('db.th.revision')+'</th>'
     + '<th class="dnum">'+_t('db.th.cancelled')+'</th><th class="dnum">'+_t('db.th.value')+'</th></tr></thead><tbody>';
   var rankCls = ['r1','r2','r3'];
   for(pi=0; pi<saleGroups.length; pi++){ var rg=saleGroups[pi];
-    h += '<tr><td><span class="drank '+(rankCls[pi]||'rn')+'">'+(pi+1)+'</span></td><td><b>'+esc(rg.sale)+'</b></td><td>'+esc(rg.team)+'</td>'
+    h += '<tr><td><span class="drank '+(rankCls[pi]||'rn')+'">'+(pi+1)+'</span></td><td><b>'+esc(rg.sale)+'</b></td>'
       + '<td class="dnum">'+dashNum(rg.req)+'</td><td class="dnum">'+dashNum(rg.br)+'</td><td class="dnum">'+dashNum(rg.subQty)+'</td><td class="dnum">'+dashNum(rg.appQty)+'</td>'
       + '<td class="dnum">'+dashNum(rg.pendCount)+'</td><td class="dnum">'+dashNum(rg.revCount)+'</td><td class="dnum">'+dashNum(rg.cancCount)+'</td><td class="dnum">'+dashMoneyShort(rg.value)+'</td></tr>';
   }
@@ -4543,11 +4519,11 @@ function _renderDashboardHTML(){
   var recent = rows.slice().sort(function(a,b){ return (Number(b.dateSort)||0)-(Number(a.dateSort)||0); }).slice(0, 12);
   h += '<div class="dash-sec"><div class="dash-sec-hd"><div class="dash-sec-title"><span class="acc" style="background:var(--pink)"></span>'+_t('db.sec.recent')+'</div></div>';
   h += '<div class="dc"><div class="dtbl-wrap"><table><thead><tr>'
-    + '<th>'+_t('db.th.rtid')+'</th><th>'+_t('db.th.date')+'</th><th>'+_t('db.th.team')+'</th><th>'+_t('db.th.sale')+'</th>'
+    + '<th>'+_t('db.th.rtid')+'</th><th>'+_t('db.th.date')+'</th><th>'+_t('db.th.sale')+'</th>'
     + '<th>'+_t('db.th.customer')+'</th><th>'+_t('db.th.brno')+'</th><th>'+_t('db.th.status')+'</th><th>'+_t('db.th.type')+'</th>'
     + '<th class="dnum">'+_t('db.th.qty')+'</th><th class="dnum">'+_t('db.th.value')+'</th><th>'+_t('db.th.sync')+'</th></tr></thead><tbody>';
   for(pi=0; pi<recent.length; pi++){ var rr=recent[pi]; var rns=normalizeStatus(rr.status);
-    h += '<tr><td class="dnum" style="text-align:left">'+esc(rr.id||'')+'</td><td>'+esc(fmtRequestDate(rr))+'</td><td>'+esc(dashTeam(rr.sale))+'</td><td>'+esc(rr.sale||'')+'</td>'
+    h += '<tr><td class="dnum" style="text-align:left">'+esc(rr.id||'')+'</td><td>'+esc(fmtRequestDate(rr))+'</td><td>'+esc(rr.sale||'')+'</td>'
       + '<td>'+esc(rr.cust||rr.custName||'')+'</td><td class="dnum" style="text-align:left">'+esc(rr.br||'')+'</td><td>'+statusPill(rns)+'</td><td>'+typePills(rr)+'</td>'
       + '<td class="dnum">'+dashNum(dashboardRequestQty(rr))+'</td><td class="dnum">'+dashMoneyShort(dashboardRequestValue(rr))+'</td><td>'+syncCell(rr.sheetSync||'none')+'</td></tr>';
   }
