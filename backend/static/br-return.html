@@ -2717,6 +2717,7 @@ function loadReturnRequests(opts){
       mergeHistorySales();
       renderSalePills();
       if(ACTIVE_TAB === 'sale') renderContent();
+      else if(ACTIVE_TAB === 'dashboard') renderDashboard();
       else renderAdminContent();
     })
     .catch(function(err){
@@ -2873,6 +2874,7 @@ function applyBorrowMasterData(customers, sales, brsByCustomer, itemsByBr){
   MASTER_SOURCE = 'api';
   renderSalePills();
   if(ACTIVE_TAB === 'sale') renderContent();
+  else if(ACTIVE_TAB === 'dashboard') renderDashboard();
   else renderAdminContent();
 }
 
