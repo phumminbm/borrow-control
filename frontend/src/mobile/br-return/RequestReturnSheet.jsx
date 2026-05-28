@@ -65,6 +65,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
   const [step, setStep] = useState(1);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [perItem, setPerItem] = useState({}); // item_id -> { retQty, clmQty, saleQty, freeQty }
+  const [bulkType, setBulkType] = useState(null);
   const [remark, setRemark] = useState("");
   // Submit-state (async, backend-aware): submitting disables the Submit
   // button + shows a spinner; submitError lives at the bottom of Step 4
@@ -122,6 +123,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
     setStep(1);
     setSubmitting(false);
     setSubmitError("");
+    setBulkType(null);
     if (isEditing) {
       // Pre-select every editable row so Sale immediately sees what's in
       // scope, but leave qty allocation BLANK — Sale must re-enter the
@@ -184,6 +186,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
   const blankAlloc = () => ({ retQty: 0, clmQty: 0, saleQty: 0, freeQty: 0 });
 
   function togglePick(id) {
+    setBulkType(null);
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); }
@@ -206,6 +209,7 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
     const it = items.find(i => i.item_id === id);
     if (!it) return;
     const max = it.quantity;
+    setBulkType(null);
     setPerItem(prev => {
       const cur = prev[id] || blankAlloc();
       const otherTotal = (cur.retQty || 0) + (cur.clmQty || 0) + (cur.saleQty || 0) + (cur.freeQty || 0) - (cur[QTY_KEY[typeKey]] || 0);
@@ -218,6 +222,16 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
   // the chosen type gets the item's full available quantity and the other
   // three types are zeroed. Matches the desktop quick-fill buttons.
   function selectAllAsType(typeKey) {
+    if (bulkType === typeKey) {
+      setBulkType(null);
+      setPerItem(prev => {
+        const next = { ...prev };
+        for (const id of selectedIds) next[id] = blankAlloc();
+        return next;
+      });
+      return;
+    }
+    setBulkType(typeKey);
     setPerItem(prev => {
       const next = { ...prev };
       for (const id of selectedIds) {
@@ -264,6 +278,9 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
       product_name: it.product_name,
     };
   });
+  const activeBulk = RETURN_TYPES.find(t => t.key === bulkType);
+  const activeBulkLabel = activeBulk ? typeLabel(activeBulk, lang) : "";
+  const activeBulkTextColor = activeBulk?.key === "FREE" ? "#fff" : "#151515";
   const totalValue = submittedItems.reduce((s, x) => s + x.totalPrice, 0);
   // Valid when every selected item has at least 1 allocated AND the total
   // allocation doesn't exceed the source row's quantity.
@@ -622,21 +639,65 @@ export function RequestReturnSheet({ open, onClose, br, customer, sale, lang, da
                 {lang === "th" ? "เลือกทั้งหมดเป็น" : "Select all as"}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                {RETURN_TYPES.map(t => (
-                  <button
-                    key={t.key}
-                    onClick={() => selectAllAsType(t.key)}
-                    style={{
-                      flex: 1, padding: "8px 4px", borderRadius: 8,
-                      border: `1px solid ${t.border}`,
-                      color: t.color, background: "transparent",
-                      fontSize: 11, fontWeight: 700, cursor: "pointer",
-                      textAlign: "center", fontFamily: "inherit",
-                    }}
-                  >
-                    {t.icon} {typeLabel(t, lang)}
-                  </button>
-                ))}
+                {RETURN_TYPES.map(t => {
+                  const active = bulkType === t.key;
+                  const inactiveDim = !!bulkType && !active;
+                  const fg = active ? (t.key === "FREE" ? "#fff" : "#151515") : t.color;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => selectAllAsType(t.key)}
+                      aria-pressed={active}
+                      style={{
+                        flex: 1,
+                        minHeight: 48,
+                        padding: "8px 4px",
+                        borderRadius: 10,
+                        border: `1px solid ${active ? t.color : t.border}`,
+                        color: fg,
+                        background: active ? t.color : "transparent",
+                        boxShadow: active ? `0 0 0 3px ${t.color}26, 0 8px 18px rgba(0,0,0,0.18)` : "none",
+                        opacity: inactiveDim ? 0.42 : 1,
+                        transform: active ? "translateY(-1px)" : "none",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        textAlign: "center",
+                        fontFamily: "inherit",
+                        transition: "all 140ms ease",
+                      }}
+                    >
+                      <div>{active ? "✓ " : ""}{t.icon} {typeLabel(t, lang)}</div>
+                      {active && (
+                        <div style={{ marginTop: 3, fontSize: 8.5, fontWeight: 900, letterSpacing: 0.2, opacity: 0.82 }}>
+                          {lang === "th" ? "เลือกแล้ว" : "Selected"}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{
+                marginTop: 9,
+                minHeight: 18,
+                fontSize: 11,
+                fontWeight: 700,
+                color: activeBulk ? activeBulk.color : sub,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}>
+                {activeBulk ? (
+                  <>
+                    <span style={{ color: activeBulk.color }}>✓</span>
+                    <span>{lang === "th" ? "เลือกทั้งหมดเป็น:" : "Selected all as:"}</span>
+                    <span style={{ color: activeBulkTextColor, background: activeBulk.color, borderRadius: 999, padding: "2px 8px" }}>
+                      {activeBulk.icon} {activeBulkLabel}
+                    </span>
+                  </>
+                ) : (
+                  <span>{lang === "th" ? "แตะประเภทเพื่อเติมจำนวนทั้งหมด" : "Tap a type to fill all selected items"}</span>
+                )}
               </div>
             </div>
 
